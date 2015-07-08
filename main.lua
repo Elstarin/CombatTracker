@@ -160,21 +160,6 @@ local checks = {
 -- Ooh, arena and battleground buttons are better
 -- And side buttons are nice in the PvP frame as well
 
--- Type:UsesAttributes("sourceUnit, sourceGUID")
--- Type:UsesAttributes("spell")
--- Type:UsesAttributes("alpha")
--- Type:UsesAttributes("destUnit, destGUID")
--- Type:UsesAttributes("unit, GUID")
--- Type:UsesAttributes("start, duration")
--- Type:UsesAttributes("extraSpell")
--- Type:UsesAttributes("texture")
-
--- Type:RegisterIconEvent(5, "OnCLEUEvent", {
---      category = L["ICONMENU_CLEU"],
---      text = L["SOUND_EVENT_ONCLEU"],
---      desc = L["SOUND_EVENT_ONCLEU_DESC"],
--- })
-
 -- f:RegisterEvent("UNIT_FLAGS") -- accurately detects changes to InCombatLockdown
 -- f:SetScript("OnEvent", function(self, event)
 --   isInCombatLockdown = InCombatLockdown()
@@ -231,7 +216,7 @@ local timer = 0
 CT.settings.updateDelay = 0.1
 CT.mainUpdate = CreateFrame("Frame")
 CT.mainUpdate:SetScript("OnUpdate", function(frame, elapsed)
-
+  
      if CT.forceUpdate then
           local time = GetTime()
 
@@ -462,10 +447,6 @@ end
 
 function CT:OnDisable()
   -- CT:Print("CT Disable")
-end
-
-local function round(number, decimals)
-  return (("%%.%df"):format(decimals)):format(number)
 end
 --------------------------------------------------------------------------------
 -- Main Button Functions
