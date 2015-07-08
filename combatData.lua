@@ -19,10 +19,10 @@ function CT.updatePowerTypes()
       power.oldPower = UnitPower("player", i)
       power.currentPower = UnitPower("player", i)
       power.maxPower = UnitPowerMax("player", i)
-      power.skip = true
       power.total = power.total or 0
       power.effective = power.effective or 0
       power.wasted = power.wasted or 0
+      power.skip = true
 
       tinsert(data.power, i)
     end
@@ -57,12 +57,12 @@ do -- Setting basic data table
 
   data.health = {}
   data.health.maxHealth = UnitHealthMax("player")
-
-  data.stats = {}
+  
+  data.throttle = 0.0085
 end
 
 function CT.resetData()
-  CT:Print("Resetting")
+  CT:Print("Resetting Data.")
 
   CT.TimeSinceLogIn = GetTime()
 
@@ -110,9 +110,36 @@ function CT.resetData()
   do -- Reset Spells
     for k,v in pairs(data.spells) do
       if type(v) == "table" then
-        for k,v in pairs(v) do
-          if type(v) == "number" then
-            v = 0
+        if v.casts then v.casts = 0 end
+        if v.totalCD then v.totalCD = 0 end
+        if v.CD then v.CD = 0 end
+        if v.delay then v.delay = 0 end
+        if v.totalGCD then v.totalGCD = 0 end
+        if v.charges then v.charges = false end
+        if v.onCD then
+          v.onCD = false
+          v.remaining = 0
+          v.ticker:Cancel()
+        end
+      end
+    end
+  end
+  
+  do -- Reset graph
+    for spellID, self in pairs(CT.registerGraphs) do
+      if self.graphData then
+        if self.addingUptimeLine then
+          -- self:uptimeGraphUpdate(spell, data.spells[spellID])
+          self.addingUptimeLine = false
+        end
+        
+        wipe(self.graphData)
+        
+        if self.graph and type(self.graph) == "table" then
+          self.graph.XMax = 10
+          
+          if self.expanded then
+            self.graph:RefreshGraph()
           end
         end
       end
@@ -159,16 +186,11 @@ local function runCooldown(spell, spellID)
       endCD = start + duration
     end)
 
-    C_Timer.NewTicker(0.001, function(ticker)
-      local remaining = endCD - GetTime()
-      local CD = duration - remaining
+    spell.ticker = C_Timer.NewTicker(0.001, function(ticker)
+      spell.remaining = endCD - GetTime()
+      spell.CD = duration - spell.remaining
 
-      spell.CD = CD
-      spell.remaining = remaining
-
-      -- CD should be done, calculate the true CD and stop the ticker
-      if remaining < 0 then
-
+      if spell.remaining <= data.throttle then -- CD should be done, calculate the true CD and stop the ticker
         if baseCD == duration then
           cooldown = baseCD
         elseif baseCD > duration then
@@ -181,15 +203,30 @@ local function runCooldown(spell, spellID)
             cooldown = duration
           end
         end
+        
+        do -- Adjusts the throttle, making it more or less likely to delay a tick
+          data.timeOffset = (data.timeOffset or 0) + spell.remaining
+          
+          if data.timeOffset > 0 then
+            data.throttle = data.throttle - (data.timeOffset / 100)
+          elseif data.timeOffset < 0 then
+            data.throttle = data.throttle - (data.timeOffset / 100)
+          end
+        end
 
         spell.totalCD = (spell.totalCD or 0) + cooldown
 
         ticker:Cancel()
         spell.onCD = false
         spell.CD = 0
-        spell.graphCD = cooldown
         spell.finishedTime = GetTime()
         spell.charges = false
+
+        if spell.graphUpdate and spell.graphUpdate.addingUptimeLine then
+          spell.graphCooldownEnd = true
+          spell.graphUpdate:uptimeGraphUpdate(spell)
+          spell.graphUpdate.addingUptimeLine = false
+        end
 
         if spell.queued then
           spell.queued = false
@@ -336,14 +373,20 @@ local function castSent(unit, spellName, rank, target, lineID)
 
   local _, _, _, _, _, _, spellID = GetSpellInfo(spellName) -- Get spellID
   if not spellID then print("Failed to find spell ID for " .. spellName .. ".") return end
-
-  if not data.spells[spellID] then
-    data.spells[spellID] = {}
-    data.spells[spellID].name = spellName
-    data.spells.needsUpdate = true
-    -- data.spells[spellName] = data.spells[spellID]
-  end
+  
+  if spell then error("SPELL IS GLOBAL") end
+  
   local spell = data.spells[spellID]
+  if not spell then
+    data.spells[spellID] = {}
+    spell = data.spells[spellID]
+    spell.name = spellName
+    if CT.registerGraphs[spellID] then
+      spell.graphUpdate = CT.registerGraphs[spellID]
+    end
+    
+    data.spells.needsUpdate = true
+  end
 
   spell.timeSent = GetTime()
 end
@@ -351,12 +394,17 @@ end
 local function castStart(time, event, _, sourceGUID, sourceName, _, _, destGUID, destName, _, _, spellID, spellName, school)
   if sourceGUID ~= data.GUID then return end
 
-  if not data.spells[spellID] then
+  local spell = data.spells[spellID]
+  if not spell then
     data.spells[spellID] = {}
-    data.spells[spellID].name = spellName
+    spell = data.spells[spellID]
+    spell.name = spellName
+    if CT.registerGraphs[spellID] then
+      spell.graphUpdate = CT.registerGraphs[spellID]
+    end
+    
     data.spells.needsUpdate = true
   end
-  local spell = data.spells[spellID]
 
   data.casting = true
   data.queued = false
@@ -398,13 +446,17 @@ end
 local function castStop(unitID, spellName, rank, lineID, spellID)
   if unitID ~= "player" then return end
 
-  if not data.spells[spellID] then
-    data.spells[spellID] = {}
-    data.spells[spellID].name = spellName
-    data.spells.needsUpdate = true
-    -- data.spells[spellName] = data.spells[spellID]
-  end
   local spell = data.spells[spellID]
+  if not spell then
+    data.spells[spellID] = {}
+    spell = data.spells[spellID]
+    spell.name = spellName
+    if CT.registerGraphs[spellID] then
+      spell.graphUpdate = CT.registerGraphs[spellID]
+    end
+    
+    data.spells.needsUpdate = true
+  end
 
   -- Check if the hard cast failed
   -- If it did, then update counters and total casting times
@@ -434,13 +486,17 @@ end
 local function castSucceeded(unitID, spellName, rank, lineID, spellID)
   if unitID ~= "player" then return end
 
-  if not data.spells[spellID] then
-    data.spells[spellID] = {}
-    data.spells[spellID].name = spellName
-    data.spells.needsUpdate = true
-    -- data.spells[spellName] = data.spells[spellID]
-  end
   local spell = data.spells[spellID]
+  if not spell then
+    data.spells[spellID] = {}
+    spell = data.spells[spellID]
+    spell.name = spellName
+    if CT.registerGraphs[spellID] then
+      spell.graphUpdate = CT.registerGraphs[spellID]
+    end
+    
+    data.spells.needsUpdate = true
+  end
 
   -- Check if the cast spell causes any others to reset their CDs
   if CT.resetCasts[spellID] then
@@ -492,6 +548,12 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
     data.GCD = GCD
 
     data.queued = false
+    
+    if spell.graphUpdate then
+      spell.graphCooldownStart = true
+      spell.graphUpdate:uptimeGraphUpdate(spell, startGCD)
+      spell.graphUpdate.addingUptimeLine = true
+    end
   end
 
   runCooldown(spell, spellID) -- Begins the spell's cooldown tracker
@@ -530,13 +592,19 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
 end
 
 local function castInterrupt(time, event, _, sourceGUID, sourceName, _, _, destGUID, destName, _, _, spellID, spellName, school, extraID, extraName, extraSchool)
-  if not data.spells[spellID] then
-    data.spells[spellID] = {}
-    data.spells[spellID].name = spellName
-    data.spells.needsUpdate = true
-    -- data.spells[spellName] = data.spells[spellID]
-  end
+  if sourceGUID ~= data.GUID then return end
+  
   local spell = data.spells[spellID]
+  if not spell then
+    data.spells[spellID] = {}
+    spell = data.spells[spellID]
+    spell.name = spellName
+    if CT.registerGraphs[spellID] then
+      spell.graphUpdate = CT.registerGraphs[spellID]
+    end
+    
+    data.spells.needsUpdate = true
+  end
 
   -- print(event)
 end

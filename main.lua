@@ -866,229 +866,238 @@ function CT:newButton(button, num)
   self.name = button.name
   self.num = num
   self.update = button.func
-     self.dropDownFunc = button.dropDownFunc
+  self.dropDownFunc = button.dropDownFunc
   self.lineTable = button.lines
   self.spellID = button.spellID
   self.iconTexture = button.icon or GetSpellTexture(self.name)
   self.graph = button.graph
-     self.uptimeGraph = button.uptimeGraph
+  self.graphColor = button.graphColor
+  self.uptimeGraph = button.uptimeGraph
   self.graphUpdateDelay = 0
   self.text = {}
   self.expanded = false
 
-     CT.mainButtons[num] = self.button
-     self.button.name = name
-     self.button.num = num
+  CT.mainButtons[num] = self.button
+  self.button.name = name
+  self.button.num = num
 
-     local button = self.button
+  local button = self.button
 
-     do -- Create Button
-          button:SetPoint("TOPLEFT", 0, 0)
-          button:SetPoint("TOPRIGHT", 0, 0)
-          button:SetSize(150, 44)
+  do -- Create Button
+    button:SetPoint("TOPLEFT", 0, 0)
+    button:SetPoint("TOPRIGHT", 0, 0)
+    button:SetSize(150, 44)
 
-          button.background = button:CreateTexture(nil, "BACKGROUND")
-          button.background:SetPoint("TOPLEFT", button, 4.5, -4)
-          button.background:SetPoint("BOTTOMRIGHT", button, -4, 3)
-          button.background:SetTexture(0.07, 0.07, 0.07, 1.0)
+    button.background = button:CreateTexture(nil, "BACKGROUND")
+    button.background:SetPoint("TOPLEFT", button, 4.5, -4)
+    button.background:SetPoint("BOTTOMRIGHT", button, -4, 3)
+    button.background:SetTexture(0.07, 0.07, 0.07, 1.0)
 
-          button.normal = button:CreateTexture(nil, "BACKGROUND")
-          button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-          button.normal:SetAllPoints(button)
-          button:SetNormalTexture(button.normal)
+    button.normal = button:CreateTexture(nil, "BACKGROUND")
+    button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+    button.normal:SetAllPoints(button)
+    button:SetNormalTexture(button.normal)
 
-          button.highlight = button:CreateTexture(nil, "BACKGROUND")
-          button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-          button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-          button.highlight:SetAllPoints(button)
-          button:SetHighlightTexture(button.highlight)
+    button.highlight = button:CreateTexture(nil, "BACKGROUND")
+    button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+    button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
+    button.highlight:SetAllPoints(button)
+    button:SetHighlightTexture(button.highlight)
 
-          button.disabled = button:CreateTexture(nil, "BACKGROUND")
-          button.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-          button.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-          button.disabled:SetAllPoints(button)
-          button:SetDisabledTexture(button.disabled)
+    button.disabled = button:CreateTexture(nil, "BACKGROUND")
+    button.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
+    button.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
+    button.disabled:SetAllPoints(button)
+    button:SetDisabledTexture(button.disabled)
 
-          button.pushed = button:CreateTexture(nil, "BACKGROUND")
-          button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-          button.pushed:SetAllPoints(button)
-          button:SetPushedTexture(button.pushed)
+    button.pushed = button:CreateTexture(nil, "BACKGROUND")
+    button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
+    button.pushed:SetAllPoints(button)
+    button:SetPushedTexture(button.pushed)
 
-          button.icon = button:CreateTexture(nil, "OVERLAY")
-          button.icon:SetSize(32, 32)
-          button.icon:SetPoint("LEFT", 30, 0)
-          if self.iconTexture then
-               button.icon:SetTexture(self.iconTexture)
-          else
-               button.icon:SetTexture(CT.player.specIcon)
-          end
-          SetPortraitToTexture(button.icon, button.icon:GetTexture())
-          button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-          button.icon:SetAlpha(0.9)
+    do -- Create Icon
+      button.icon = button:CreateTexture(nil, "OVERLAY")
+      button.icon:SetSize(32, 32)
+      button.icon:SetPoint("LEFT", 30, 0)
+      
+      if self.iconTexture then
+        button.icon:SetTexture(self.iconTexture)
+      else
+        button.icon:SetTexture(CT.player.specIcon)
+      end
+      
+      SetPortraitToTexture(button.icon, button.icon:GetTexture())
+      button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+      button.icon:SetAlpha(0.9)
+    end
 
-          button.expander = button:CreateTexture(nil, "BACKGROUND")
-          button.expander:SetSize(button:GetWidth(), button:GetHeight())
-          button.expander:SetPoint("TOPLEFT")
-          button.expander:SetPoint("TOPRIGHT")
-          button.expander.defaultHeight = button:GetHeight()
-          button.expander.height = button.expander:GetHeight()
-          button.expander.expanded = false
+    button.expander = button:CreateTexture(nil, "BACKGROUND")
+    button.expander:SetSize(button:GetWidth(), button:GetHeight())
+    button.expander:SetPoint("TOPLEFT")
+    button.expander:SetPoint("TOPRIGHT")
+    button.expander.defaultHeight = button:GetHeight()
+    button.expander.height = button.expander:GetHeight()
+    button.expander.expanded = false
 
-          button.dropDown = CreateFrame("Frame", nil, button)
-          button.dropDown.texture = button.dropDown:CreateTexture(nil, "BACKGROUND")
-          button.dropDown:SetSize(button:GetWidth(), 70)
-          button.dropDown:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 5, 2)
-          button.dropDown:SetPoint("TOPRIGHT", button, "BOTTOMRIGHT", -5, 2)
-          button.dropDown.texture:SetTexture(0.07, 0.07, 0.07, 1.0)
-          button.dropDown.texture:SetAllPoints()
-          button.dropDown.lineHeight = 13
-          button.dropDown.numLines = 0
-          button.dropDown:Hide()
-     end
+    button.dropDown = CreateFrame("Frame", nil, button)
+    button.dropDown.texture = button.dropDown:CreateTexture(nil, "BACKGROUND")
+    button.dropDown:SetSize(button:GetWidth(), 70)
+    button.dropDown:SetPoint("TOPLEFT", button, "BOTTOMLEFT", 5, 2)
+    button.dropDown:SetPoint("TOPRIGHT", button, "BOTTOMRIGHT", -5, 2)
+    button.dropDown.texture:SetTexture(0.07, 0.07, 0.07, 1.0)
+    button.dropDown.texture:SetAllPoints()
+    button.dropDown.lineHeight = 13
+    button.dropDown.numLines = 0
+    button.dropDown:Hide()
+  end
 
-     do -- Create Extras (up/down arrow, dragger)
-          do -- Up Arrow
-               button.upArrow = CreateFrame("Button", nil, button)
-               button.upArrow:SetSize(16, 16)
-               button.upArrow:SetPoint("TOPLEFT", 10, 0)
-               button.upArrow:SetNormalTexture("Interface/BUTTONS/Arrow-Up-Up.png")
-               button.upArrow:SetPushedTexture("Interface/BUTTONS/Arrow-Up-Down.png")
-               button.upArrow:SetAlpha(0)
+  do -- Create Extras (up/down arrow, dragger)
+    do -- Up Arrow
+      button.upArrow = CreateFrame("Button", nil, button)
+      button.upArrow:SetSize(16, 16)
+      button.upArrow:SetPoint("TOPLEFT", 10, 0)
+      button.upArrow:SetNormalTexture("Interface/BUTTONS/Arrow-Up-Up.png")
+      button.upArrow:SetPushedTexture("Interface/BUTTONS/Arrow-Up-Down.png")
+      button.upArrow:SetAlpha(0)
 
-               button.upArrow:SetScript("OnClick", function(upArrow)
-                    self:arrowClick("up")
-               end)
+      button.upArrow:SetScript("OnClick", function(upArrow)
+        self:arrowClick("up")
+      end)
 
-               button.upArrow:SetScript("OnEnter", function(upArrow)
-                    button.dragger:SetAlpha(1)
-                    button.upArrow:SetAlpha(1)
-                    button.downArrow:SetAlpha(1)
-                    button:LockHighlight()
-                    lastMouseoverButton = button
-               end)
+      button.upArrow:SetScript("OnEnter", function(upArrow)
+        button.dragger:SetAlpha(1)
+        button.upArrow:SetAlpha(1)
+        button.downArrow:SetAlpha(1)
+        button:LockHighlight()
+        lastMouseoverButton = button
+      end)
 
-               button:SetScript("OnLeave", function(upArrow)
-                    button.dragger:SetAlpha(0)
-                    button.upArrow:SetAlpha(0)
-                    button.downArrow:SetAlpha(0)
-                    button:UnlockHighlight()
-                    lastMouseoverButton = button
-               end)
-          end
+      button:SetScript("OnLeave", function(upArrow)
+        button.dragger:SetAlpha(0)
+        button.upArrow:SetAlpha(0)
+        button.downArrow:SetAlpha(0)
+        button:UnlockHighlight()
+        lastMouseoverButton = button
+      end)
+    end
 
-          do -- Down Arrow
-               button.downArrow = CreateFrame("Button", nil, button)
-               button.downArrow:SetSize(16, 16)
-               button.downArrow:SetPoint("BOTTOMLEFT", 10, 0)
-               button.downArrow:SetNormalTexture("Interface/BUTTONS/Arrow-Down-Up.png")
-               button.downArrow:SetPushedTexture("Interface/BUTTONS/Arrow-Down-Down.png")
-               button.downArrow:SetAlpha(0)
+    do -- Down Arrow
+      button.downArrow = CreateFrame("Button", nil, button)
+      button.downArrow:SetSize(16, 16)
+      button.downArrow:SetPoint("BOTTOMLEFT", 10, 0)
+      button.downArrow:SetNormalTexture("Interface/BUTTONS/Arrow-Down-Up.png")
+      button.downArrow:SetPushedTexture("Interface/BUTTONS/Arrow-Down-Down.png")
+      button.downArrow:SetAlpha(0)
 
-               button.downArrow:SetScript("OnClick", function(downArrow)
-                    self:arrowClick("down")
-               end)
+      button.downArrow:SetScript("OnClick", function(downArrow)
+        self:arrowClick("down")
+      end)
 
-               button.downArrow:SetScript("OnEnter", function(downArrow)
-                    button.dragger:SetAlpha(1)
-                    button.upArrow:SetAlpha(1)
-                    button.downArrow:SetAlpha(1)
-                    button:LockHighlight()
-                    lastMouseoverButton = button
-               end)
+      button.downArrow:SetScript("OnEnter", function(downArrow)
+        button.dragger:SetAlpha(1)
+        button.upArrow:SetAlpha(1)
+        button.downArrow:SetAlpha(1)
+        button:LockHighlight()
+        lastMouseoverButton = button
+      end)
 
-               button.downArrow:SetScript("OnLeave", function(downArrow)
-                    button.dragger:SetAlpha(0)
-                    button.upArrow:SetAlpha(0)
-                    button.downArrow:SetAlpha(0)
-                    button:UnlockHighlight()
-                    lastMouseoverButton = button
-               end)
-          end
+      button.downArrow:SetScript("OnLeave", function(downArrow)
+        button.dragger:SetAlpha(0)
+        button.upArrow:SetAlpha(0)
+        button.downArrow:SetAlpha(0)
+        button:UnlockHighlight()
+        lastMouseoverButton = button
+      end)
+    end
 
-          do -- Dragger Button
-               button.dragger = CreateFrame("Button", nil, button)
-               button.dragger:SetSize(20, 20)
-               button.dragger:SetPoint("BOTTOMRIGHT", -3, 2)
-               button.dragger:SetNormalTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Up.png")
-               button.dragger:SetPushedTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Down.png")
-               button.dragger:SetHighlightTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Highlight.png")
-               button.dragger:SetAlpha(0)
-               -- button.dragger:SetVertexColor(0.1, 0.1, 0.1, 0.9)
+    do -- Dragger Button
+      button.dragger = CreateFrame("Button", nil, button)
+      button.dragger:SetSize(20, 20)
+      button.dragger:SetPoint("BOTTOMRIGHT", -3, 2)
+      button.dragger:SetNormalTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Up.png")
+      button.dragger:SetPushedTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Down.png")
+      button.dragger:SetHighlightTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Highlight.png")
+      button.dragger:SetAlpha(0)
+      -- button.dragger:SetVertexColor(0.1, 0.1, 0.1, 0.9)
 
-               button.dragger:SetScript("OnMouseDown", function(dragger)
-                    self:dragMainButton()
-               end)
+      button.dragger:SetScript("OnMouseDown", function(dragger)
+        self:dragMainButton()
+      end)
 
-               button.dragger:SetScript("OnEnter", function(dragger)
-                    button.dragger:SetAlpha(1)
-                    button.upArrow:SetAlpha(1)
-                    button.downArrow:SetAlpha(1)
-                    button:LockHighlight()
-                    lastMouseoverButton = button
-               end)
+      button.dragger:SetScript("OnEnter", function(dragger)
+        button.dragger:SetAlpha(1)
+        button.upArrow:SetAlpha(1)
+        button.downArrow:SetAlpha(1)
+        button:LockHighlight()
+        lastMouseoverButton = button
+      end)
 
-               button.dragger:SetScript("OnLeave", function(dragger)
-                    button.dragger:SetAlpha(0)
-                    button.upArrow:SetAlpha(0)
-                    button.downArrow:SetAlpha(0)
-                    button:UnlockHighlight()
-                    lastMouseoverButton = button
-               end)
-          end
-     end
+      button.dragger:SetScript("OnLeave", function(dragger)
+        button.dragger:SetAlpha(0)
+        button.upArrow:SetAlpha(0)
+        button.downArrow:SetAlpha(0)
+        button:UnlockHighlight()
+        lastMouseoverButton = button
+      end)
+    end
+  end
 
-     do -- Main Text
-          self.title = button:CreateFontString("title", "ARTWORK")
-          self.title:SetPoint("LEFT", button.icon, "RIGHT", 10, 0)
-          self.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
-          self.title:SetTextColor(1, 1, 0, 1)
-          self.title:SetText(self.name)
+  do -- Main Text
+    self.title = button:CreateFontString("title", "ARTWORK")
+    self.title:SetPoint("LEFT", button.icon, "RIGHT", 10, 0)
+    self.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+    self.title:SetTextColor(1, 1, 0, 1)
+    self.title:SetText(self.name)
 
-          self.value = button:CreateFontString("value", "ARTWORK")
-          self.value:SetPoint("RIGHT", button, -25, 0)
-          self.value:SetFont("Fonts\\FRIZQT__.TTF", 23)
-          self.value:SetTextColor(1, 1, 0, 1)
-          self.value:SetText(random(70, 100) .. "%")
-     end
+    self.value = button:CreateFontString("value", "ARTWORK")
+    self.value:SetPoint("RIGHT", button, -25, 0)
+    self.value:SetFont("Fonts\\FRIZQT__.TTF", 23)
+    self.value:SetTextColor(1, 1, 0, 1)
+    self.value:SetText(random(70, 100) .. "%")
+  end
 
-     do -- Button Scripts
-          button:SetScript("OnClick", function(button)
-               PlaySound("igMainMenuOptionCheckBoxOn")
-               self:expanderToggle()
-          end)
-          button:SetScript("OnEnter", function(button)
-               button.dragger:SetAlpha(1)
-               button.upArrow:SetAlpha(1)
-               button.downArrow:SetAlpha(1)
-               lastMouseoverButton = button
-          end)
-          button:SetScript("OnLeave", function(button)
-               button.dragger:SetAlpha(0)
-               button.upArrow:SetAlpha(0)
-               button.downArrow:SetAlpha(0)
-               button:UnlockHighlight()
-               lastMouseoverButton = button
-          end)
-     end
+  do -- Button Scripts
+    button:SetScript("OnClick", function(button)
+         PlaySound("igMainMenuOptionCheckBoxOn")
+         self:expanderToggle()
+    end)
+    button:SetScript("OnEnter", function(button)
+         button.dragger:SetAlpha(1)
+         button.upArrow:SetAlpha(1)
+         button.downArrow:SetAlpha(1)
+         lastMouseoverButton = button
+    end)
+    button:SetScript("OnLeave", function(button)
+         button.dragger:SetAlpha(0)
+         button.upArrow:SetAlpha(0)
+         button.downArrow:SetAlpha(0)
+         button:UnlockHighlight()
+         lastMouseoverButton = button
+    end)
+  end
 
-     tinsert(CT.update, self)
+  tinsert(CT.update, self)
 
-     if self.uptimeGraph then
-          CT.registerGraphs[self.uptimeGraph] = self
-     end
+  if self.graph then
+    if self.uptimeGraph then
+      CT.registerGraphs[self.uptimeGraph] = self
+    end
+  end
 
-     if not CT.topAnchor1 then CT.topAnchor1 = {self.button:GetPoint(1)} end
-     if not CT.topAnchor2 then CT.topAnchor2 = {self.button:GetPoint(2)} end
+  if not CT.topAnchor1 then CT.topAnchor1 = {self.button:GetPoint(1)} end
+  if not CT.topAnchor2 then CT.topAnchor2 = {self.button:GetPoint(2)} end
 
   return self
 end
 
-function CT:getParser()
+function CT:getParser() -- NOTE: This may create the parser every time it's called.
   local parser, LT1, LT2, LT3, RT1, RT2, RT3
+  
   if not parser then
+    CT:Print("Creating Parser Tooltip")
     parser = CreateFrame("GameTooltip") -- added in everything beyond the first
     parser:SetOwner(UIParent, "ANCHOR_NONE")
 
@@ -1104,6 +1113,7 @@ function CT:getParser()
     RT3 = parser:CreateFontString()
     parser:AddFontStrings(LT3, RT3)
   end
+  
   return parser, LT1, LT2, LT3, RT1, RT2, RT3
 end
 
@@ -1286,9 +1296,11 @@ function CT:dragMainButton()
   button:SetFrameLevel(buttonLevel + 3)
   button.dragging = true
   local UIScale = UIParent:GetEffectiveScale()
+  
   if CT.mainButtons[button.num + 1] then
     CT.mainButtons[button.num + 1]:ClearAllPoints()
   end
+  
   if CT.onUpdate then
     CT.onUpdate.button = button
     CT.onUpdate:Show()
@@ -1348,6 +1360,7 @@ function CT:addEvent(event, func)
 	if not combatevents[event] then
 	    combatevents[event] = {}
 	end
+  
 	combatevents[event].func = func
 end
 --------------------------------------------------------------------------------
@@ -1359,7 +1372,7 @@ function CT:type1(lineTable)
   local expander = self.button.expander
 
   dropDown.lineHeight = 43
-     dropDown.linePadding = 3
+  dropDown.linePadding = 3
   dropDown.numLines = 1
 
   dropDown.middleBar = CreateFrame("Frame", "DropDownFrameMiddleBar", dropDown)
@@ -1367,7 +1380,7 @@ function CT:type1(lineTable)
   dropDown.middleBar:SetPoint("TOP", 0, 0)
   dropDown.middleBar:SetPoint("BOTTOM", 0, 0)
 
-     dropDown.line = {}
+  dropDown.line = {}
   dropDown.line[1] = CreateFrame("Frame", "DropDownFrameAnchor" .. 1, dropDown)
   local line = dropDown.line[1]
 
@@ -1375,70 +1388,70 @@ function CT:type1(lineTable)
   line:SetPoint("TOPRIGHT", dropDown, -3, -3)
   line:SetPoint("TOPLEFT", dropDown, 3, -3)
 
-     dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
+  dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
 
-     do -- left
-          line.left = CreateFrame("Frame", "DropDownHeaderFrameLeft" .. 1, line)
-          local lineSide = line.left
-          dropDown.left = {line.left}
+  do -- left
+    line.left = CreateFrame("Frame", "DropDownHeaderFrameLeft" .. 1, line)
+    local lineSide = line.left
+    dropDown.left = {line.left}
 
-          lineSide:SetSize(80, 40)
-          lineSide:SetPoint("TOPRIGHT", dropDown.middleBar, -1.5, -3)
-          lineSide:SetPoint("TOPLEFT", dropDown, 3, -3)
+    lineSide:SetSize(80, 40)
+    lineSide:SetPoint("TOPRIGHT", dropDown.middleBar, -1.5, -3)
+    lineSide:SetPoint("TOPLEFT", dropDown, 3, -3)
 
-          lineSide.background = lineSide:CreateTexture(nil, "BACKGROUND")
-          lineSide.background:SetAllPoints()
-          lineSide.background:SetTexture(0.7, 0.7, 0.7, 0.1)
-          -- lineSide.background:SetTexture("Interface\\addons\\CombatTracker\\ButtonTest4.tga")
+    lineSide.background = lineSide:CreateTexture(nil, "BACKGROUND")
+    lineSide.background:SetAllPoints()
+    lineSide.background:SetTexture(0.7, 0.7, 0.7, 0.1)
+    -- lineSide.background:SetTexture("Interface\\addons\\CombatTracker\\ButtonTest4.tga")
 
-          lineSide.title = lineSide:CreateFontString("title", "ARTWORK")
-          lineSide.title:SetPoint("LEFT", 2, 0)
-          lineSide.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
-          lineSide.title:SetTextColor(1, 1, 1, 1)
-          lineSide.title:SetText(lineTable[1])
+    lineSide.title = lineSide:CreateFontString("title", "ARTWORK")
+    lineSide.title:SetPoint("LEFT", 2, 0)
+    lineSide.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+    lineSide.title:SetTextColor(1, 1, 1, 1)
+    lineSide.title:SetText(lineTable[1])
 
-          lineSide.value = lineSide:CreateFontString("value", "ARTWORK")
-          lineSide.value:SetPoint("RIGHT", -10, 0)
-          lineSide.value:SetFont("Fonts\\FRIZQT__.TTF", 30)
-          lineSide.value:SetTextColor(1, 1, 0, 1)
-          lineSide.value:SetText(random(70, 100) .. "%")
-     end
+    lineSide.value = lineSide:CreateFontString("value", "ARTWORK")
+    lineSide.value:SetPoint("RIGHT", -10, 0)
+    lineSide.value:SetFont("Fonts\\FRIZQT__.TTF", 30)
+    lineSide.value:SetTextColor(1, 1, 0, 1)
+    lineSide.value:SetText(random(70, 100) .. "%")
+  end
 
-     do -- right
-          line.right = CreateFrame("Frame", "DropDownHeaderFrameRight" .. 1, line)
-          local lineSide = line.right
-          dropDown.right = {line.right}
+  do -- right
+    line.right = CreateFrame("Frame", "DropDownHeaderFrameRight" .. 1, line)
+    local lineSide = line.right
+    dropDown.right = {line.right}
 
-          lineSide:SetSize(80, 40)
-          lineSide:SetPoint("TOPLEFT", dropDown.middleBar, 1.5, -3)
-          lineSide:SetPoint("TOPRIGHT", dropDown, -3, -3)
+    lineSide:SetSize(80, 40)
+    lineSide:SetPoint("TOPLEFT", dropDown.middleBar, 1.5, -3)
+    lineSide:SetPoint("TOPRIGHT", dropDown, -3, -3)
 
-          lineSide.background = lineSide:CreateTexture(nil, "BACKGROUND")
-          lineSide.background:SetAllPoints()
-          lineSide.background:SetTexture(0.7, 0.7, 0.7, 0.1)
+    lineSide.background = lineSide:CreateTexture(nil, "BACKGROUND")
+    lineSide.background:SetAllPoints()
+    lineSide.background:SetTexture(0.7, 0.7, 0.7, 0.1)
 
-          lineSide.title = lineSide:CreateFontString("title", "ARTWORK")
-          lineSide.title:SetPoint("LEFT", 2, 0)
-          lineSide.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
-          lineSide.title:SetTextColor(1, 1, 1, 1)
-          lineSide.title:SetText(lineTable[2])
+    lineSide.title = lineSide:CreateFontString("title", "ARTWORK")
+    lineSide.title:SetPoint("LEFT", 2, 0)
+    lineSide.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+    lineSide.title:SetTextColor(1, 1, 1, 1)
+    lineSide.title:SetText(lineTable[2])
 
-          lineSide.value = lineSide:CreateFontString("value", "ARTWORK")
-          lineSide.value:SetPoint("RIGHT", -10, 0)
-          lineSide.value:SetFont("Fonts\\FRIZQT__.TTF", 30)
-          lineSide.value:SetTextColor(1, 1, 0, 1)
-          lineSide.value:SetText(random(70, 100) .. "%")
-     end
+    lineSide.value = lineSide:CreateFontString("value", "ARTWORK")
+    lineSide.value:SetPoint("RIGHT", -10, 0)
+    lineSide.value:SetFont("Fonts\\FRIZQT__.TTF", 30)
+    lineSide.value:SetTextColor(1, 1, 0, 1)
+    lineSide.value:SetText(random(70, 100) .. "%")
+  end
 
-     self.text[1] = {}
-     self.text[1].left = line.left.value
-     self.text[1].right = line.right.value
+  self.text[1] = {}
+  self.text[1].left = line.left.value
+  self.text[1].right = line.right.value
 
-     if self.graph then
-          self.graphFrame = self:buildGraph(100, 100, "normal")
-          dropDown.dropHeight = (dropDown.dropHeight or 0) + 100 + 6
-          self.graphText = {}
-     end
+  if self.graph then
+    self.graphFrame = self:buildResourceGraph(100, 100)
+    dropDown.dropHeight = (dropDown.dropHeight or 0) + 100 + 6
+    self.graphText = {}
+  end
 end
 
 function CT:type1AddLeft(spellName)
@@ -1446,33 +1459,33 @@ function CT:type1AddLeft(spellName)
   local dropDown = self.button.dropDown
   local expander = self.button.expander
 
-     local lineNum = #dropDown.line
-     local num = #dropDown.left
-     local line, lineSide
+  local lineNum = #dropDown.line
+  local num = #dropDown.left
+  local line, lineSide
 
-     if num == lineNum then
-          dropDown.line[lineNum + 1] = CreateFrame("Frame", "DropDownFrameAnchor" .. lineNum + 1, dropDown)
-          line = dropDown.line[lineNum + 1]
+  if num == lineNum then
+    dropDown.line[lineNum + 1] = CreateFrame("Frame", "DropDownFrameAnchor" .. lineNum + 1, dropDown)
+    line = dropDown.line[lineNum + 1]
 
-          line:SetSize(80, 40)
-          line:SetPoint("RIGHT", dropDown, -3, -3)
-          line:SetPoint("LEFT", dropDown, 3, -3)
-          line:SetPoint("TOP", dropDown.line[lineNum], "BOTTOM", 0, -3)
+    line:SetSize(80, 40)
+    line:SetPoint("RIGHT", dropDown, -3, -3)
+    line:SetPoint("LEFT", dropDown, 3, -3)
+    line:SetPoint("TOP", dropDown.line[lineNum], "BOTTOM", 0, -3)
 
-          dropDown.numLines = dropDown.numLines + 1
-          dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
-     else
-          line = dropDown.line[num + 1]
-     end
+    dropDown.numLines = dropDown.numLines + 1
+    dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
+  else
+    line = dropDown.line[num + 1]
+  end
 
-     -- Add left
+  -- Add left
   line.left = CreateFrame("Frame", "DropDownFrameLeft" .. num + 1, line)
   local lineSide = line.left
-     dropDown.left[#dropDown.left + 1] = {line.left}
+  dropDown.left[#dropDown.left + 1] = {line.left}
 
   lineSide:SetSize(80, 40)
-     lineSide:SetPoint("RIGHT", dropDown.middleBar, -1.5, -3)
-     lineSide:SetPoint("LEFT", dropDown, 3, -3)
+  lineSide:SetPoint("RIGHT", dropDown.middleBar, -1.5, -3)
+  lineSide:SetPoint("LEFT", dropDown, 3, -3)
   lineSide:SetPoint("TOP", dropDown.line[num].left, "BOTTOM", 0, -3)
 
   lineSide.background = lineSide:CreateTexture(nil, "BACKGROUND")
@@ -1488,60 +1501,60 @@ function CT:type1AddLeft(spellName)
   lineSide.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
   lineSide.icon:SetAlpha(0.9)
 
-     lineSide.value1 = lineSide:CreateFontString(nil, "ARTWORK")
-     lineSide.value1:SetPoint("LEFT", lineSide.icon, "RIGHT", 3, 0)
+  lineSide.value1 = lineSide:CreateFontString(nil, "ARTWORK")
+  lineSide.value1:SetPoint("LEFT", lineSide.icon, "RIGHT", 3, 0)
   lineSide.value1:SetFont("Fonts\\FRIZQT__.TTF", 20)
   lineSide.value1:SetTextColor(1, 1, 0, 1)
   lineSide.value1:SetText(random(1, 50) .. "%")
 
   lineSide.value2 = lineSide:CreateFontString(nil, "ARTWORK")
-     lineSide.value2:SetPoint("TOPRIGHT", -3, -2)
+  lineSide.value2:SetPoint("TOPRIGHT", -3, -2)
   lineSide.value2:SetFont("Fonts\\FRIZQT__.TTF", 13)
   lineSide.value2:SetTextColor(1, 1, 0, 1)
   lineSide.value2:SetText("Gain: " .. random(1, 50))
 
   lineSide.value3 = lineSide:CreateFontString(nil, "ARTWORK")
-     lineSide.value3:SetPoint("BOTTOMRIGHT", -3, 4)
+  lineSide.value3:SetPoint("BOTTOMRIGHT", -3, 4)
   lineSide.value3:SetFont("Fonts\\FRIZQT__.TTF", 13)
   lineSide.value3:SetTextColor(1, 1, 0, 1)
   lineSide.value3:SetText("Loss: " .. random(1, 30))
 
-     if not self.text[num + 1] then self.text[num + 1] = {} end
-     self.text[num + 1].left = {lineSide.value1, lineSide.value2, lineSide.value3}
+  if not self.text[num + 1] then self.text[num + 1] = {} end
+  self.text[num + 1].left = {lineSide.value1, lineSide.value2, lineSide.value3}
 end
 
 function CT:type1AddRight(spellName)
-     local button = self.button
+  local button = self.button
   local dropDown = self.button.dropDown
   local expander = self.button.expander
 
-     local lineNum = #dropDown.line
-     local num = #dropDown.right
-     local line, lineSide
+  local lineNum = #dropDown.line
+  local num = #dropDown.right
+  local line, lineSide
 
-     if num == lineNum then
-          dropDown.line[lineNum + 1] = CreateFrame("Frame", "DropDownFrameAnchor" .. lineNum + 1, dropDown)
-          line = dropDown.line[lineNum + 1]
+  if num == lineNum then
+    dropDown.line[lineNum + 1] = CreateFrame("Frame", "DropDownFrameAnchor" .. lineNum + 1, dropDown)
+    line = dropDown.line[lineNum + 1]
 
-          line:SetSize(80, 40)
-          line:SetPoint("RIGHT", dropDown, -3, -3)
-          line:SetPoint("LEFT", dropDown, 3, -3)
-          line:SetPoint("TOP", dropDown.line[lineNum], "BOTTOM", 0, -3)
+    line:SetSize(80, 40)
+    line:SetPoint("RIGHT", dropDown, -3, -3)
+    line:SetPoint("LEFT", dropDown, 3, -3)
+    line:SetPoint("TOP", dropDown.line[lineNum], "BOTTOM", 0, -3)
 
-          dropDown.numLines = dropDown.numLines + 1
-          dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
-     else
-          line = dropDown.line[num + 1]
-     end
+    dropDown.numLines = dropDown.numLines + 1
+    dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
+  else
+    line = dropDown.line[num + 1]
+  end
 
      -- Add right
   line.right = CreateFrame("Frame", "DropDownFrameRight" .. num + 1, line)
   local lineSide = line.right
-     dropDown.right[#dropDown.right + 1] = {line.right}
+  dropDown.right[#dropDown.right + 1] = {line.right}
 
   lineSide:SetSize(80, 40)
-     lineSide:SetPoint("LEFT", dropDown.middleBar, 1.5, -3)
-     lineSide:SetPoint("RIGHT", dropDown, -3, -3)
+  lineSide:SetPoint("LEFT", dropDown.middleBar, 1.5, -3)
+  lineSide:SetPoint("RIGHT", dropDown, -3, -3)
   lineSide:SetPoint("TOP", dropDown.line[num].right, "BOTTOM", 0, -3)
 
   lineSide.background = lineSide:CreateTexture(nil, "BACKGROUND")
@@ -1557,293 +1570,292 @@ function CT:type1AddRight(spellName)
   lineSide.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
   lineSide.icon:SetAlpha(0.9)
 
-     lineSide.value1 = lineSide:CreateFontString(nil, "ARTWORK")
-     lineSide.value1:SetPoint("LEFT", lineSide.icon, "RIGHT", 3, 0)
+  lineSide.value1 = lineSide:CreateFontString(nil, "ARTWORK")
+  lineSide.value1:SetPoint("LEFT", lineSide.icon, "RIGHT", 3, 0)
   lineSide.value1:SetFont("Fonts\\FRIZQT__.TTF", 20)
   lineSide.value1:SetTextColor(1, 1, 0, 1)
   lineSide.value1:SetText(random(1, 50) .. "%")
 
   lineSide.value2 = lineSide:CreateFontString(nil, "ARTWORK")
-     lineSide.value2:SetPoint("TOPRIGHT", -3, -2)
+  lineSide.value2:SetPoint("TOPRIGHT", -3, -2)
   lineSide.value2:SetFont("Fonts\\FRIZQT__.TTF", 13)
   lineSide.value2:SetTextColor(1, 1, 0, 1)
   lineSide.value2:SetText("Gain: " .. random(1, 50))
 
   lineSide.value3 = lineSide:CreateFontString(nil, "ARTWORK")
-     lineSide.value3:SetPoint("BOTTOMRIGHT", -3, 4)
+  lineSide.value3:SetPoint("BOTTOMRIGHT", -3, 4)
   lineSide.value3:SetFont("Fonts\\FRIZQT__.TTF", 13)
   lineSide.value3:SetTextColor(1, 1, 0, 1)
   lineSide.value3:SetText("Loss: " .. random(1, 30))
 
-     if not self.text[num + 1] then self.text[num + 1] = {} end
-     self.text[num + 1].right = {lineSide.value1, lineSide.value2, lineSide.value3}
+  if not self.text[num + 1] then self.text[num + 1] = {} end
+  self.text[num + 1].right = {lineSide.value1, lineSide.value2, lineSide.value3}
 end
 
 function CT:type2(lineTable)
-     local button = self.button
-     local dropDown = self.button.dropDown
-     local expander = self.button.expander
+  local button = self.button
+  local dropDown = self.button.dropDown
+  local expander = self.button.expander
 
-     dropDown.lineHeight = 43
-     dropDown.linePadding = 3
+  dropDown.lineHeight = 43
+  dropDown.linePadding = 3
 
-     if not dropDown.line then dropDown.line = {} end
+  if not dropDown.line then dropDown.line = {} end
 
-     for i = 1, #lineTable do
-          dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
-          dropDown.numLines = dropDown.numLines + 1
+  for i = 1, #lineTable do
+    dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
+    dropDown.numLines = dropDown.numLines + 1
 
-          local prevLine = #dropDown.line
-          local lineNum = prevLine + 1
+    local prevLine = #dropDown.line
+    local lineNum = prevLine + 1
 
-          dropDown.line[lineNum] = CreateFrame("Frame", "DropDownFrame" .. lineNum, dropDown)
-          local line = dropDown.line[lineNum]
+    dropDown.line[lineNum] = CreateFrame("Frame", "DropDownFrame" .. lineNum, dropDown)
+    local line = dropDown.line[lineNum]
 
-          line:SetSize(80, 40)
+    line:SetSize(80, 40)
 
-          line:SetPoint("LEFT", dropDown, 3, -3)
-          line:SetPoint("RIGHT", dropDown, -3, -3)
-          line:SetPoint("BOTTOM", dropDown, "TOP", 0, -(i * dropDown.lineHeight))
+    line:SetPoint("LEFT", dropDown, 3, -3)
+    line:SetPoint("RIGHT", dropDown, -3, -3)
+    line:SetPoint("BOTTOM", dropDown, "TOP", 0, -(i * dropDown.lineHeight))
 
-          line.background = line:CreateTexture(nil, "BACKGROUND")
-          line.background:SetAllPoints()
-          line.background:SetTexture(0.7, 0.7, 0.7, 0.1)
+    line.background = line:CreateTexture(nil, "BACKGROUND")
+    line.background:SetAllPoints()
+    line.background:SetTexture(0.7, 0.7, 0.7, 0.1)
 
-          line.title = line:CreateFontString("title", "ARTWORK")
-          line.title:SetPoint("LEFT", 20, 0)
-          line.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
-          line.title:SetTextColor(1, 1, 1, 1)
-          line.title:SetText(lineTable[i])
+    line.title = line:CreateFontString("title", "ARTWORK")
+    line.title:SetPoint("LEFT", 20, 0)
+    line.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+    line.title:SetTextColor(1, 1, 1, 1)
+    line.title:SetText(lineTable[i])
 
-          line.value = line:CreateFontString("value", "ARTWORK")
-          line.value:SetPoint("RIGHT", -20, 0)
-          line.value:SetFont("Fonts\\FRIZQT__.TTF", 30)
-          line.value:SetTextColor(1, 1, 0, 1)
-          line.value:SetText(random(1, 50))
+    line.value = line:CreateFontString("value", "ARTWORK")
+    line.value:SetPoint("RIGHT", -20, 0)
+    line.value:SetFont("Fonts\\FRIZQT__.TTF", 30)
+    line.value:SetTextColor(1, 1, 0, 1)
+    line.value:SetText(random(1, 50))
 
-          self.text[i] = line.value
-     end
+    self.text[i] = line.value
+  end
 
-     if self.uptimeGraph then
-          self:buildUptimeGraph()
-     end
+  if self.uptimeGraph then
+    self:buildUptimeGraph()
+  end
 end
 
 function CT:type3(lineTable)
-     local button = self.button
-     local dropDown = self.button.dropDown
-     local expander = self.button.expander
+  local button = self.button
+  local dropDown = self.button.dropDown
+  local expander = self.button.expander
 
-     dropDown.lineHeight = 23
-     dropDown.linePadding = 23
-     dropDown.numLines = 1
+  dropDown.lineHeight = 23
+  dropDown.linePadding = 23
+  dropDown.numLines = 1
 
-     dropDown.middleBar = CreateFrame("Frame", "DropDownFrameMiddleBar", dropDown)
-     dropDown.middleBar:SetSize(1, 1)
-     dropDown.middleBar:SetPoint("TOP", 0, 0)
-     dropDown.middleBar:SetPoint("BOTTOM", 0, 0)
+  dropDown.middleBar = CreateFrame("Frame", "DropDownFrameMiddleBar", dropDown)
+  dropDown.middleBar:SetSize(1, 1)
+  dropDown.middleBar:SetPoint("TOP", 0, 0)
+  dropDown.middleBar:SetPoint("BOTTOM", 0, 0)
 
-     if not dropDown.line then dropDown.line = {} end
+  if not dropDown.line then dropDown.line = {} end
 
-     dropDown.line[1] = CreateFrame("Frame", "DropDownFrame" .. 1, dropDown)
-     local line = dropDown.line[1]
+  dropDown.line[1] = CreateFrame("Frame", "DropDownFrame" .. 1, dropDown)
+  local line = dropDown.line[1]
 
-     line:SetSize(80, 40)
-     line:SetPoint("TOPRIGHT", dropDown, -3, -3)
-     line:SetPoint("TOPLEFT", dropDown, 3, -3)
+  line:SetSize(80, 40)
+  line:SetPoint("TOPRIGHT", dropDown, -3, -3)
+  line:SetPoint("TOPLEFT", dropDown, 3, -3)
 
-     dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
+  dropDown.dropHeight = (dropDown.dropHeight or 0) + 43
 
-     for i = 1, 2 do
-          line[i] = CreateFrame("Frame", "DropDownHeaderFrame" .. i, dropDown.middleBar)
-          line[i]:SetSize(80, 40)
+  for i = 1, 2 do
+    line[i] = CreateFrame("Frame", "DropDownHeaderFrame" .. i, dropDown.middleBar)
+    line[i]:SetSize(80, 40)
 
-          if i == 1 then
-               line[i]:SetPoint("TOPRIGHT", -1.5, -3)
-               line[i]:SetPoint("TOPLEFT", dropDown, 3, -3)
-          elseif i == 2 then
-               line[i]:SetPoint("TOPLEFT", 1.5, -3)
-               line[i]:SetPoint("TOPRIGHT", dropDown, -3, -3)
-          end
+    if i == 1 then
+      line[i]:SetPoint("TOPRIGHT", -1.5, -3)
+      line[i]:SetPoint("TOPLEFT", dropDown, 3, -3)
+    elseif i == 2 then
+      line[i]:SetPoint("TOPLEFT", 1.5, -3)
+      line[i]:SetPoint("TOPRIGHT", dropDown, -3, -3)
+    end
 
-          line[i].background = line[i]:CreateTexture(nil, "BACKGROUND")
-          line[i].background:SetAllPoints()
-          line[i].background:SetTexture(0.7, 0.7, 0.7, 0.1)
+    line[i].background = line[i]:CreateTexture(nil, "BACKGROUND")
+    line[i].background:SetAllPoints()
+    line[i].background:SetTexture(0.7, 0.7, 0.7, 0.1)
 
-          line[i].title = line[i]:CreateFontString("title", "ARTWORK")
-          line[i].title:SetPoint("LEFT", 2, 0)
-          line[i].title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-          line[i].title:SetTextColor(1, 1, 1, 1)
-          line[i].title:SetText(lineTable[i])
+    line[i].title = line[i]:CreateFontString("title", "ARTWORK")
+    line[i].title:SetPoint("LEFT", 2, 0)
+    line[i].title:SetFont("Fonts\\FRIZQT__.TTF", 12)
+    line[i].title:SetTextColor(1, 1, 1, 1)
+    line[i].title:SetText(lineTable[i])
 
-          line[i].value = line[i]:CreateFontString("value", "ARTWORK")
-          line[i].value:SetPoint("RIGHT", -1, 0)
-          line[i].value:SetFont("Fonts\\FRIZQT__.TTF", 25)
-          line[i].value:SetTextColor(1, 1, 0, 1)
-          line[i].value:SetText(random(70, 100) .. "%")
-     end
+    line[i].value = line[i]:CreateFontString("value", "ARTWORK")
+    line[i].value:SetPoint("RIGHT", -1, 0)
+    line[i].value:SetFont("Fonts\\FRIZQT__.TTF", 25)
+    line[i].value:SetTextColor(1, 1, 0, 1)
+    line[i].value:SetText(random(70, 100) .. "%")
+  end
 
-     self.text[1] = {line[1].value, line[2].value}
+  self.text[1] = {line[1].value, line[2].value}
 
-     if self.uptimeGraph then
-          self:buildUptimeGraph()
-     end
+  if self.uptimeGraph then
+    self:buildUptimeGraph()
+  end
 end
 
 function CT:type3AddLine()
-     local button = self.button
-     local dropDown = self.button.dropDown
-     local expander = self.button.expander
+  local button = self.button
+  local dropDown = self.button.dropDown
+  local expander = self.button.expander
 
-     dropDown.numLines = dropDown.numLines + 1
+  dropDown.numLines = dropDown.numLines + 1
 
-     local lineNum = #dropDown.line + 1
+  local lineNum = #dropDown.line + 1
 
-     dropDown.line[lineNum] = CreateFrame("Frame", "DropDownFrame" .. lineNum, dropDown)
-     local line = dropDown.line[lineNum]
+  dropDown.line[lineNum] = CreateFrame("Frame", "DropDownFrame" .. lineNum, dropDown)
+  local line = dropDown.line[lineNum]
 
-     line:SetSize(80, 20)
-     dropDown.dropHeight = (dropDown.dropHeight or 0) + 23
+  line:SetSize(80, 20)
+  dropDown.dropHeight = (dropDown.dropHeight or 0) + 23
 
-     line:SetPoint("LEFT", dropDown, 3, -3)
-     line:SetPoint("RIGHT", dropDown, -3, -3)
+  line:SetPoint("LEFT", dropDown, 3, -3)
+  line:SetPoint("RIGHT", dropDown, -3, -3)
 
-     if dropDown.linePadding > 3 then
-          line:SetPoint("BOTTOM", dropDown, "TOP", 0, -(lineNum * dropDown.lineHeight + (dropDown.linePadding - 3)))
-     else
-          line:SetPoint("BOTTOM", dropDown, "TOP", 0, -(lineNum * dropDown.lineHeight))
-     end
+  if dropDown.linePadding > 3 then
+    line:SetPoint("BOTTOM", dropDown, "TOP", 0, -(lineNum * dropDown.lineHeight + (dropDown.linePadding - 3)))
+  else
+    line:SetPoint("BOTTOM", dropDown, "TOP", 0, -(lineNum * dropDown.lineHeight))
+  end
 
-     line.background = line:CreateTexture(nil, "BACKGROUND")
-     line.background:SetAllPoints()
-     line.background:SetTexture(0.7, 0.7, 0.7, 0.1)
+  line.background = line:CreateTexture(nil, "BACKGROUND")
+  line.background:SetAllPoints()
+  line.background:SetTexture(0.7, 0.7, 0.7, 0.1)
 
-     line.title = line:CreateFontString("title", "ARTWORK")
-     line.title:SetPoint("LEFT", 20, 0)
-     line.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
-     line.title:SetTextColor(1, 1, 1, 1)
-     line.title:SetText(self.lineTable[3]:format(lineNum - 1))
+  line.title = line:CreateFontString("title", "ARTWORK")
+  line.title:SetPoint("LEFT", 20, 0)
+  line.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+  line.title:SetTextColor(1, 1, 1, 1)
+  line.title:SetText(self.lineTable[3]:format(lineNum - 1))
 
-     line.value = line:CreateFontString("value", "ARTWORK")
-     line.value:SetPoint("RIGHT", -20, 0)
-     line.value:SetFont("Fonts\\FRIZQT__.TTF", 15)
-     line.value:SetTextColor(1, 1, 0, 1)
-     line.value:SetText(random(1, 50))
+  line.value = line:CreateFontString("value", "ARTWORK")
+  line.value:SetPoint("RIGHT", -20, 0)
+  line.value:SetFont("Fonts\\FRIZQT__.TTF", 15)
+  line.value:SetTextColor(1, 1, 0, 1)
+  line.value:SetText(random(1, 50))
 
-     self.text[lineNum] = line.value
+  self.text[lineNum] = line.value
 end
 
 function CT:type4(spellName)
-     local button = self.button
-     local dropDown = self.button.dropDown
-     local expander = self.button.expander
+  local button = self.button
+  local dropDown = self.button.dropDown
+  local expander = self.button.expander
 
-     if not dropDown.line then
-          dropDown.line = {}
+  if not dropDown.line then
+    dropDown.line = {}
 
-          local width = dropDown:GetWidth() / 5
+    local width = dropDown:GetWidth() / 5
 
-          dropDown.anchorBarLeft = CreateFrame("Frame", "DropDownFrameAnchorBarLeft", dropDown)
-          dropDown.anchorBarLeft:SetSize(1, 1)
-          dropDown.anchorBarLeft:SetPoint("TOP", -width, 0)
-          dropDown.anchorBarLeft:SetPoint("BOTTOM", -width, 0)
+    dropDown.anchorBarLeft = CreateFrame("Frame", "DropDownFrameAnchorBarLeft", dropDown)
+    dropDown.anchorBarLeft:SetSize(1, 1)
+    dropDown.anchorBarLeft:SetPoint("TOP", -width, 0)
+    dropDown.anchorBarLeft:SetPoint("BOTTOM", -width, 0)
 
-          dropDown.anchorBarRight = CreateFrame("Frame", "DropDownFrameAnchorBarRight", dropDown)
-          dropDown.anchorBarRight:SetSize(10, 1)
-          dropDown.anchorBarRight:SetPoint("TOP", width, 0)
-          dropDown.anchorBarRight:SetPoint("BOTTOM", width, 0)
-     end
+    dropDown.anchorBarRight = CreateFrame("Frame", "DropDownFrameAnchorBarRight", dropDown)
+    dropDown.anchorBarRight:SetSize(10, 1)
+    dropDown.anchorBarRight:SetPoint("TOP", width, 0)
+    dropDown.anchorBarRight:SetPoint("BOTTOM", width, 0)
+  end
 
-     local line, lineSide, lineSideExtra
+  local line, lineSide, lineSideExtra
 
-     for i = 1, 100 do
-          if dropDown.line[i] then
-               line = dropDown.line[i]
+  for i = 1, 100 do
+    if dropDown.line[i] then
+      line = dropDown.line[i]
 
-               if not dropDown.line[i].left then
-                    lineSide = "left"
-                    break
-               elseif not dropDown.line[i].center then
-                    lineSide = "center"
-                    break
-               elseif not dropDown.line[i].right then
-                    lineSide = "right"
-                    break
-               end
+      if not dropDown.line[i].left then
+        lineSide = "left"
+        break
+      elseif not dropDown.line[i].center then
+        lineSide = "center"
+        break
+      elseif not dropDown.line[i].right then
+        lineSide = "right"
+        break
+      end
+    else
+      dropDown.line[i] = CreateFrame("Frame", "DropDownFrameAnchor" .. i, dropDown)
+      line = dropDown.line[i]
 
-          else
-               dropDown.line[i] = CreateFrame("Frame", "DropDownFrameAnchor" .. i, dropDown)
-               line = dropDown.line[i]
+      line:SetSize(80, 40)
+      line:SetPoint("RIGHT", dropDown, -3, -3)
+      line:SetPoint("LEFT", dropDown, 3, -3)
 
-               line:SetSize(80, 40)
-               line:SetPoint("RIGHT", dropDown, -3, -3)
-               line:SetPoint("LEFT", dropDown, 3, -3)
+      if dropDown.line[i - 1] then
+        line:SetPoint("TOP", dropDown.line[i - 1], "BOTTOM", 0, -3)
+      else
+        line:SetPoint("TOP", dropDown, 0, -3)
+      end
 
-               if dropDown.line[i - 1] then
-                    line:SetPoint("TOP", dropDown.line[i - 1], "BOTTOM", 0, -3)
-               else
-                    line:SetPoint("TOP", dropDown, 0, -3)
-               end
+      dropDown.numLines = dropDown.numLines + 1
+      dropDown.dropHeight = (dropDown.dropHeight or 0) + 40 + 3
+      lineSide = "left"
+      break
+    end
+  end
 
-               dropDown.numLines = dropDown.numLines + 1
-               dropDown.dropHeight = (dropDown.dropHeight or 0) + 40 + 3
-               lineSide = "left"
-               break
-          end
-     end
+  if spellName and type(spellName) ~= "table" then
+    local lineNum = #dropDown.line
 
-     if spellName and type(spellName) ~= "table" then
-          local lineNum = #dropDown.line
+    line[lineSide] = CreateFrame("Button", nil, line)
+    local lineSideExtra = lineSide
+    local lineSide = line[lineSide]
 
-          line[lineSide] = CreateFrame("Button", nil, line)
-          local lineSideExtra = lineSide
-          local lineSide = line[lineSide]
+    local dropDownWidth = (dropDown:GetWidth() / 3)
+    lineSide:SetSize(dropDownWidth - 3, 40)
 
-          local dropDownWidth = (dropDown:GetWidth() / 3)
-          lineSide:SetSize(dropDownWidth - 3, 40)
+    if lineSideExtra == "left" then
+      lineSide:SetPoint("TOPLEFT", dropDown.line[lineNum], 0, 0)
+    elseif lineSideExtra == "center" then
+      lineSide:SetPoint("TOP", dropDown.line[lineNum], 0, 0)
+    elseif lineSideExtra == "right" then
+      lineSide:SetPoint("TOPRIGHT", dropDown.line[lineNum], 0, 0)
+    end
 
-          if lineSideExtra == "left" then
-               lineSide:SetPoint("TOPLEFT", dropDown.line[lineNum], 0, 0)
-          elseif lineSideExtra == "center" then
-               lineSide:SetPoint("TOP", dropDown.line[lineNum], 0, 0)
-          elseif lineSideExtra == "right" then
-               lineSide:SetPoint("TOPRIGHT", dropDown.line[lineNum], 0, 0)
-          end
+    lineSide.normal = lineSide:CreateTexture(nil, "BACKGROUND")
+    lineSide.normal:SetAllPoints()
+    lineSide.normal:SetTexture(0.7, 0.7, 0.7, 0.1)
+    lineSide:SetNormalTexture(lineSide.normal)
 
-          lineSide.normal = lineSide:CreateTexture(nil, "BACKGROUND")
-          lineSide.normal:SetAllPoints()
-          lineSide.normal:SetTexture(0.7, 0.7, 0.7, 0.1)
-          lineSide:SetNormalTexture(lineSide.normal)
+    lineSide.highlight = lineSide:CreateTexture(nil, "BACKGROUND")
+    lineSide.highlight:SetAllPoints()
+    lineSide.highlight:SetTexture(0.7, 0.7, 0.7, 0.1)
+    lineSide:SetHighlightTexture(lineSide.highlight)
 
-          lineSide.highlight = lineSide:CreateTexture(nil, "BACKGROUND")
-          lineSide.highlight:SetAllPoints()
-          lineSide.highlight:SetTexture(0.7, 0.7, 0.7, 0.1)
-          lineSide:SetHighlightTexture(lineSide.highlight)
+    lineSide.icon = lineSide:CreateTexture(nil, "BACKGROUND")
+    lineSide.icon:SetSize(36, 36)
+    lineSide.icon:SetPoint("LEFT", 2, 0)
+    lineSide.icon:SetTexture(GetSpellTexture(spellName))
 
-          lineSide.icon = lineSide:CreateTexture(nil, "BACKGROUND")
-          lineSide.icon:SetSize(36, 36)
-          lineSide.icon:SetPoint("LEFT", 2, 0)
-          lineSide.icon:SetTexture(GetSpellTexture(spellName))
+    SetPortraitToTexture(lineSide.icon, lineSide.icon:GetTexture())
+    lineSide.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    lineSide.icon:SetAlpha(0.9)
 
-          SetPortraitToTexture(lineSide.icon, lineSide.icon:GetTexture())
-          lineSide.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-          lineSide.icon:SetAlpha(0.9)
+    lineSide.value1 = lineSide:CreateFontString(nil, "ARTWORK")
+    lineSide.value1:SetPoint("LEFT", lineSide.icon, "RIGHT", 3, 0)
+    lineSide.value1:SetFont("Fonts\\FRIZQT__.TTF", 20)
+    lineSide.value1:SetTextColor(1, 1, 0, 1)
+    lineSide.value1:SetText(random(1, 50) .. "%")
 
-          lineSide.value1 = lineSide:CreateFontString(nil, "ARTWORK")
-          lineSide.value1:SetPoint("LEFT", lineSide.icon, "RIGHT", 3, 0)
-          lineSide.value1:SetFont("Fonts\\FRIZQT__.TTF", 20)
-          lineSide.value1:SetTextColor(1, 1, 0, 1)
-          lineSide.value1:SetText(random(1, 50) .. "%")
+    if not self.text[lineNum] then self.text[lineNum] = {} end
 
-          if not self.text[lineNum] then self.text[lineNum] = {} end
+    self.text[lineNum].left = {lineSide.value1, lineSide.value2, lineSide.value3}
+  end
 
-          self.text[lineNum].left = {lineSide.value1, lineSide.value2, lineSide.value3}
-     end
-
-     if self.graph then
-          --  self:buildPieChart(200)
-          -- dropDown.dropHeight = (dropDown.dropHeight or 0) + 200 + 6
-     end
+  if self.graph then
+    --  self:buildPieChart(200)
+    -- dropDown.dropHeight = (dropDown.dropHeight or 0) + 200 + 6
+  end
 end
 --------------------------------------------------------------------------------
 -- DropDown Menu Functions
@@ -1911,22 +1923,22 @@ function CT:dropAnimationDown()
   end
 
   local dropDownHeight = dropDown.dropHeight
-     local lineHeight = dropDown.lineHeight
-     local shownLinesOld = 0
+  local lineHeight = dropDown.lineHeight
+  local shownLinesOld = 0
 
   dropDown.animationDown:SetScript("OnUpdate", function(frame, elapsed)
-          local progress = dropDown.animationDown:GetProgress()
+    local progress = dropDown.animationDown:GetProgress()
 
     dropDown:SetHeight(dropDownHeight * dropDown.animationDown:GetProgress())
     expander:SetHeight(expander.height + (dropDown.dropHeight * progress))
 
-          local shownLines = floor(((dropDownHeight * progress) / lineHeight) + 0.01)
+    local shownLines = floor(((dropDownHeight * progress) / lineHeight) + 0.01)
 
-          if shownLines > shownLinesOld and dropDown.line[shownLines] then
-               dropDown.line[shownLines]:Show()
-          end
+    if shownLines > shownLinesOld and dropDown.line[shownLines] then
+      dropDown.line[shownLines]:Show()
+    end
 
-          shownLinesOld = shownLines
+    shownLinesOld = shownLines
   end)
 
   dropDown.animationDown:SetScript("OnFinished", function()
@@ -1934,72 +1946,72 @@ function CT:dropAnimationDown()
     expander:SetHeight(expander.defaultHeight + dropDown.dropHeight + 3)
     expander.height = expander:GetHeight()
 
-          -- Sometimes they don't show, this just makes sure
-          -- Though it does cause a noticeable flash when it expands...
-          for k,v in pairs(dropDown.line) do
-               v:Show()
-          end
+    -- Sometimes they don't show, this just makes sure
+    -- Though it does cause a noticeable flash when it expands...
+    for k,v in pairs(dropDown.line) do
+      v:Show()
+    end
 
-          if self.graph then
-               self.graphFrame:Show()
-          end
+    if self.graph then
+      self.graphFrame:Show()
+    end
   end)
 
-     for k,v in pairs(dropDown.line) do
+  for k,v in pairs(dropDown.line) do
     v:Hide()
   end
 
-     if self.graph then
-          self.graphFrame:Hide()
-     end
+  if self.graph then
+    self.graphFrame:Hide()
+  end
 
   dropDown.animationDown:Play()
 end
 
 function CT:dropAnimationUp()
-     local button = self.button
-     local dropDown = self.button.dropDown
-     local expander = self.button.expander
+  local button = self.button
+  local dropDown = self.button.dropDown
+  local expander = self.button.expander
 
-     if not dropDown.animationUp then
-          dropDown.animationUp = dropDown:CreateAnimationGroup()
-          dropDown.animationUp.translation = dropDown.animationUp:CreateAnimation("Translation")
-          dropDown.animationUp.translation:SetDuration(0.1)
-     end
+  if not dropDown.animationUp then
+    dropDown.animationUp = dropDown:CreateAnimationGroup()
+    dropDown.animationUp.translation = dropDown.animationUp:CreateAnimation("Translation")
+    dropDown.animationUp.translation:SetDuration(0.1)
+  end
 
-     local dropDownHeight = dropDown.dropHeight
-     local lineHeight = dropDown.lineHeight
-     local numLines = dropDown.numLines
-     local shownLinesOld = 0
+  local dropDownHeight = dropDown.dropHeight
+  local lineHeight = dropDown.lineHeight
+  local numLines = dropDown.numLines
+  local shownLinesOld = 0
 
-     dropDown.animationUp:SetScript("OnUpdate", function(frame, elapsed)
-          local progress = dropDown.animationUp:GetProgress()
-          local height = abs((dropDownHeight * progress) - dropDown.dropHeight)
+  dropDown.animationUp:SetScript("OnUpdate", function(frame, elapsed)
+    local progress = dropDown.animationUp:GetProgress()
+    local height = abs((dropDownHeight * progress) - dropDown.dropHeight)
 
-          dropDown:SetHeight(height)
-          expander:SetHeight(expander.defaultHeight + height)
+    dropDown:SetHeight(height)
+    expander:SetHeight(expander.defaultHeight + height)
 
-          local shownLines = abs((floor(((dropDownHeight * progress) / lineHeight) - 0.01)) - numLines)
+    local shownLines = abs((floor(((dropDownHeight * progress) / lineHeight) - 0.01)) - numLines)
 
-          if (shownLines ~= shownLinesOld) and (shownLines > 0) and dropDown.line[shownLines] then
-               dropDown.line[shownLines]:Hide()
-          end
+    if (shownLines ~= shownLinesOld) and (shownLines > 0) and dropDown.line[shownLines] then
+         dropDown.line[shownLines]:Hide()
+    end
 
-          shownLinesOld = shownLines
-     end)
+    shownLinesOld = shownLines
+  end)
 
-     dropDown.animationUp:SetScript("OnFinished", function()
-          dropDown:SetHeight(dropDown.dropHeight + 3)
-          expander:SetHeight(expander.defaultHeight)
-          expander.height = expander:GetHeight()
-          dropDown:Hide()
-     end)
+  dropDown.animationUp:SetScript("OnFinished", function()
+    dropDown:SetHeight(dropDown.dropHeight + 3)
+    expander:SetHeight(expander.defaultHeight)
+    expander.height = expander:GetHeight()
+    dropDown:Hide()
+  end)
 
-     if self.graph then
-          self.graphFrame:Hide()
-     end
+  if self.graph then
+    self.graphFrame:Hide()
+  end
 
-     dropDown.animationUp:Play()
+  dropDown.animationUp:Play()
 end
 --------------------------------------------------------------------------------
 -- Main Button Update Functions
@@ -2093,7 +2105,7 @@ function CT:saveFunction(key, value)
 end
 
 function CT.formatTimer(currentTimer)
-     if currentTimer then
+  if currentTimer then
     local mins = floor(currentTimer / 60)
     local secs = currentTimer - (mins * 60)
     currentTimer = format("%d:%02d", mins, secs)
@@ -2101,9 +2113,10 @@ function CT.formatTimer(currentTimer)
   end
 end
 
-function CT.round(number, decimals)
-     if number == (math.huge or -math.huge) then number = 0 end
-     return (("%%.%df"):format(decimals)):format(number) + 0
+local infinity = math.huge
+function CT.round(num, decimals)
+  if (num == infinity) or (num == -infinity) then num = 0 end
+  return (("%%.%df"):format(decimals)):format(num) + 0
 end
 
 function CT.hasteCD(spellID, unit)
@@ -2112,17 +2125,17 @@ function CT.hasteCD(spellID, unit)
 end
 
 local colors = {
-	["White"] = {1.0, 1.0, 1.0, 1.0},
-	["Red"] = {0.95, 0.04, 0.10, 1.0},
-	["Orange"] = {0.82, 0.35, 0.09, 1.0},
-	["Blue"] = {0.08, 0.38, 0.91, 1.0},
-	["Light Blue"] = {0.53, 0.67, 0.92, 1.0},
-	["Yellow"] = {0.93, 0.86, 0.01, 1.0},
-	["Dark Green"] = {0.13,0.27,0.07,1},
-	["Green"] = {0.31,0.42,0.20,1},
-	["Light Green"] = {0.26,0.46,0.19,1},
-	["Dark Grey"] = {0.20, 0.23, 0.23, 1.0},
-	["Light Grey"] = {0.49,0.49,0.49,1},
+	["white"] = {1.0, 1.0, 1.0, 1.0},
+	["red"] = {0.95, 0.04, 0.10, 1.0},
+	["orange"] = {0.82, 0.35, 0.09, 1.0},
+	["blue"] = {0.08, 0.38, 0.91, 1.0},
+	["lightblue"] = {0.53, 0.67, 0.92, 1.0},
+	["yellow"] = {0.93, 0.86, 0.01, 1.0},
+	["darkgreen"] = {0.13, 0.27, 0.07, 1},
+	["green"] = {0.31, 0.42, 0.20, 1},
+	["lightgreen"] = {0.26, 0.46, 0.19, 1},
+	["darkgrey"] = {0.20, 0.23, 0.23, 1.0},
+	["lightgrey"] = {0.49,0.49,0.49,1},
 }
 
 function CT.colorText(fontString, text, colorString)
@@ -2132,33 +2145,33 @@ function CT.colorText(fontString, text, colorString)
 			text = fontString:GetText()
 		elseif not colorString then
 			if type(text) == "number" then
-			  colorString = colors.Yellow
+			  colorString = colors.yellow
 			else
-				colorString = colors.White
+				colorString = colors.white
 			end
 		end
 
     if not text then
-       text = fontString:GetText()
+      text = fontString:GetText()
     end
 
     if colorString == "percent" then
 			if text > 97 and text <= 100 then
-				fontString:SetTextColor(unpack(colors["Yellow"]))
+				fontString:SetTextColor(0.93, 0.86, 0.01, 1.0) -- Yellow
 			elseif text > 90 and text <= 97 then
-				fontString:SetTextColor(unpack(colors["Light Green"]))
+				fontString:SetTextColor(0.26, 0.46, 0.19, 1) -- Light Green
 			elseif text > 80 and text <= 90 then
-				fontString:SetTextColor(unpack(colors["Green"]))
+				fontString:SetTextColor(0.31, 0.42, 0.20, 1) -- Green
 			elseif text > 70 and text <= 80 then
-				fontString:SetTextColor(unpack(colors["Dark Green"]))
+				fontString:SetTextColor(0.13, 0.27, 0.07, 1) -- Dark Green
 			elseif text > 60 and text <= 70 then
-				fontString:SetTextColor(unpack(colors["Orange"]))
+				fontString:SetTextColor(0.82, 0.35, 0.09, 1.0) -- Orange
 			elseif text > 50 and text <= 60 then
-				fontString:SetTextColor(unpack(colors["Red"]))
+				fontString:SetTextColor(0.95, 0.04, 0.10, 1.0) -- Red
 			elseif text >= 0 and text <= 50 then
-				fontString:SetTextColor(unpack(colors["Red"]))
+				fontString:SetTextColor(0.95, 0.04, 0.10, 1.0) -- Red
 			else
-				fontString:SetTextColor(unpack(colors["Yellow"]))
+				fontString:SetTextColor(0.93, 0.86, 0.01, 1.0) -- Yellow
 			end
 
 			return
@@ -2261,17 +2274,19 @@ function CT.getPlayerDetails()
             },
             ["icon"] = "Interface/ICONS/Ability_DualWield.png",
             -- ["graph"] = false,
+            -- ["graphColor"] = colors.white,
           },
 
           { ["name"] = "Holy Power",
             ["func"] = func.resource2,
-                              ["dropDownFunc"] = CT.type1,
+            ["dropDownFunc"] = CT.type1,
             ["lines"] = {
               "Total Gain:",
               "Total Loss:",
             },
             ["icon"] = "Interface/ICONS/Spell_Holy_DivineProvidence.png",
             ["graph"] = true,
+            ["graphColor"] = colors.yellow,
           },
 
 					{ ["name"] = "Mana",
@@ -2282,6 +2297,7 @@ function CT.getPlayerDetails()
               "Total Loss:",
             },
             ["graph"] = true,
+            ["graphColor"] = colors.blue,
           },
 
           { ["name"] = "All Casts",
@@ -2303,9 +2319,9 @@ function CT.getPlayerDetails()
               "Average Delay",
               "Reset Casts",
             },
-            -- ["icon"] = GetSpellTexture("Holy Shock"),
             ["graph"] = true,
             ["uptimeGraph"] = 20473,
+            ["graphColor"] = colors.yellow,
           },
 
           { ["name"] = CT.player.talents[6],
@@ -2319,6 +2335,7 @@ function CT.getPlayerDetails()
             },
             ["graph"] = true,
             ["uptimeGraph"] = 114165,
+            ["graphColor"] = colors.yellow,
           },
 
           { ["name"] = CT.player.talents[7],
@@ -2350,17 +2367,6 @@ function CT.getPlayerDetails()
               "Activity line: 1",
               "Activity line: 2",
             },
-          },
-
-          { ["name"] = "Spell Costs",
-            ["func"] = func.activity,
-            ["dropDownFunc"] = CT.type2,
-            ["lines"] = {
-              "Activity line: 1",
-              "Activity line: 2",
-            },
-            -- ["icon"] = GetSpellTexture("Illuminated Healing"),
-            -- ["graph"] = false,
           },
 
           { ["name"] = CT.player.talents[2],
@@ -2409,6 +2415,16 @@ function CT.getPlayerDetails()
           },
 
         }
+        
+        -- { ["name"] = "Spell Costs",
+        --   ["func"] = func.activity,
+        --   ["dropDownFunc"] = CT.type2,
+        --   ["lines"] = {
+        --     "Activity line: 1",
+        --     "Activity line: 2",
+        --   },
+        -- },
+        
         return
       elseif specName == "Protection" then
 
@@ -2460,48 +2476,48 @@ end
 function CT.showLastFight()
   if not CT.base.lastFight then
     CT.base.lastFight = CreateFrame("Frame", nil, CT.base)
-          local f = CT.base.lastFight
+    local f = CT.base.lastFight
     f:SetSize(180, 64)
     f:SetPoint("BOTTOMRIGHT", CT.base.top, -12, -5)
     f.bossTexture = f:CreateTexture("BossTexture", "ARTWORK")
     f.bossTexture:SetPoint("LEFT", 0, 0)
     f.bossTexture:SetTexture("Interface\\ENCOUNTERJOURNAL\\UI-EJ-BOSS-Gruul.blp")
 
-          CT.comparisonButton = CreateFrame("Button", nil, f)
-          local b = CT.comparisonButton
-          b:SetSize(80, 30)
-          b:SetPoint("BOTTOMRIGHT", 0, 4)
+    CT.comparisonButton = CreateFrame("Button", nil, f)
+    local b = CT.comparisonButton
+    b:SetSize(80, 30)
+    b:SetPoint("BOTTOMRIGHT", 0, 4)
 
-          b.normal = b:CreateTexture(nil, "BACKGROUND")
-          b.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          b.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-          b.normal:SetAllPoints(b)
-          b:SetNormalTexture(b.normal)
+    b.normal = b:CreateTexture(nil, "BACKGROUND")
+    b.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    b.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+    b.normal:SetAllPoints(b)
+    b:SetNormalTexture(b.normal)
 
-          b.highlight = b:CreateTexture(nil, "BACKGROUND")
-          b.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          b.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-          b.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-          b.highlight:SetAllPoints(b)
-          b:SetHighlightTexture(b.highlight)
+    b.highlight = b:CreateTexture(nil, "BACKGROUND")
+    b.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    b.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+    b.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
+    b.highlight:SetAllPoints(b)
+    b:SetHighlightTexture(b.highlight)
 
-          b.disabled = b:CreateTexture(nil, "BACKGROUND")
-          b.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-          b.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-          b.disabled:SetAllPoints(b)
-          b:SetDisabledTexture(b.disabled)
+    b.disabled = b:CreateTexture(nil, "BACKGROUND")
+    b.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
+    b.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
+    b.disabled:SetAllPoints(b)
+    b:SetDisabledTexture(b.disabled)
 
-          b.pushed = b:CreateTexture(nil, "BACKGROUND")
-          b.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          b.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-          b.pushed:SetAllPoints(b)
-          b:SetPushedTexture(b.pushed)
+    b.pushed = b:CreateTexture(nil, "BACKGROUND")
+    b.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    b.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
+    b.pushed:SetAllPoints(b)
+    b:SetPushedTexture(b.pushed)
 
-          b.title = b:CreateFontString(nil, "ARTWORK")
-          b.title:SetPoint("CENTER", 0, 0)
-          b.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
-          b.title:SetTextColor(colors.Yellow[1], colors.Yellow[2], colors.Yellow[3], 1)
-          b.title:SetText("Compare")
+    b.title = b:CreateFontString(nil, "ARTWORK")
+    b.title:SetPoint("CENTER", 0, 0)
+    b.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+    b.title:SetTextColor(colors.yellow[1], colors.yellow[2], colors.yellow[3], 1)
+    b.title:SetText("Compare")
   else
     CT.lastFight:Show()
   end
