@@ -270,6 +270,50 @@ function CT:resourceGraphUpdate(spell, time)
   end
 end
 
+local function resourceGraphOnUpdate(self, mouseOver, dot, UIScale)
+  local graph = self.graph
+  local graphWidth, graphHeight = graph:GetSize()
+  local mouseX, mouseY = GetCursorPosition()
+  local mouseX = (mouseX / UIScale)
+  local mouseY = (mouseY / UIScale)
+  local alpha, line, num, lineRight, lineLeft
+  local YELLOW = "FFFFFF00"
+
+  mouseOver:SetPoint("LEFT", UIParent, mouseX, 0)
+
+  local count = 0
+  for i = 1, #graph.GraphLib_Lines_Used do
+    line = graph.GraphLib_Lines_Used[i]
+    local lineWidth, lineHeight = line:GetSize()
+
+    if lineHeight ~= graphHeight and (lineWidth + 1) < graphWidth then
+      local lineRight = line:GetRight()
+      
+      count = count + 1
+      if lineRight > mouseX then
+        lineLeft = line:GetLeft()
+        num = count
+        break
+      end
+    end
+  end
+
+  if num then
+    local dataX = self.graphData[num][1]
+    local value = self.graphData[num][2]
+    
+    local data = ("Time: |c%s%s\n|rValue: |c%s%d"):format(YELLOW, formatTimer(dataX), YELLOW, value)
+    CT.graphTooltip:SetText(data, 1, 1, 1, 1)
+  else
+    local graphDataNum = #self.graphData
+
+    if graphDataNum > 1 then
+      local data = ("Time: |c%s%s"):format(YELLOW, formatTimer(GetTime() - CT.TimeSinceLogIn))
+      CT.graphTooltip:SetText(data, 1, 1, 1, 1)
+    end
+  end
+end
+
 function CT:buildResourceGraph(height, yAxis)
   local button = self.button
   local dropDown = self.button.dropDown
@@ -377,10 +421,7 @@ function CT:buildResourceGraph(height, yAxis)
     local UIScale = UIParent:GetEffectiveScale()
 
     self.graphFrame.mouseOverLine:SetScript("OnUpdate", function(mouseOver, elapsed)
-      local mouseOver = self.graphFrame.mouseOverLine
-      local dot = self.graphFrame.mouseOverLine.dot
-
-      self.graph.updateFunc(self, mouseOver, dot, UIScale)
+      resourceGraphOnUpdate(self, self.graphFrame.mouseOverLine, self.graphFrame.mouseOverLine.dot, UIScale)
     end)
     self.graphFrame:SetScript("OnEnter", function(graphFrame)
       local mouseOver = self.graphFrame.mouseOverLine
@@ -478,13 +519,13 @@ function CT:buildResourceGraph(height, yAxis)
     graph.XMax = 10
     graph.YMin = 0
     graph.YMax = yAxis
-    graph:SetGridSpacing(10, 10)
-    graph:SetGridColor({0.5, 0.5, 0.5, 0.1})
-    graph:SetAxisDrawing(false, false)
-    graph:SetPoint("LEFT", 0, 3)
-    graph:SetPoint("RIGHT", 0, 3)
+    graph.XGridInterval = 10000
+    graph.YGridInterval = 10000
+    graph.GridColor = {0, 0, 0, 0}
+    graph.XAxisDrawn = false
+    graph.YAxisDrawn = false
+    graph:SetAllPoints()
     graph.graphType = "resource"
-    graph.updateFunc = normalGraphOnUpdate
 
     if not self.graphData then
       self.graphData = {}
@@ -874,14 +915,14 @@ end
 
 -- -- Should pass if it's part of the plot line, not part of the graph structure
 -- if lineHeight ~= graphHeight and (lineWidth + 1) < graphWidth then
-  -- self.graphPlotLines[#self.graphPlotLines + 1] = line
-  -- count = count + 1
-  --
-  -- if count == 1 then
-  --   line:SetAlpha(1)
-  -- elseif count == 2 then
-  --   count = 0
-  -- end
+--   self.graphPlotLines[#self.graphPlotLines + 1] = line
+--   count = count + 1
+--   
+--   if count == 1 then
+--     line:SetAlpha(1)
+--   elseif count == 2 then
+--     count = 0
+--   end
 -- end
 
 -- local string = "Time: |c%s%s - %s\n|rGap: |c%s%s"

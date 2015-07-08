@@ -5,6 +5,7 @@ if not CombatTracker then return end
 --------------------------------------------------------------------------------
 local CT = CombatTracker
 CT.data = {}
+local combatevents = CT.combatevents
 local data = CT.data
 local round = CT.round
 
@@ -609,17 +610,17 @@ local function castInterrupt(time, event, _, sourceGUID, sourceName, _, _, destG
   -- print(event)
 end
 
-CT:addEvent("UNIT_SPELLCAST_SENT", castSent)
-CT:addEvent("SPELL_CAST_START", castStart)
-CT:addEvent("UNIT_SPELLCAST_STOP", castStop)
-CT:addEvent("UNIT_SPELLCAST_SUCCEEDED", castSucceeded)
-CT:addEvent("SPELL_INTERRUPT", castInterrupt)
+combatevents["UNIT_SPELLCAST_SENT"] = castSent
+combatevents["SPELL_CAST_START"] = castStart
+combatevents["UNIT_SPELLCAST_STOP"] = castStop
+combatevents["UNIT_SPELLCAST_SUCCEEDED"] = castSucceeded
+combatevents["SPELL_INTERRUPT"] = castInterrupt
 --------------------------------------------------------------------------------
 -- Auras
 --------------------------------------------------------------------------------
 local function auraApplied(time, _, _, sourceGUID, sourceName, _, _, destGUID, destName, _, _, spellID, spellName, school, auraType, amount)
   if destGUID ~= data.GUID then return end
-  
+
   local aura = data.auras[spellID]
   if not aura then
     data.auras[spellID] = {}
@@ -648,6 +649,7 @@ local function auraApplied(time, _, _, sourceGUID, sourceName, _, _, destGUID, d
   aura.currentAmount = amount
   aura.currentStacks = 1
   
+  local timer = GetTime() - CT.TimeSinceLogIn
   if CT.spells.defensives[spellID] then
     aura.defensive[aura.totalCount] = {}
     aura.defensive[aura.totalCount].start = GetTime()
@@ -775,11 +777,11 @@ local function auraRemovedDose(time, _, _, sourceGUID, sourceName, _, _, destGUI
   print("Removed Dose")
 end
 
-CT:addEvent("SPELL_AURA_APPLIED", auraApplied)
-CT:addEvent("SPELL_AURA_APPLIED_DOSE", auraAppliedDose)
-CT:addEvent("SPELL_AURA_REFRESH", auraRefresh)
-CT:addEvent("SPELL_AURA_REMOVED", auraRemoved)
-CT:addEvent("SPELL_AURA_REMOVED_DOSE", auraRemovedDose)
+combatevents["SPELL_AURA_APPLIED"] = auraApplied
+combatevents["SPELL_AURA_APPLIED_DOSE"] = auraAppliedDose
+combatevents["SPELL_AURA_REFRESH"] = auraRefresh
+combatevents["SPELL_AURA_REMOVED"] = auraRemoved
+combatevents["SPELL_AURA_REMOVED_DOSE"] = auraRemovedDose
 --------------------------------------------------------------------------------
 -- Unit Power, Unit Health, and Resources
 --------------------------------------------------------------------------------
@@ -796,15 +798,15 @@ local function energize(time, event, _, sourceGUID, sourceName, _, _, destGUID, 
     _, _, _, _, _, _, spellID = GetSpellInfo(spellName)
   end
 
-  if not power.spells[spellID] then
-    power.spells[spellID] = {} -- NOTE: Can be nil, right after login
-    power.spells[spellID].name = spellName
+  local spell = power.spells[spellID]
+  if not spell then
+    power.spells[spellID] = {}
+    spell = power.spells[spellID]
+    spell.name = spellName
     power.addLine = true
     CT.forceUpdate = true
     power.numSpells = (power.numSpells or 1) + 1
   end
-
-  local spell = power.spells[spellID]
 
   if (power.currentPower + amount) > power.maxPower then
     power.wasted = (power.wasted or 0) + ((power.currentPower + amount) - power.maxPower)
@@ -840,11 +842,6 @@ local function unitPowerFrequent(unit, powerType)
   end
 
   power.currentPower = power.accuratePower
-
-  if powerTypeIndex ~= 0 then
-    -- CT:Print("Unit Power Update", power.change)
-  end
-
   power.oldPower = power.currentPower
 end
 
@@ -873,11 +870,11 @@ local function unitMaxHealth(unit)
   health.maxHealth = UnitHealthMax(unit)
 end
 
-CT:addEvent("SPELL_ENERGIZE", energize)
-CT:addEvent("UNIT_POWER_FREQUENT", unitPowerFrequent)
-CT:addEvent("UNIT_HEALTH_FREQUENT", unitHealthFrequent)
-CT:addEvent("UNIT_MAXPOWER", unitMaxPower)
-CT:addEvent("UNIT_MAXHEALTH", unitMaxHealth)
+combatevents["SPELL_ENERGIZE"] = energize
+combatevents["UNIT_POWER_FREQUENT"] = unitPowerFrequent
+combatevents["UNIT_HEALTH_FREQUENT"] = unitHealthFrequent
+combatevents["UNIT_MAXPOWER"] = unitMaxPower
+combatevents["UNIT_MAXHEALTH"] = unitMaxHealth
 --------------------------------------------------------------------------------
 -- Player Movement
 --------------------------------------------------------------------------------
@@ -891,8 +888,8 @@ local function stoppedMoving()
   data.movement = (data.movement or 0) + (GetTime() - data.moveStart)
 end
 
-CT:addEvent("PLAYER_STARTED_MOVING", startedMoving)
-CT:addEvent("PLAYER_STOPPED_MOVING", stoppedMoving)
+combatevents["PLAYER_STARTED_MOVING"] = startedMoving
+combatevents["PLAYER_STOPPED_MOVING"] = stoppedMoving
 --------------------------------------------------------------------------------
 -- Misc
 --------------------------------------------------------------------------------

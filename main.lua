@@ -180,7 +180,8 @@ CT.loadSpellData = false
 CT.__index = CT
 CT.settings = {}
 CT.settings.buttonSpacing = 2
-local combatevents = {}
+CT.combatevents = {}
+local combatevents = CT.combatevents
 CT.player = {}
 CT.altPower = {}
 local temp = {}
@@ -217,20 +218,20 @@ CT.settings.updateDelay = 0.1
 CT.mainUpdate = CreateFrame("Frame")
 CT.mainUpdate:SetScript("OnUpdate", function(frame, elapsed)
   
-     if CT.forceUpdate then
-          local time = GetTime()
+  if CT.forceUpdate then
+    local time = GetTime()
 
-          for i = 1, #CT.update do
-               CT.update[i]:update(time)
-          end
+    for i = 1, #CT.update do
+      CT.update[i]:update(time)
+    end
 
-          CT.forceUpdate = false
+    CT.forceUpdate = false
 
   elseif CT.shown and CT.tracking then
     timer = timer + elapsed
 
     if timer >= CT.settings.updateDelay then
-               local time = GetTime()
+      local time = GetTime()
 
       for i = 1, #CT.update do
         CT.update[i]:update(time)
@@ -315,12 +316,12 @@ function CT:OnInitialize()
     if event == "COMBAT_LOG_EVENT_UNFILTERED" then
       local _, event = ...
       if combatevents[event] then
-                    combatevents[event].func(...)
+        combatevents[event](...)
       end
     elseif event == "PLAYER_LOGIN" then
       CT.TimeSinceLogIn = GetTime()
       CT.player.loggedIn = true
-               CT.updatePowerTypes()
+      CT.updatePowerTypes()
       eventFrame:UnregisterEvent("PLAYER_LOGIN")
     elseif event == "ENCOUNTER_START" then
       local encounterID, encounterName, difficultyID, raidSize = ...
@@ -385,18 +386,18 @@ function CT:OnInitialize()
       CT.player.alive = false
     else
       if combatevents[event] then
-                    combatevents[event].func(...)
+        combatevents[event](...)
       end
     end
   end)
 
   SLASH_CombatTracker1 = "/ct"
   function SlashCmdList.CombatTracker(msg, editbox)
-       local direction, offSet = msg:match("([xXyY])([+-]?%d+)")
-       if direction then direction = direction:lower() end
-       local command, rest = msg:match("^(%S*)%s*(.-)$"):lower()
+    local direction, offSet = msg:match("([xXyY])([+-]?%d+)")
+    if direction then direction = direction:lower() end
+    local command, rest = msg:match("^(%S*)%s*(.-)$"):lower()
 
-       if command == "toggle" or command == "" then
+    if command == "toggle" or command == "" then
       if CT.base:IsVisible() then
         CT.base:Hide()
         -- CT:Disable()
@@ -404,25 +405,25 @@ function CT:OnInitialize()
         CT.base:Show()
         -- CT:Enable()
       end
-       elseif command == "show" then
+    elseif command == "show" then
       CT.base:Show()
-       elseif command == "hide" then
+    elseif command == "hide" then
       CT.base:Hide()
-       elseif command == "reset" then
+    elseif command == "reset" then
       CT.base:ClearAllPoints()
       CT.base:SetPoint("CENTER", "UIParent", 0, 0)
-            CT:Print("Position reset.")
-       elseif command == "cmd" or command == "commands" or command == "options" or command == "opt" or command == "help" then
-            CT:Print("CT COMMANDS:\ntoggle - Toggles Show/Hide.\nshow - Shows CombatTracker.\nhide - Hides CombatTracker.\nreset - Moves CombatTracker frame to the center.\nxNUMBER - Adjusts X axis by number\nyNUMBER - Adjusts Y axis by number")
-       elseif direction == "x" and offSet then
-            local p1, p2, p3, p4, p5 = CombatTrackerBase:GetPoint()
+      CT:Print("Position reset.")
+    elseif command == "cmd" or command == "commands" or command == "options" or command == "opt" or command == "help" then
+      CT:Print("CT COMMANDS:\ntoggle - Toggles Show/Hide.\nshow - Shows CombatTracker.\nhide - Hides CombatTracker.\nreset - Moves CombatTracker frame to the center.\nxNUMBER - Adjusts X axis by number\nyNUMBER - Adjusts Y axis by number")
+    elseif direction == "x" and offSet then
+      local p1, p2, p3, p4, p5 = CombatTrackerBase:GetPoint()
       CT.base:ClearAllPoints()
       CT.base:SetPoint(p1, p2, p3, p4 + tonumber(offSet), p5)
-       elseif direction == "y" and offSet then
-            local p1, p2, p3, p4, p5 = CombatTrackerBase:GetPoint()
+    elseif direction == "y" and offSet then
+      local p1, p2, p3, p4, p5 = CombatTrackerBase:GetPoint()
       CT.base:ClearAllPoints()
       CT.base:SetPoint(p1, p2, p3, p4, p5 + tonumber(offSet))
-       end
+    end
   end
 end
 
@@ -1093,12 +1094,12 @@ function CT:newButton(button, num)
   return self
 end
 
-function CT:getParser() -- NOTE: This may create the parser every time it's called.
+function CT:getParser()
   local parser, LT1, LT2, LT3, RT1, RT2, RT3
-  
-  if not parser then
-    CT:Print("Creating Parser Tooltip")
-    parser = CreateFrame("GameTooltip") -- added in everything beyond the first
+
+  if not CT.parser then
+    CT.parser = CreateFrame("GameTooltip")
+    parser = CT.parser
     parser:SetOwner(UIParent, "ANCHOR_NONE")
 
     LT1 = parser:CreateFontString()
@@ -1354,14 +1355,6 @@ function CT:dragMainButton()
       end
     end)
   end
-end
-
-function CT:addEvent(event, func)
-	if not combatevents[event] then
-	    combatevents[event] = {}
-	end
-  
-	combatevents[event].func = func
 end
 --------------------------------------------------------------------------------
 -- DropDown Menu Types
@@ -2014,48 +2007,6 @@ function CT:dropAnimationUp()
   dropDown.animationUp:Play()
 end
 --------------------------------------------------------------------------------
--- Main Button Update Functions
---------------------------------------------------------------------------------
-function CT:AuraApplied(eventType, sourceGUID, spellName, spellID, auraType, amount, timestamp)
-  if not CT.events.COMBAT_LOG_EVENT_UNFILTERED then CT.events.COMBAT_LOG_EVENT_UNFILTERED = {} end
-
-  if self.buttonCreated then
-    CT.events.COMBAT_LOG_EVENT_UNFILTERED[self] = eventType
-    self.eventTypes.SPELL_AURA_APPLIED = true
-    self.eventTypes.SPELL_AURA_REFRESH = true
-    self.eventTypes.SPELL_AURA_REMOVED = true
-    self.totalCount = 0
-    self.procCount = 0
-    self.refreshedCount = 0
-    self.expiredCount = 0
-    return
-  end
-
-  -- print("AuraApplied", self.name)
-  if (eventType == "SPELL_AURA_APPLIED") then
-    -- CT:Print(self.name, "eventType", eventType, "sourceGUID", sourceGUID, "spellName", spellName, "spellID", spellID, "auraType", auraType, "amount", amount, "timestamp", timestamp)
-    if (spellName == self.name) and (timestamp ~= self.timestampOld) then
-      self.totalCount = self.totalCount + 1
-      self.procCount = self.procCount + 1
-      -- self.value[1]:SetText(self.procCount)
-      self.timestampOld = timestamp
-    end
-  elseif (eventType == "SPELL_AURA_REFRESH") then
-    if (spellName == self.name) and (timestamp ~= self.timestampOld) then
-      self.totalCount = self.totalCount + 1
-      self.refreshedCount = self.refreshedCount + 1
-      -- self.value[2]:SetText(self.refreshedCount)
-      self.timestampOld = timestamp
-    end
-  elseif (eventType == "SPELL_AURA_REMOVED") then
-    if (spellName == self.name) then
-      self.expiredCount = self.expiredCount + 1
-      -- self.value[3]:SetText(self.expiredCount)
-    end
-  end
-  -- self.value:SetText(self.totalCount)
-end
---------------------------------------------------------------------------------
 -- Utility Functions
 --------------------------------------------------------------------------------
 function CT:arrowClick(direction)
@@ -2079,10 +2030,6 @@ function CT:arrowClick(direction)
     CT.slideButtonAnimation(lowerButton, "up")
     CT.slideButtonAnimation(button, "down")
   end
-end
-
-function CT.getGCD()
-  return (1 + (GetHaste() / 100))
 end
 
 function CT:OnDatabaseShutdown()
@@ -2124,19 +2071,21 @@ function CT.hasteCD(spellID, unit)
   return (GetSpellBaseCooldown(spellID) / 1000) / (1 + (UnitSpellHaste(unit) / 100))
 end
 
-local colors = {
-	["white"] = {1.0, 1.0, 1.0, 1.0},
-	["red"] = {0.95, 0.04, 0.10, 1.0},
-	["orange"] = {0.82, 0.35, 0.09, 1.0},
-	["blue"] = {0.08, 0.38, 0.91, 1.0},
-	["lightblue"] = {0.53, 0.67, 0.92, 1.0},
-	["yellow"] = {0.93, 0.86, 0.01, 1.0},
-	["darkgreen"] = {0.13, 0.27, 0.07, 1},
-	["green"] = {0.31, 0.42, 0.20, 1},
-	["lightgreen"] = {0.26, 0.46, 0.19, 1},
-	["darkgrey"] = {0.20, 0.23, 0.23, 1.0},
-	["lightgrey"] = {0.49,0.49,0.49,1},
-}
+local colors = {}
+do
+  colors.white = {1.0, 1.0, 1.0, 1.0}
+  colors.red = {0.95, 0.04, 0.10, 1.0}
+  colors.orange = {0.82, 0.35, 0.09, 1.0}
+  colors.blue = {0.08, 0.38, 0.91, 1.0}
+  colors.lightblue = {0.53, 0.67, 0.92, 1.0}
+  colors.yellow = {0.93, 0.86, 0.01, 1.0}
+  colors.darkgreen = {0.13, 0.27, 0.07, 1}
+  colors.green = {0.31, 0.42, 0.20, 1}
+  colors.lightgreen = {0.26, 0.46, 0.19, 1}
+  colors.darkgrey = {0.20, 0.23, 0.23, 1.0}
+  colors.lightgrey = {0.49, 0.49, 0.49, 1}
+end
+
 
 function CT.colorText(fontString, text, colorString)
 	if fontString then
