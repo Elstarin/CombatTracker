@@ -1,15 +1,20 @@
 ## Interface: 60100
 
 ## Title: Combat Tracker
-## Notes: Detailed information about your performance in combat
+## Notes: Provides detailed information about your performance in combat
 ## Author: Elstarin - Drak'Thul
 ## Version: 0.0.1
 ## SavedVariables: CombatTrackerDB
+## SavedVariablesPerCharacter: CombatTrackerCharDB
 
-embeds.xml
-main.lua
-spells.lua
-combatData.lua
-buttonUpdate.lua
-graphs.lua
-spellsData.lua
+Embeds.xml
+Main.lua
+Tooltip.lua
+UtilityFunctions.lua
+CombatData.lua
+Graphs.lua
+ButtonUpdate.lua
+SpecData.lua
+Spells.lua
+DropDownMenus.lua
+CombatSets.lua

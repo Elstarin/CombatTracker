@@ -2,7 +2,7 @@
 -- This must have taken a lot of time to put together... Thank you very much for doing all this work!
 
 
-if not CombatTracker then return end
+if not CombatTracker then print("Not loading spell list") return end
 
 local CT = CombatTracker
 local hasteCD = CT.hasteCD
@@ -66,8 +66,65 @@ do
   t[15] = "Demonic Fury"
 end
 
+-- RE.ClassColors = {
+-- 	["HUNTER"] = "AAD372",
+-- 	["WARLOCK"] = "9482C9",
+-- 	["PRIEST"] = "FFFFFF",
+-- 	["PALADIN"] = "F48CBA",
+-- 	["MAGE"] = "68CCEF",
+-- 	["ROGUE"] = "FFF468",
+-- 	["DRUID"] = "FF7C0A",
+-- 	["SHAMAN"] = "0070DD",
+-- 	["WARRIOR"] = "C69B6D",
+-- 	["DEATHKNIGHT"] = "C41E3A",
+-- 	["MONK"] = "00FF96",
+-- };
+
+-- RE.RaceIconCoords = {
+-- 	["HUMAN_MALE"] = {0, 0.125, 0, 0.25},
+-- 	["DWARF_MALE"] = {0.125, 0.25, 0, 0.25},
+-- 	["GNOME_MALE"] = {0.25, 0.375, 0, 0.25},
+-- 	["NIGHT ELF_MALE"] = {0.375, 0.5, 0, 0.25},
+-- 	["NIGHTELF_MALE"] = {0.375, 0.5, 0, 0.25},
+-- 	["TAUREN_MALE"] = {0, 0.125, 0.25, 0.5},
+-- 	["UNDEAD_MALE"] = {0.125, 0.25, 0.25, 0.5},
+-- 	["SCOURGE_MALE"] = {0.125, 0.25, 0.25, 0.5},
+-- 	["TROLL_MALE"] = {0.25, 0.375, 0.25, 0.5},
+-- 	["ORC_MALE"] = {0.375, 0.5, 0.25, 0.5},
+-- 	["BLOOD ELF_MALE"] = {0.5, 0.625, 0.25, 0.5},
+-- 	["BLOODELF_MALE"] = {0.5, 0.625, 0.25, 0.5},
+-- 	["DRAENEI_MALE"] = {0.5, 0.625, 0, 0.25},
+-- 	["GOBLIN_MALE"] = {0.625, 0.750, 0.25, 0.5},
+-- 	["WORGEN_MALE"] = {0.625, 0.750, 0, 0.25},
+-- 	["PANDAREN_MALE"] = {0.750, 0.875, 0, 0.25},
+-- };
+
+-- RE.ClassIconCoords = {
+-- 	["WARRIOR"] = {0, 0.25, 0, 0.25},
+-- 	["MAGE"] = {0.25, 0.49609375, 0, 0.25},
+-- 	["ROGUE"] = {0.49609375, 0.7421875, 0, 0.25},
+-- 	["DRUID"] = {0.7421875, 0.98828125, 0, 0.25},
+-- 	["HUNTER"] = {0, 0.25, 0.25, 0.5},
+-- 	["SHAMAN"] = {0.25, 0.49609375, 0.25, 0.5},
+-- 	["PRIEST"] = {0.49609375, 0.7421875, 0.25, 0.5},
+-- 	["WARLOCK"] = {0.7421875, 0.98828125, 0.25, 0.5},
+-- 	["PALADIN"] = {0, 0.25, 0.5, 0.75},
+-- 	["DEATHKNIGHT"] = {0.25, 0.49609375, 0.5, 0.75},
+-- 	["MONK"] = {0.49609375, 0.7421875, 0.5, 0.75},
+-- };
+
 CT.spellBlacklist = {
   [82327] = "Holy Power",
+}
+
+CT.uptimeBlacklist = {
+  [186403] = true, -- Sign of Battle (Honor bonus event)
+  [77769] = true, -- Trap Launcher
+  [155347] = true, -- Shamanstone: Spirit of the Wolf
+  [93828] = true, -- Silvermoon Champion (Blood Elf tabard)
+  [186404] = true, -- Sign of the Emissary (Reputation bonus event)
+  [186406] = true, -- Sign of the Critter (Pet battle bonus event)
+  [186400] = true, -- Sign of Apexis (Apexis bonus event)
 }
 
 if ignore then
@@ -110,6 +167,42 @@ if ignore then
     "Maximum health increased by",
   }
 end
+
+CT.spells.schoolColors = {
+  [1] = {name = "Physical", formated = "|cFFFFFF00Physical|r", hex = "FFFFFF00", rgb = {255, 255, 0}, decimals = {1.00, 1.00, 0.00}},
+  [2] = {name = "Holy", formated = "|cFFFFE680Holy|r", hex = "FFFFE680", rgb = {255, 230, 128}, decimals = {1.00, 0.90, 0.50}},
+  [4] = {name = "Fire", formated = "|cFFFF8000Fire|r", hex = "FFFF8000", rgb = {255, 128, 0}, decimals = {1.00, 0.50, 0.00}},
+  [8] = {name = "Nature", formated = "|cFFbeffbeNature|r", hex = "FFbeffbe", rgb = {190, 190, 190}, decimals = {0.7451, 1.0000, 0.7451}},
+  [16] = {name = "Frost", formated = "|cFF80FFFFFrost|r", hex = "FF80FFFF", rgb = {128, 255, 255}, decimals = {0.50, 1.00, 1.00}},
+  [32] = {name = "Shadow", formated = "|cFF8080FFShadow|r", hex = "FF8080FF", rgb = {128, 128, 255}, decimals = {0.50, 0.50, 1.00}},
+  [64] = {name = "Arcane", formated = "|cFFFF80FFArcane|r", hex = "FFFF80FF", rgb = {255, 128, 255}, decimals = {1.00, 0.50, 1.00}},
+  [3] = {name = "Holystrike", formated = "|cFFFFF240Holystrike|r", hex = "FFFFF240", rgb = {255, 64, 64}, decimals = {1.0000, 0.9490, 0.2510}}, --#FFF240
+  [5] = {name = "Flamestrike", formated = "|cFFFFB900Flamestrike|r", hex = "FFFFB900", rgb = {255, 0, 0}, decimals = {1.0000, 0.7255, 0.0000}}, --#FFB900
+  [6] = {name = "Holyfire", formated = "|cFFFFD266Holyfire|r", hex = "FFFFD266", rgb = {255, 102, 102}, decimals = {1.0000, 0.8235, 0.4000}}, --#FFD266
+  [9] = {name = "Stormstrike", formated = "|cFFAFFF23Stormstrike|r", hex = "FFAFFF23", rgb = {175, 35, 35}, decimals = {0.6863, 1.0000, 0.1373}}, --#AFFF23
+  [10] = {name = "Holystorm", formated = "|cFFC1EF6EHolystorm|r", hex = "FFC1EF6E", rgb = {193, 110, 110}, decimals = {0.7569, 0.9373, 0.4314}}, --#C1EF6E
+  [12] = {name = "Firestorm", formated = "|cFFAFB923Firestorm|r", hex = "FFAFB923", rgb = {175, 35, 35}, decimals = {0.6863, 0.7255, 0.1373}}, --#AFB923
+  [17] = {name = "Froststrike", formated = "|cFFB3FF99Froststrike|r", hex = "FFB3FF99", rgb = {179, 153, 153}, decimals = {0.7020, 1.0000, 0.6000}},--#B3FF99
+  [18] = {name = "Holyfrost", formated = "|cFFCCF0B3Holyfrost|r", hex = "FFCCF0B3", rgb = {204, 179, 179}, decimals = {0.8000, 0.9412, 0.7020}},--#CCF0B3
+  [20] = {name = "Frostfire", formated = "|cFFC0C080Frostfire|r", hex = "FFC0C080", rgb = {192, 128, 128}, decimals = {0.7529, 0.7529, 0.5020}}, --#C0C080
+  [24] = {name = "Froststorm", formated = "|cFF69FFAFFroststorm|r", hex = "FF69FFAF", rgb = {105, 175, 175}, decimals = {0.4118, 1.0000, 0.6863}}, --#69FFAF
+  [33] = {name = "Shadowstrike", formated = "|cFFC6C673Shadowstrike|r", hex = "FFC6C673", rgb = {198, 115, 115}, decimals = {0.7765, 0.7765, 0.4510}},--#C6C673
+  [34] = {name = "Shadowlight (Twilight)", formated = "|cFFD3C2ACShadowlight (Twilight)|r", hex = "FFD3C2AC", rgb = {211, 172, 172}, decimals = {0.8275, 0.7608, 0.6745}},--#D3C2AC
+  [36] = {name = "Shadowflame", formated = "|cFFB38099Shadowflame|r", hex = "FFB38099", rgb = {179, 153, 153}, decimals = {0.7020, 0.5020, 0.6000}}, -- #B38099
+  [40] = {name = "Shadowstorm (Plague)", formated = "|cFF6CB3B8Shadowstorm (Plague)|r", hex = "FF6CB3B8", rgb = {108, 184, 184}, decimals = {0.4235, 0.7020, 0.7216}}, --#6CB3B8
+  [48] = {name = "Shadowfrost", formated = "|cFF80C6FFShadowfrost|r", hex = "FF80C6FF", rgb = {128, 255, 255}, decimals = {0.5020, 0.7765, 1.0000}},--#80C6FF
+  [65] = {name = "Spellstrike", formated = "|cFFFFCC66Spellstrike|r", hex = "FFFFCC66", rgb = {255, 102, 102}, decimals = {1.0000, 0.8000, 0.4000}},--#FFCC66
+  [66] = {name = "Divine", formated = "|cFFFFBDB3Divine|r", hex = "FFFFBDB3", rgb = {255, 179, 179}, decimals = {1.0000, 0.7412, 0.7020}},--#FFBDB3
+  [68] = {name = "Spellfire", formated = "|cFFFF808CSpellfire|r", hex = "FFFF808C", rgb = {255, 140, 140}, decimals = {1.0000, 0.5020, 0.5490}}, --#FF808C
+  [72] = {name = "Spellstorm", formated = "|cFFAFB9AFSpellstorm|r", hex = "FFAFB9AF", rgb = {175, 175, 175}, decimals = {0.6863, 0.7255, 0.6863}}, --#AFB9AF
+  [80] = {name = "Spellfrost", formated = "|cFFC0C0FFSpellfrost|r", hex = "FFC0C0FF", rgb = {192, 255, 255}, decimals = {0.7529, 0.7529, 1.0000}},--#C0C0FF
+  [96] = {name = "Spellshadow", formated = "|cFFB980FFSpellshadow|r", hex = "FFB980FF", rgb = {185, 255, 255}, decimals = {0.7255, 0.5020, 1.0000}},--#B980FF
+
+  [28] = {name = "Elemental", formated = "|cFF0070DEElemental|r", hex = "FF0070DE", rgb = {0, 222, 222}, decimals = {0.0000, 0.4392, 0.8706}},
+  [124] = {name = "Chromatic", formated = "|cFFC0C0C0Chromatic|r", hex = "FFC0C0C0", rgb = {192, 192, 192}, decimals = {0.7529, 0.7529, 0.7529}},
+  [126] = {name = "Magic", formated = "|cFF1111FFMagic|r", hex = "FF1111FF", rgb = {17, 255, 255}, decimals = {0.0667, 0.0667, 1.0000}},
+  [127] = {name = "Chaos", formated = "|cFFFF1111Chaos|r", hex = "FFFF1111", rgb = {255, 17, 17}, decimals = {1.0000, 0.0667, 0.0667}},
+}
 
 do
   CT.resetCasts = {
@@ -176,6 +269,12 @@ do
   	},
     [160002] = { -- Enhanced Holy Shock
       20473, -- Holy Shock
+    },
+    [168980] = { -- Lock and Load
+      53301, -- Explosive Shot
+    },
+    [121152] = { -- Blindside
+      111240, -- Dispatch
     },
   }
 
@@ -794,7 +893,6 @@ do
 	}
 
   CT.spells.defensives = {
-
 		--> spellid = {cooldown, duration}
     [20594] = 120, --racial stoneform
 
@@ -1000,9 +1098,9 @@ do
 		[2062]	=	true, -- Earth Elemental Totem
 
 		-- Warlock
-		[113860]	=	true, -- Dark Soul: Misery (attack cd)
-		[113858]	=	true, -- Dark Soul: Instability
-		[113861] 	= 	true, -- Dark Soul: Knowledge
+		[113860] = true, -- Dark Soul: Misery (attack cd)
+		[113858] = true, -- Dark Soul: Instability
+		[113861] = true, -- Dark Soul: Knowledge
 
 		-- Warrior
 		[1719]	=	true, -- Recklessness (attack cd)
@@ -1017,6 +1115,10 @@ do
     [51886] = true, -- Cleanse Spirit (Shaman)
     [32375] = true, -- Mass Dispel (Priest)
     [4987] = true, -- Cleanse (Paladin)
+  }
+
+  local interrupts = {
+    [96231] = true, -- Rebuke (Paladin)
   }
 
   -- for container = 0, NUM_BAG_SLOTS do
@@ -1053,41 +1155,6 @@ end
 
 if load then
   CT:Print("LOADING EXTRA SPELLS!")
-  CT.spells_school = {
-    [1] = {name = "Physical", formated = "|cFFFFFF00Physical|r", hex = "FFFFFF00", rgb = {255, 255, 0}, decimals = {1.00, 1.00, 0.00}},
-    [2] = {name = "Holy", formated = "|cFFFFE680Holy|r", hex = "FFFFE680", rgb = {255, 230, 128}, decimals = {1.00, 0.90, 0.50}},
-    [4] = {name = "Fire", formated = "|cFFFF8000Fire|r", hex = "FFFF8000", rgb = {255, 128, 0}, decimals = {1.00, 0.50, 0.00}},
-    [8] = {name = "Nature", formated = "|cFFbeffbeNature|r", hex = "FFbeffbe", rgb = {190, 190, 190}, decimals = {0.7451, 1.0000, 0.7451}},
-    [16] = {name = "Frost", formated = "|cFF80FFFFFrost|r", hex = "FF80FFFF", rgb = {128, 255, 255}, decimals = {0.50, 1.00, 1.00}},
-    [32] = {name = "Shadow", formated = "|cFF8080FFShadow|r", hex = "FF8080FF", rgb = {128, 128, 255}, decimals = {0.50, 0.50, 1.00}},
-    [64] = {name = "Arcane", formated = "|cFFFF80FFArcane|r", hex = "FFFF80FF", rgb = {255, 128, 255}, decimals = {1.00, 0.50, 1.00}},
-    [3] = {name = "Holystrike", formated = "|cFFFFF240Holystrike|r", hex = "FFFFF240", rgb = {255, 64, 64}, decimals = {1.0000, 0.9490, 0.2510}}, --#FFF240
-    [5] = {name = "Flamestrike", formated = "|cFFFFB900Flamestrike|r", hex = "FFFFB900", rgb = {255, 0, 0}, decimals = {1.0000, 0.7255, 0.0000}}, --#FFB900
-    [6] = {name = "Holyfire", formated = "|cFFFFD266Holyfire|r", hex = "FFFFD266", rgb = {255, 102, 102}, decimals = {1.0000, 0.8235, 0.4000}}, --#FFD266
-    [9] = {name = "Stormstrike", formated = "|cFFAFFF23Stormstrike|r", hex = "FFAFFF23", rgb = {175, 35, 35}, decimals = {0.6863, 1.0000, 0.1373}}, --#AFFF23
-    [10] = {name = "Holystorm", formated = "|cFFC1EF6EHolystorm|r", hex = "FFC1EF6E", rgb = {193, 110, 110}, decimals = {0.7569, 0.9373, 0.4314}}, --#C1EF6E
-    [12] = {name = "Firestorm", formated = "|cFFAFB923Firestorm|r", hex = "FFAFB923", rgb = {175, 35, 35}, decimals = {0.6863, 0.7255, 0.1373}}, --#AFB923
-    [17] = {name = "Froststrike", formated = "|cFFB3FF99Froststrike|r", hex = "FFB3FF99", rgb = {179, 153, 153}, decimals = {0.7020, 1.0000, 0.6000}},--#B3FF99
-    [18] = {name = "Holyfrost", formated = "|cFFCCF0B3Holyfrost|r", hex = "FFCCF0B3", rgb = {204, 179, 179}, decimals = {0.8000, 0.9412, 0.7020}},--#CCF0B3
-    [20] = {name = "Frostfire", formated = "|cFFC0C080Frostfire|r", hex = "FFC0C080", rgb = {192, 128, 128}, decimals = {0.7529, 0.7529, 0.5020}}, --#C0C080
-    [24] = {name = "Froststorm", formated = "|cFF69FFAFFroststorm|r", hex = "FF69FFAF", rgb = {105, 175, 175}, decimals = {0.4118, 1.0000, 0.6863}}, --#69FFAF
-    [33] = {name = "Shadowstrike", formated = "|cFFC6C673Shadowstrike|r", hex = "FFC6C673", rgb = {198, 115, 115}, decimals = {0.7765, 0.7765, 0.4510}},--#C6C673
-    [34] = {name = "Shadowlight (Twilight)", formated = "|cFFD3C2ACShadowlight (Twilight)|r", hex = "FFD3C2AC", rgb = {211, 172, 172}, decimals = {0.8275, 0.7608, 0.6745}},--#D3C2AC
-    [36] = {name = "Shadowflame", formated = "|cFFB38099Shadowflame|r", hex = "FFB38099", rgb = {179, 153, 153}, decimals = {0.7020, 0.5020, 0.6000}}, -- #B38099
-    [40] = {name = "Shadowstorm (Plague)", formated = "|cFF6CB3B8Shadowstorm (Plague)|r", hex = "FF6CB3B8", rgb = {108, 184, 184}, decimals = {0.4235, 0.7020, 0.7216}}, --#6CB3B8
-    [48] = {name = "Shadowfrost", formated = "|cFF80C6FFShadowfrost|r", hex = "FF80C6FF", rgb = {128, 255, 255}, decimals = {0.5020, 0.7765, 1.0000}},--#80C6FF
-    [65] = {name = "Spellstrike", formated = "|cFFFFCC66Spellstrike|r", hex = "FFFFCC66", rgb = {255, 102, 102}, decimals = {1.0000, 0.8000, 0.4000}},--#FFCC66
-    [66] = {name = "Divine", formated = "|cFFFFBDB3Divine|r", hex = "FFFFBDB3", rgb = {255, 179, 179}, decimals = {1.0000, 0.7412, 0.7020}},--#FFBDB3
-    [68] = {name = "Spellfire", formated = "|cFFFF808CSpellfire|r", hex = "FFFF808C", rgb = {255, 140, 140}, decimals = {1.0000, 0.5020, 0.5490}}, --#FF808C
-    [72] = {name = "Spellstorm", formated = "|cFFAFB9AFSpellstorm|r", hex = "FFAFB9AF", rgb = {175, 175, 175}, decimals = {0.6863, 0.7255, 0.6863}}, --#AFB9AF
-    [80] = {name = "Spellfrost", formated = "|cFFC0C0FFSpellfrost|r", hex = "FFC0C0FF", rgb = {192, 255, 255}, decimals = {0.7529, 0.7529, 1.0000}},--#C0C0FF
-    [96] = {name = "Spellshadow", formated = "|cFFB980FFSpellshadow|r", hex = "FFB980FF", rgb = {185, 255, 255}, decimals = {0.7255, 0.5020, 1.0000}},--#B980FF
-
-    [28] = {name = "Elemental", formated = "|cFF0070DEElemental|r", hex = "FF0070DE", rgb = {0, 222, 222}, decimals = {0.0000, 0.4392, 0.8706}},
-    [124] = {name = "Chromatic", formated = "|cFFC0C0C0Chromatic|r", hex = "FFC0C0C0", rgb = {192, 192, 192}, decimals = {0.7529, 0.7529, 0.7529}},
-    [126] = {name = "Magic", formated = "|cFF1111FFMagic|r", hex = "FF1111FF", rgb = {17, 255, 255}, decimals = {0.0667, 0.0667, 1.0000}},
-    [127] = {name = "Chaos", formated = "|cFFFF1111Chaos|r", hex = "FFFF1111", rgb = {255, 17, 17}, decimals = {1.0000, 0.0667, 0.0667}},
-  }
   CT.spells.harmful = {
 
     -- Death Knight

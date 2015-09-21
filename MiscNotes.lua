@@ -1,0 +1,236 @@
+--[[     Handy list of all events that should be handled here. Try to keep it updated
+
+--"RANGE_DAMAGE", -- normal
+--"RANGE_MISSED", -- normal
+--"SPELL_DAMAGE", -- normal
+--"SPELL_DAMAGE_CRIT", -- normal BUT NOT ACTUALLY AN EVENT
+--"SPELL_DAMAGE_NONCRIT", -- normal BUT NOT ACTUALLY AN EVENT
+--"SPELL_MISSED", -- normal
+--"SPELL_REFLECT", -- normal BUT NOT ACTUALLY AN EVENT
+--"SPELL_EXTRA_ATTACKS", -- normal
+--"SPELL_HEAL", -- normal
+--"SPELL_ENERGIZE", -- normal
+--"SPELL_DRAIN", -- normal
+--"SPELL_LEECH", -- normal
+--"SPELL_AURA_APPLIED", -- normal
+--"SPELL_AURA_REFRESH", -- normal
+--"SPELL_AURA_REMOVED", -- normal
+
+-- "RANGE_DAMAGE_MULTISTRIKE", -- normal BUT NOT ACTUALLY AN EVENT
+-- "SWING_DAMAGE_MULTISTRIKE", -- normal BUT NOT ACTUALLY AN EVENT
+-- "SPELL_DAMAGE_MULTISTRIKE", -- normal BUT NOT ACTUALLY AN EVENT
+-- "SPELL_PERIODIC_DAMAGE_MULTISTRIKE", -- normal BUT NOT ACTUALLY AN EVENT
+-- "SPELL_HEAL_MULTISTRIKE", -- normal BUT NOT ACTUALLY AN EVENT
+-- "SPELL_PERIODIC_HEAL_MULTISTRIKE", -- normal BUT NOT ACTUALLY AN EVENT
+
+--"SPELL_PERIODIC_DAMAGE", -- normal
+--"SPELL_PERIODIC_DRAIN", -- normal
+--"SPELL_PERIODIC_ENERGIZE", -- normal
+--"SPELL_PERIODIC_LEECH", -- normal
+--"SPELL_PERIODIC_HEAL", -- normal
+--"SPELL_PERIODIC_MISSED", -- normal
+--"DAMAGE_SHIELD", -- normal
+--"DAMAGE_SHIELD_MISSED", -- normal
+--"DAMAGE_SPLIT", -- normal
+--"SPELL_INSTAKILL", -- normal
+--"SPELL_SUMMON" -- normal
+--"SPELL_RESURRECT" -- normal
+--"SPELL_CREATE" -- normal
+--"SPELL_DURABILITY_DAMAGE" -- normal
+--"SPELL_DURABILITY_DAMAGE_ALL" -- normal
+--"SPELL_AURA_BROKEN" -- normal
+--"SPELL_AURA_APPLIED_DOSE"                         --SEMI-NORMAL, CONSIDER SPECIAL IMPLEMENTATION
+--"SPELL_AURA_REMOVED_DOSE"                         --SEMI-NORMAL, CONSIDER SPECIAL IMPLEMENTATION
+--"SPELL_CAST_FAILED" -- normal
+--"SPELL_CAST_START" -- normal
+--"SPELL_CAST_SUCCESS" -- normal
+]]
+
+-- local PowerPatterns = {
+--   [0]  = "^" .. gsub(MANA_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [1]  = "^" .. gsub(RAGE_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [2]  = "^" .. gsub(FOCUS_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [3]  = "^" .. gsub(ENERGY_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [4]  = "^" .. gsub(COMBO_POINTS, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [6]  = "^" .. gsub(RUNIC_POWER_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [7]  = "^" .. gsub(SOUL_SHARDS_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [9]  = "^" .. gsub(HOLY_POWER_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [12] = "^" .. gsub(CHI_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [13] = "^" .. gsub(SHADOW_ORBS_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [14] = "^" .. gsub(BURNING_EMBERS_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   [15] = "^" .. gsub(DEMONIC_FURY_COST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   -- [5] = "^" .. gsub(RUNE_COST_BLOOD, "%%d", "([.,%%d]+)", 1) .. "$",
+--   -- [5] = "^" .. gsub(RUNE_COST_FROST, "%%d", "([.,%%d]+)", 1) .. "$",
+--   -- [5] = "^" .. gsub(RUNE_COST_UNHOLY, "%%d", "([.,%%d]+)", 1) .. "$",
+--   -- [5] = "^" .. gsub(RUNE_COST_CHROMATIC, "%%d", "([.,%%d]+)", 1) .. "$", -- death
+-- }
+
+-- TMW's upvalue list
+-- local GetSpellCooldown, GetSpellInfo, GetSpellTexture, IsUsableSpell =
+--        GetSpellCooldown, GetSpellInfo, GetSpellTexture, IsUsableSpell
+-- local InCombatLockdown, GetTalentInfo, GetActiveSpecGroup =
+--        InCombatLockdown, GetTalentInfo, GetActiveSpecGroup
+-- local UnitPower, UnitClass, UnitName, UnitAura =
+--        UnitPower, UnitClass, UnitName, UnitAura
+-- local IsInGuild, IsInGroup, IsInInstance =
+--        IsInGuild, IsInGroup, IsInInstance
+-- local GetAddOnInfo, IsAddOnLoaded, LoadAddOn, EnableAddOn, GetBuildInfo =
+--        GetAddOnInfo, IsAddOnLoaded, LoadAddOn, EnableAddOn, GetBuildInfo
+-- local tonumber, tostring, type, pairs, ipairs, tinsert, tremove, sort, select, wipe, rawget, rawset, assert, pcall, error, getmetatable, setmetatable, loadstring, unpack, debugstack =
+--        tonumber, tostring, type, pairs, ipairs, tinsert, tremove, sort, select, wipe, rawget, rawset, assert, pcall, error, getmetatable, setmetatable, loadstring, unpack, debugstack
+-- local strfind, strmatch, format, gsub, gmatch, strsub, strtrim, strsplit, strlower, strrep, strchar, strconcat, strjoin, max, ceil, floor, random =
+--        strfind, strmatch, format, gsub, gmatch, strsub, strtrim, strsplit, strlower, strrep, strchar, strconcat, strjoin, max, ceil, floor, random
+-- local _G, coroutine, table, GetTime, CopyTable =
+--        _G, coroutine, table, GetTime, CopyTable
+-- local tostringall = tostringall
+
+-- local tempText = {}
+-- local function runTextTable(table)
+--   for i = 1, #table do
+--     local tab = table[i]
+--     local key = table[-i]
+--
+--     if tab[key] then
+--       tempText[i] = tab[key]
+--     elseif type(tab) == "string" then
+--       tempText[i] = tab
+--     end
+--   end
+--
+--   local formatted = format(table.format, unpack(tempText))
+--   print(formatted)
+-- end
+
+-- local x;
+-- x = self:GetRight();
+-- if ( x >= ( GetScreenWidth() / 2 ) ) then
+--     GameTooltip:SetOwner(self, "ANCHOR_LEFT");
+-- else
+--     GameTooltip:SetOwner(self, "ANCHOR_RIGHT");
+-- end
+
+-- function CT:sortDropText(sortBy, bool)
+--   local dropDown = self.button.dropDown
+--
+--   if bool == true then
+--     wipe(temp)
+--     for k,v in pairs(self.text[sortBy]) do
+--       temp[#temp + 1] = v
+--       k.sorted = false
+--     end
+--
+--     sort(temp, function(a,b) return a>b end)
+--
+--     for i = 1, #temp do
+--       for k,v in pairs(self.text[sortBy]) do
+--         if temp[i] == v and not k.sorted then
+--           k.num = i
+--           k.sorted = true
+--           break
+--         end
+--       end
+--     end
+--
+--     sort(dropDown.line, function(a, b) return a.num < b.num end)
+--   else
+--     sort(dropDown.line, function(a,b) return a.startNum < b.startNum end)
+--   end
+--
+--   self:setDropTextAnchors()
+-- end
+
+-- do -- Zoom Button
+--   self.graph.zoomedButton = CreateFrame("Button", nil, self.graph)
+--   zoomedButton = self.graph.zoomedButton
+--   zoomedButton:SetSize(90, 20)
+--   zoomedButton:SetPoint("BOTTOMLEFT", 0, 0)
+--
+  -- local backdrop = {
+  --   bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+  --   edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+  --   tile = true,
+  --   tileSize = 8,
+  --   edgeSize = 8,}
+--
+  -- zoomedButton:SetBackdrop(backdrop)
+  -- zoomedButton:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
+  -- zoomedButton:SetBackdropBorderColor(0.7, 0.7, 0.7, 1.0)
+--
+--   zoomedButton.highlight = zoomedButton:CreateTexture(nil, "OVERLAY")
+--   zoomedButton.highlight:SetTexture(0.2, 0.2, 0.2, 0.3)
+--   zoomedButton.highlight:SetAllPoints()
+--   zoomedButton:SetHighlightTexture(zoomedButton.highlight)
+--
+--   zoomedButton.text = zoomedButton:CreateFontString(nil, "OVERLAY")
+--   zoomedButton.text:SetFont("Fonts\\FRIZQT__.TTF", 13)
+--   zoomedButton.text:SetTextColor(1, 1, 1)
+--   zoomedButton.text:SetPoint("CENTER")
+--   zoomedButton.text:SetText("Reset Zoom")
+--   zoomedButton:Hide()
+-- end
+
+-- self.graph:SetScript("OnMouseDown", function(g, button)
+--   if not graph.zoomed then
+--     local dragOverlay = self.graph.dragOverlay
+--     local mouseOver = self.graph.mouseOverLine
+--     local zoomedButton = self.graph.zoomedButton
+--
+--     local graphLeft = graph:GetLeft()
+--     local mouseOverLeft = mouseOver:GetLeft() - graphLeft
+--
+--     dragOverlay:Show()
+--     dragOverlay:SetPoint("LEFT", mouseOverLeft, 0)
+--     dragOverlay:SetPoint("RIGHT", mouseOver, 0, 0)
+--
+--     graph.mouseOverLeft = mouseOverLeft
+--   end
+-- end)
+
+-- self.graph:SetScript("OnMouseUp", function(g, button)
+--   if not graph.zoomed then
+--     local dragOverlay = self.graph.dragOverlay
+--     local mouseOver = self.graph.mouseOverLine
+--     local zoomedButton = self.graph.zoomedButton
+--
+--     local graphLeft = graph:GetLeft()
+--     local graphRight = graph:GetRight()
+--     local mouseOverRight = mouseOver:GetRight()
+--     local graphWidth = graph:GetWidth()
+--
+--     local startX = ((graph.mouseOverLeft / graph.XMax))
+--     local endX = (((mouseOverRight - graphLeft) / graph.XMax))
+--
+--     local startX = (graph.mouseOverLeft / graphWidth) * graph.XMax
+--     local endX = ((mouseOverRight - graphLeft) / graphWidth) * graph.XMax
+--
+--     dragOverlay:Hide()
+--     dragOverlay:SetPoint("RIGHT", mouseOverRight - graphRight, 0)
+--
+--     graph.XMin = startX
+--     graph.XMax = endX
+--
+--     zoomedButton:Show()
+--     graph:refresh(true)
+--     graph.zoomed = true
+--   end
+-- end)
+
+-- self.graph.zoomedButton:SetScript("OnClick", function(zoomedButton, click)
+--   local graph = self.graph
+--
+--   if graph.zoomed then
+--     local timer = GetTime() - CT.combatStart
+--     graph.zoomed = false
+--     graph.XMin = 0
+--
+--     if timer > graph.XMax then
+--       graph.XMax = graph.XMax + max(timer - graph.XMax, graph.startX)
+--     end
+--
+--     graph:refresh(true)
+--
+--     self.graph.dragOverlay:Hide()
+--     self.graph.zoomedButton:Hide()
+--     self.graph.mouseOverLine.dot:Hide()
+--   end
+-- end)
