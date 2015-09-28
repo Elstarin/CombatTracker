@@ -5,6 +5,18 @@ if not CombatTracker then return end
 local CT = CombatTracker
 local buttonClickNum = 7
 
+local function saveDataSet(db)
+  if db then -- Save current DB
+    CT:Print("Saving data set:", db.setName .. ".")
+    if not db.stop then
+      db.stop = GetTime()
+    end
+
+    local _, specName = GetSpecializationInfo(GetSpecialization())
+    tinsert(CombatTrackerCharDB[specName].sets, 1, db)
+  end
+end
+
 function CT.addNewSet()
   local _, specName = GetSpecializationInfo(GetSpecialization())
 
@@ -97,15 +109,20 @@ function CT.nameCurrentSet()
   end
 end
 
-function CT.startTracking()
+function CT.startTracking(message)
+  -- if CT.tracking then CT:Print("Already tracking! Message:", message) return end
   if CT.tracking then return end
+  CT:Print(message or "Starting tracking, but no start message was sent.")
 
   -- CT.resetData()
-  CT.buildNewSet()
+  local set, db = CT.buildNewSet()
 
-  do -- Get GUIDs
-    CT.current.GUID = UnitGUID("player")
-    CT.current.petGUID = UnitGUID("pet")
+  set.GUID = UnitGUID("player")
+  set.petGUID = UnitGUID("pet")
+
+  if db.stop then
+    print("db.stop exists in start tracking.")
+    db.stop = nil
   end
 
   CT.combatStart = GetTime()
@@ -118,18 +135,32 @@ function CT.startTracking()
 
   CT.iterateAuras()
   CT.iterateCooldowns()
+  CT.loadDefaultGraphs()
 end
 
 function CT.stopTracking()
+  CT:Print("Stopping tracking.")
   CT.combatStop = GetTime()
-  CT.finalizeGraphLength()
-  CT.tracking = false
+
+  CT.currentDB.stop = GetTime()
+  saveDataSet(CT.currentDB)
+
+  CT.currentDB = nil
+  CT.current = nil
+
   CT.inCombat = false
+  CT.tracking = false
+
+  CT.finalizeGraphLength()
 end
 
 function CT.createSetButtons(menu, table)
+  -- CT.createSavedSetButtons(table)
+  -- menu = nil -- NOTE: Testing only
+
   if not menu then return end
 
+  local widestButton = 0
   local height = 0
   local width = menu:GetWidth()
   local y = 0
@@ -140,14 +171,16 @@ function CT.createSetButtons(menu, table)
     if table[i] then
       if not b then
         menu[i] = CreateFrame("CheckButton", nil, menu)
-        b = CT.createSmallButton(menu[i], true, true)
+        b = CT.createSmallButton(menu[i], false, true)
+        b:SetPoint("LEFT", 0, 0)
+        b:SetPoint("RIGHT", 0, 0)
+        b.title:SetTextColor(1, 1, 1, 1)
         b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 
         b:SetScript("OnClick", function(self, click)
           if click == "LeftButton" then
             if self:GetChecked() then
-              CT:Print("Setting displayed to table[i].", CT.displayed, table[i])
-              CT.displayed = table[i]
+              local set, db = CT.loadSavedSet(table[i])
               CT.forceUpdate = true
 
               for i = 1, #menu do -- Uncheck any previously checked buttons, so only one is checked at any time
@@ -156,12 +189,15 @@ function CT.createSetButtons(menu, table)
                 end
               end
             else
-              CT.displayed = CT.current
-              CT:Print("Setting displayed back to current.")
-              CT.forceUpdate = true
+              if CT.current then
+                CT:Print("Setting displayed back to current.")
+                CT.displayed = CT.current
+                CT.displayedDB = CT.currentDB
+                CT.forceUpdate = true
+              end
             end
           elseif click == "RightButton" then
-            local t = tremove(table, index) -- Remove saved variables
+            local t = tremove(table, i) -- Remove saved variables
             t = nil
 
             if not InCombatLockdown() then
@@ -174,10 +210,15 @@ function CT.createSetButtons(menu, table)
       end
 
       b:Show()
-      b.index:SetFormattedText("%s.", i)
-      local text = table[i].fightName or "Unknown"
+      local text = table[i].setName or "Unknown"
       local time = CT.formatTimer(table[i].fightLength) or "0:00"
-      b.title:SetFormattedText("%s (%s)", text, time)
+      b.title:SetJustifyH("LEFT")
+      b.title:SetFormattedText("%s. %s%s|r (%s%s|r)", i, "|cFFFFFF00", text, "|cFF00CCFF", time)
+
+      local stringWidth = b.title:GetWidth()
+      if stringWidth > widestButton then
+        widestButton = stringWidth
+      end
 
       b:SetSize(width - 5, 20)
       b:SetPoint("TOP", menu, 0, y)
@@ -189,6 +230,7 @@ function CT.createSetButtons(menu, table)
     end
   end
 
+  menu:SetWidth(widestButton + 20)
   menu:SetHeight(height)
 end
 
@@ -243,59 +285,104 @@ local function nameCurrentSet(set)
   return name
 end
 
-local function basicSetData(set, temp)
-  if set then
-    set.activity = {}
-    set.spells = {}
-    set.auras = {}
-    set.stance = {}
+local function basicSetData(set, db)
+  CT.graphList = CT.graphList and wipe(CT.graphList) or {}
 
-    set.healing = {}
-    set.healingTaken = {}
-    set.damage = {}
-    set.damageTaken = {}
-    set.petDamage = {}
+  db.activity = db.activity or {}
+  db.spells = db.spells or {}
+  db.auras = db.auras or {}
+  db.stance = db.stance or {}
 
-    set.units = {}
-    set.targets = {}
-    set.focus = {}
+  db.healing = db.healing or {}
+  db.healingTaken = db.healingTaken or {}
+  db.damage = db.damage or {}
+  db.damageTaken = db.damageTaken or {}
+  db.petDamage = db.petDamage or {}
 
-    set.power = {}
-    set.bossID = {}
-  end
+  db.units = db.units or {}
+  db.targets = db.targets or {}
+  db.target = db.target or {}
+  db.focus = db.focus or {}
 
-  temp.name = GetUnitName("player", false)
-  temp.petName = GetUnitName("pet", false)
-  temp.prevTarget = "None"
-  temp.prevFocus = "None"
+  set.power = {}
+  set.bossID = {}
+
+  set.power = {}
+  set.playerName = GetUnitName("player", false)
+  set.petName = GetUnitName("pet", false)
+  set.prevTarget = "None"
+  set.prevFocus = "None"
 
   CT.settings.spellCooldownThrottle = 0.0085
 end
 
-local function basicPowerData(set, temp)
+local function basicPowerData(set, db)
   for i = 0, #CT.powerTypes do
     local maxPower = UnitPowerMax("player", i)
 
     if maxPower > 0 then
-      local name = CT.powerTypesFormatted[i]
+      local powerName = CT.powerTypesFormatted[i]
+      set.power[powerName] = {}
+      local power = set.power[powerName]
 
-      set.power[#set.power + 1] = {
-        ["name"] = name,
-        ["index"] = i,
-        ["maxPower"] = maxPower,
-      }
+      set.power[#set.power + 1] = power -- Indexed reference
+      set.power[i] = power -- Reference by power number
 
-      set.power[name] = {
-        ["index"] = i,
-        ["maxPower"] = maxPower,
-      }
+      power.index = i
+      power.name = powerName
+      power.maxPower = maxPower
+      power.currentPower = UnitPower("player", i)
+
+      power.accuratePower = power.currentPower
+      power.total = 0
+      power.wasted = 0
+      power.effective = 0
+      power.skip = true
+
+      power.spells = {}
+      power.spellCosts = {}
+      power.spellList = {}
+      power.spellList.numAdded = 0
+      power.costFrames = {}
+
+      do -- Get power text color
+        if powerName == "Mana" then
+          power.tColor = "|cFF0000FF"
+        elseif powerName == "Rage" then
+          power.tColor = "|cFFFF0000"
+        elseif powerName == "Focus" then
+          power.tColor = "|cFFFF8040"
+        elseif powerName == "Energy" then
+          power.tColor = "|cFFFFFF00"
+        elseif powerName == "Combo Points" then
+          power.tColor = "|cFFFFFFFF"
+        elseif powerName == "Chi" then
+          power.tColor = "|cFFB5FFEB"
+        elseif powerName == "Runes" then
+          power.tColor = "|cFF808080"
+        elseif powerName == "Runic Power" then
+          power.tColor = "|cFF00D1FF"
+        elseif powerName == "Soul Shards" then
+          power.tColor = "|cFF80528C"
+        elseif powerName == "Eclipse" then
+          power.tColor = "|cFF4D85E6"
+        elseif powerName == "Holy Power" then
+          power.tColor = "|cFFF2E699"
+        elseif powerName == "Demonic Fury" then
+          power.tColor = "|cFF80528C"
+        elseif powerName == "Burning Embers" then
+          power.tColor = "|cFFBF6B02"
+        else
+          print("No text color found for " .. powerName .. ".")
+        end
+      end
 
       CT.graphList[#CT.graphList + 1] = CT.powerTypesFormatted[i]
     end
   end
 end
 
-local function basicGraphData(set, temp)
+local function basicGraphData(set, db, role)
   CT.graphList[#CT.graphList + 1] = "Healing"
   CT.graphList[#CT.graphList + 1] = "Damage"
   CT.graphList[#CT.graphList + 1] = "Damage Taken"
@@ -305,127 +392,163 @@ local function basicGraphData(set, temp)
     CT.graphList[#CT.graphList + 1] = "Pet Damage"
   end
 
-  if set then set.graphs = {} end
+  set.graphs = {}
+  db.graphs = db.graphs or {}
 
-  temp.graphs = {}
-
-  temp.graphs.updateDelay = 0.2
-  temp.graphs.lastUpdate = 0
-  temp.graphs.splitAmount = 500
+  set.graphs.updateDelay = 0.2
+  set.graphs.lastUpdate = 0
+  set.graphs.splitAmount = 500
 
   for index, name in ipairs(CT.graphList) do
-    local graphSet
+    set.graphs[name] = {}
+    local setGraph = set.graphs[name]
 
-    if set then
-      set.graphs[name] = {}
-      graphSet = set.graphs[name]
+    db.graphs[name] = db.graphs[name] or {}
+    local dbGraph = db.graphs[name]
 
-      graphSet.data = {}
-      graphSet.XMin = 0
-      graphSet.XMax = 10
-      graphSet.YMin = -5
-      graphSet.YMax = 105
-    else
-      graphSet = temp.parentSet
-    end
+    dbGraph.__index = dbGraph
+    setmetatable(setGraph, dbGraph)
 
-    temp.graphs[name] = {}
-    local graphTemp = temp.graphs[name]
+    dbGraph.data = dbGraph.data or {}
+    dbGraph.XMin = dbGraph.XMin or 0
+    dbGraph.XMax = dbGraph.XMax or 10
+    dbGraph.YMin = dbGraph.YMin or -5
+    dbGraph.YMax = dbGraph.YMax or 105
+    dbGraph.shown = dbGraph.shown or false
 
-    graphTemp.data = graphSet.data
-    graphTemp.XMin = graphSet.XMin
-    graphTemp.XMax = graphSet.XMax
-    graphTemp.YMin = graphSet.YMin
-    graphTemp.YMax = graphSet.YMax
-
-    graphTemp.lines = {}
-    graphTemp.name = name
-    graphTemp.shown = false
-    graphTemp.endNum = 2
-    graphTemp.splitCount = 0
-    graphTemp.startX = 10
-    graphTemp.startY = YMax or graphSet.YMax
-    graphTemp.toggle = CT.toggleNormalGraph
-    graphTemp.refresh = CT.refreshNormalGraph
-    graphTemp.update, graphTemp.color = CT.getGraphUpdateFunc(set, temp, name)
+    setGraph.lines = {}
+    setGraph.name = name
+    setGraph.splitCount = 1
+    setGraph.startX = 10
+    setGraph.startY = dbGraph.YMax
+    setGraph.toggle = CT.toggleNormalGraph
+    setGraph.refresh = CT.refreshNormalGraph
+    setGraph.update, setGraph.color = CT.getGraphUpdateFunc(setGraph, set, db, name)
   end
 end
 
-local function basicUptimeGraphData(set, temp) -- NOTE: Meta table here?
-  local graphSet = temp.parentSet
+local function basicUptimeGraphData(set, db)
+  set.uptimeGraphs = {}
+  set.uptimeGraphs.cooldowns = {}
+  set.uptimeGraphs.buffs = {}
+  set.uptimeGraphs.debuffs = {}
+  set.uptimeGraphs.misc = {}
 
-  if set then
-    set.uptimeGraphs = {}
-    graphSet = set.uptimeGraphs
-    graphSet.cooldowns = {}
-    graphSet.buffs = {}
-    graphSet.debuffs = {}
-    graphSet.misc = {}
-  end
+  db.uptimeGraphs = db.uptimeGraphs or {}
+  db.uptimeGraphs.cooldowns = db.uptimeGraphs.cooldowns or {}
+  db.uptimeGraphs.buffs = db.uptimeGraphs.buffs or {}
+  db.uptimeGraphs.debuffs = db.uptimeGraphs.debuffs or {}
+  db.uptimeGraphs.misc = db.uptimeGraphs.misc or {}
 
-  temp.uptimeGraphs = {}
-  local graphTemp = temp.uptimeGraphs
-  graphTemp.cooldowns = {}
-  graphTemp.buffs = {}
-  graphTemp.debuffs = {}
-  graphTemp.misc = {}
+  function set.addCooldown(spellID, spellName, color)
+    local setGraph = set.uptimeGraphs.cooldowns[spellID]
+    local dbGraph = db.uptimeGraphs.cooldowns[spellID]
 
-  function graphTemp.addCooldown(spellID, spellName, color)
-    local graph = graphSet.cooldowns[spellID]
-
-    if not graph then
-      graphSet.cooldowns[spellID] = {}
-      graph = graphSet.cooldowns[spellID]
-      graph.data = {}
+    if not setGraph then
+      set.uptimeGraphs.cooldowns[spellID] = {}
+      setGraph = set.uptimeGraphs.cooldowns[spellID]
     end
 
-    graphTemp.cooldowns[spellID] = {}
-    graphTemp.cooldowns[spellID].data = graph.data
+    if not dbGraph then
+      db.uptimeGraphs.cooldowns[spellID] = {}
+      dbGraph = db.uptimeGraphs.cooldowns[spellID]
+      dbGraph.data = {}
+    end
+
+    dbGraph.__index = dbGraph
+    setmetatable(setGraph, dbGraph)
+
+    dbGraph.data = dbGraph.data or {}
+    dbGraph.XMin = dbGraph.XMin or 0
+    dbGraph.XMax = dbGraph.XMax or 10
+    dbGraph.YMin = dbGraph.YMin or -5
+    dbGraph.YMax = dbGraph.YMax or 105
+    dbGraph.shown = dbGraph.shown or false
+
+    setGraph.lines = {}
+    setGraph.name = name
+    setGraph.splitCount = 1
+    setGraph.startX = 10
+    setGraph.startY = dbGraph.YMax
+    setGraph.toggle = CT.toggleNormalGraph
+    setGraph.refresh = CT.refreshUptimeGraph
+    setGraph.update, setGraph.color = CT.getGraphUpdateFunc(setGraph, set, db, name)
   end
 end
 
 function CT.buildNewSet()
-  CT:Print("Building a new data set.")
-  local set = CT.current
+  local set, db = CT.current, CT.currentDB
+
+  if CT.graphFrame then CT.graphFrame:hideAllGraphs() end
 
   do -- Create the set table
-    local _, specName = GetSpecializationInfo(GetSpecialization())
+    local _, specName, description, specIcon, background, role, primaryStat = GetSpecializationInfo(GetSpecialization())
 
-    if set then -- Save current set
-      if set.temp then set.temp = nil end -- Remove this before saving it
+    saveDataSet(db)
 
-      tinsert(CombatTrackerCharDB[specName].sets, 1, set)
+    -- wipeSVars = true
+    if wipeSVars then
+      CT:Print("Wiping all saved data sets.")
+      CombatTrackerCharDB[specName].sets = {}
     end
 
-    CombatTrackerCharDB[specName].sets.current = {}
-    set = CombatTrackerCharDB[specName].sets.current
+    set = {}
 
-    set.name = nameCurrentSet(set)
-    set.start = GetTime()
+    CombatTrackerCharDB[specName].sets.currentDB = {}
+    db = CombatTrackerCharDB[specName].sets.currentDB
 
-    set.temp = {} -- The table that will be deleted before saving
-    set.temp.parentSet = set
-    CT.updateLocalData(set)
+    db.__index = db
+    setmetatable(set, db)
+
+    db.setName = nameCurrentSet(set)
+    db.start = GetTime()
+    set.role = role
+
+    CT.updateLocalData(set, db)
   end
 
-  basicSetData(set, set.temp)
-  basicPowerData(set, set.temp)
-  basicGraphData(set, set.temp)
-  basicUptimeGraphData(set, set.temp)
+  basicSetData(set, db)
+  basicPowerData(set, db)
+  basicGraphData(set, db)
+  basicUptimeGraphData(set, db)
 
   CT.current = set
-  if not CT.displayed then CT.displayed = set end
+  CT.currentDB = db
+
+  if not CT.displayed then -- No display, so default to this current set
+    CT.displayed = set
+    CT.displayedDB = db
+  end
+
+  CT.displayed = set -- NOTE: Testing only
+  CT.displayedDB = db -- NOTE: Testing only
+
+  return set, db
 end
 
-function CT.loadSavedSet(set)
-  if not set then CT:Print("Tried to load a set without passing the set table!") return end
+function CT.loadSavedSet(db)
+  if not db then CT:Print("Tried to load a set without passing the DB table!") return end
 
-  set.temp = {} -- The table that will be deleted before saving
-  set.temp.parentSet = set
+  if CT.graphFrame then CT.graphFrame:hideAllGraphs() end
 
-  basicSetData(nil, set.temp)
-  basicGraphData(nil, set.temp)
-  basicUptimeGraphData(nil, set.temp)
+  local _, specName, description, specIcon, background, role, primaryStat = GetSpecializationInfo(GetSpecialization())
+
+  local set = {}
+
+  db.__index = db
+  setmetatable(set, db)
+
+  set.role = role
+
+  basicSetData(set, db)
+  basicPowerData(set, db)
+  basicGraphData(set, db)
+  basicUptimeGraphData(set, db)
 
   CT.displayed = set
+  CT.displayedDB = db
+
+  CT.loadDefaultGraphs()
+
+  return set, db
 end

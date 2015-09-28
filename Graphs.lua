@@ -455,369 +455,300 @@ function CT.finalizeGraphLength()
   end
 end
 
-function CT.getGraphUpdateFunc(set, temp, name)
-  local infinity = math.huge
+local function handleGraphData(set, db, graph, data, name, timer, value)
+  if (value == infinity) or (value == -infinity) then value = 0 end
 
+  local num = #data + 1
+  data[num] = timer -- X coords
+  data[-num] = value -- Y coords
+
+  local refresh
+
+  if (num % set.graphs.splitAmount) == 0 then
+    graph.splitCount = graph.splitCount + 1
+  end
+
+  if value >= graph.YMax and CT.base.expander.shown then
+    db.graphs[name].YMax = graph.YMax + max(value - graph.YMax, 5)
+    refresh = true
+  end
+
+  if timer > graph.XMax and CT.base.expander and CT.base.expander.shown and graph.frame and not graph.frame.zoomed then
+    db.graphs[name].XMax = graph.XMax + max(timer - graph.XMax, graph.startX * graph.splitCount)
+    refresh = true
+  end
+
+  if graph.shown then
+    graph:refresh(refresh)
+  end
+end
+
+function CT.getGraphUpdateFunc(graph, set, db, name)
   if name == "Healing" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = (set.healing.total or 0) / timer
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.green
+    local color = CT.colors.green
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Damage" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = ((set.damage.total or 0) / timer)
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.orange
+    local color = CT.colors.orange
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Damage Taken" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = ((set.damageTaken.total or 0) / timer)
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.red
+    local color = CT.colors.red
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Total Damage" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = ((set.damage.total or 0) / timer) + ((set.pet.damage.total or 0) / timer)
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.orange
+    local color = CT.colors.orange
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Pet Damage" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = ((set.pet.damage.total or 0) / timer)
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.lightgrey
+    local color = CT.colors.lightgrey
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Mana" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = ((set.power[name].accuratePower or 0) / (set.power[name].maxPower or 0)) * 100
-      if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.mana
+    local color = CT.colors.mana
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Focus" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = (set.power[name].accuratePower / set.power[name].maxPower) * 100
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.focus
+    local color = CT.colors.focus
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Rage" then -- TODO: Set up
-    local function func(timer)
+    local function func(graph, timer)
 
     end
 
-    return func, CT.colors.rage
+    local color = CT.colors.rage
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Demonic Fury" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = (set.power[name].accuratePower / set.power[name].maxPower) * 100
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.demonicFury
+    local color = CT.colors.demonicFury
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Energy" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = (set.power[name].accuratePower / set.power[name].maxPower) * 100
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.energy
+    local color = CT.colors.energy
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Runic Power" then -- TODO: Set up
-    local function func(timer)
+    local function func(graph, timer)
 
     end
 
-    return func, CT.colors.runicPower
+    local color = CT.colors.runicPower
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Holy Power" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = ((set.power[2].accuratePower or 0) / (set.power[2].maxPower or 0)) * 100
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.holyPower
+    local color = CT.colors.holyPower
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Shadow Orbs" then -- TODO: Set up
-    local function func(timer)
+    local function func(graph, timer)
 
     end
 
-    return func, CT.colors.shadowOrbs
+    local color = CT.colors.shadowOrbs
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Combo Points" then
-    local function func(timer)
+    local function func(graph, timer)
       local value
 
       if set.auras[115189] then -- Anticipation (Rogue talent)
@@ -828,137 +759,85 @@ function CT.getGraphUpdateFunc(set, temp, name)
 
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.comboPoints
+    local color = CT.colors.comboPoints
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Chi" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = (set.power[name].accuratePower)
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.chi
+    local color = CT.colors.chi
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Soul Shards" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = (set.power[name].accuratePower)
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.soulShards
+    local color = CT.colors.soulShards
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   elseif name == "Burning Embers" then
-    local function func(timer)
+    local function func(graph, timer)
       local value = (set.power[name].accuratePower)
       if (value == infinity) or (value == -infinity) then value = 0 end
 
-      local data = set.graphs[name].data
-
-      local num = #data + 1
-      data[num] = timer -- X coords
-      data[-num] = value -- Y coords
-
-      local refresh
-      local graphSet = set.graphs[name]
-      local graphTemp = temp.graphs[name]
-
-      if (num % temp.graphs.splitAmount) == 0 then
-        if not graphTemp.splitCount then CT:Print("Missing split count for:", graphTemp.name) end
-        graphTemp.splitCount = graphTemp.splitCount + 1
-      end
-
-      if value >= graphSet.YMax and CT.base.expander.shown then
-        graphSet.YMax = graphSet.YMax + max(value - graphSet.YMax, 5)
-        refresh = true
-      end
-
-      if timer > graphSet.XMax and CT.base.expander and CT.base.expander.shown and graphTemp.frame and not graphTemp.frame.zoomed then
-        graphSet.XMax = graphSet.XMax + max(timer - graphSet.XMax, graphSet.startX * graphTemp.splitCount)
-        refresh = true
-      end
-
-      graphTemp.needsRefresh = refresh
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
 
-    return func, CT.colors.burningEmbers
+    local color = CT.colors.burningEmbers
+    local colorString = CT.convertColor(color[1], color[2], color[3])
+
+    graph.displayText = {
+      "\n",
+      colorString,
+      name,
+      "|r ",
+      "",
+      "%",
+    }
+
+    return func, color
   end
 end
 --------------------------------------------------------------------------------
@@ -1167,7 +1046,59 @@ function CT:updateUptimeAnchors()
   end
 end
 
-function CT:refreshUptimeGraph(reset, newHeight, visible)
+function CT:refreshUptimeGraph(reset)
+  if not CT.uptimeGraphFrame then CT:Print("Tried to refresh uptime graph before CT.uptimeGraphFrame was created.") return end
+  if not CT.uptimeGraphFrame.displayed[1] then CT:Print("Tried to refresh uptime graph without any displayed.") return end
+
+  local frame = CT.uptimeGraphFrame
+  local frameWidth, frameHeight = frame.bg:GetSize()
+
+  for index = 1, #CT.uptimeGraphFrame.displayed do
+    local setGraph = frame[index]
+
+    if reset then setGraph.endNum = 1 end
+
+    for i = setGraph.endNum, #setGraph.data do
+      local addedLine
+      local offSetY = 0
+
+      local line = setGraph.lines[i]
+      if not line then
+        line = frame.anchor:CreateTexture(nil, "ARTWORK")
+        line:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+        line.startX = setGraph.data[i]
+
+        setGraph.lines[i] = line
+        setGraph.lastLine = line
+        addedLine = true
+
+        if (i % 2) == 0 then
+          line:SetVertexColor(setGraph.color[1], setGraph.color[2], setGraph.color[3], setGraph.color[4])
+        else
+          line:SetVertexColor(0, 0, 0, 0)
+        end
+      end
+
+      line:SetPoint("LEFT", frame.bg, frameWidth * setGraph.data[i] / setGraph.XMax, offSetY)
+      line:SetWidth(1)
+
+      if lineTable[i - 1] then
+        local prevLine = lineTable[i - 1]
+        prevLine.stopX = graph.data[i]
+
+        if prevLine.startX >= graph.data[i] then -- Stops lines from begining before the new end point
+          prevLine.startX = graph.data[i] - 0.01
+        end
+
+        prevLine:SetWidth(graphWidth * (prevLine.stopX - prevLine.startX) / self.XMax)
+      end
+
+      graph.endNum = i + 1
+    end
+  end
+end
+
+function CT:refreshUptimeGraph_BACKUP(reset, newHeight, visible)
   if not self.shown then return end
 
   for index = 1, #CT.base.expander.uptimeGraph do
@@ -1270,8 +1201,12 @@ function CT:buildUptimeGraph(relativeFrame)
   do
     -- graph = CreateFrame("Frame", nil, self)
     graph = CreateFrame("ScrollFrame", nil, self)
+    CT.uptimeGraphFrame = graph
+    CT.uptimeGraphFrame.displayed = {}
+
     graph.anchor = CreateFrame("Frame", nil, self)
     graph:SetScrollChild(graph.anchor)
+
     -- CT.scrollChildFrameUptime = CreateFrame("Frame", nil, CT.base)
     -- graph:SetScrollChild(CT.scrollChildFrameUptime)
     -- graph:SetScrollChild(CT.scrollChildFrame)
@@ -1470,9 +1405,9 @@ function CT.hideLineGraphs(self)
     self.graphFrame = nil
     self.shown = false
 
-    for i = 1, #CT.base.expander.graph.active do
-      if CT.base.expander.graph.active[i] == self then
-        tremove(CT.base.expander.graph.active, i)
+    for i = 1, #CT.base.expander.graphFrame.active do
+      if CT.base.expander.graphFrame.active[i] == self then
+        tremove(CT.base.expander.graphFrame.active, i)
       end
     end
 
@@ -1486,7 +1421,7 @@ function CT.hideLineGraphs(self)
         string = string .. graphs[i].string
       end
     end
-    CT.base.expander.graph.titleText:SetText(string)
+    CT.base.expander.graphFrame.titleText:SetText(string)
 
     return
   else -- No specific graph was passed, hide all
@@ -1497,9 +1432,9 @@ function CT.hideLineGraphs(self)
         self.graphFrame = nil
         self.shown = false
 
-        for i = 1, #CT.base.expander.graph.active do
-          if CT.base.expander.graph.active[i] == self then
-            tremove(CT.base.expander.graph.active, i)
+        for i = 1, #CT.base.expander.graphFrame.active do
+          if CT.base.expander.graphFrame.active[i] == self then
+            tremove(CT.base.expander.graphFrame.active, i)
           end
         end
 
@@ -1514,7 +1449,7 @@ function CT.hideLineGraphs(self)
             string = string .. graphs[i].string
           end
         end
-        CT.base.expander.graph.titleText:SetText(string)
+        CT.base.expander.graphFrame.titleText:SetText(string)
       end
     end
   end
@@ -1529,7 +1464,7 @@ function CT.showLineGraph(self, name)
 
     self.graphFrame = CT.base.expander.graph
     self.shown = true
-    tinsert(CT.base.expander.graph.active, self)
+    tinsert(CT.base.expander.graphFrame.active, self)
 
     for k, v in pairs(lineTable) do
       v:Show()
@@ -1542,13 +1477,13 @@ function CT.showLineGraph(self, name)
       self.string = self.convertedColor .. self.name .. "|r, "
     end
 
-    local string = CT.base.expander.graph.titleText.default
+    local string = CT.base.expander.graphFrame.titleText.default
     for i = 1, #graphs do
       if graphs[i].graphFrame then
         string = string .. graphs[i].string
       end
     end
-    CT.base.expander.graph.titleText:SetText(string)
+    CT.base.expander.graphFrame.titleText:SetText(string)
 
     return
   else
@@ -1571,37 +1506,48 @@ function CT.showLineGraph(self, name)
   end
 end
 
-function CT:toggleNormalGraph()
+function CT:toggleNormalGraph(command)
   if not CT.graphFrame then CT:Print("Tried to toggle a graph before graph frame was loaded.") return end
 
-  local frame, found = CT.graphFrame, nil
-  for i = 1, #frame.displayed do
-    if frame.displayed[i] == self.name then -- Graph is currently displayed
-      found = i
-      break
+  local frame = CT.graphFrame
+  local found = nil
+  local dbGraph = CT.displayedDB and CT.displayedDB.graphs[self.name]
+
+  if not command then -- Don't bother running through if a show or hide command was sent
+    for i = 1, #frame.displayed do
+      if frame.displayed[i] == self then -- Graph is currently displayed
+        found = i
+        break
+      end
     end
   end
 
-  if found then -- Hide graph
-    for i = 1, #self.lines do
-      if self.lines[i] then
-        self.lines[i]:Hide()
-      end
-    end -- Hide each line
+  if found or (command and command == "hide") then -- Hide graph
+    print("Hiding:", self.name .. ".")
 
     tremove(frame.displayed, found) -- Remove it from list
     self.frame = nil
-    self.shown = false
-  else -- Show graph
-    for i = 1, #self.lines do
+    dbGraph.shown = false
+
+    for i = 1, #self.lines do -- Hide all the lines
+      if self.lines[i] then
+        self.lines[i]:Hide()
+      end
+    end
+  elseif not found or (command and command == "show") then -- Show graph
+    print("Showing:", self.name .. ".")
+
+    tinsert(frame.displayed, self) -- Add it to list
+    self.frame = frame
+    dbGraph.shown = true
+
+    self:refresh(true) -- Create/update lines
+
+    for i = 1, #self.lines do -- Show all the lines
       if self.lines[i] then
         self.lines[i]:Show()
       end
-    end -- Show each line
-
-    tinsert(frame.displayed, self.name) -- Add it to list
-    self.frame = frame
-    self.shown = true
+    end
   end
 end
 
@@ -1645,7 +1591,7 @@ function CT:refreshNormalGraph(reset)
     self.splitsLeft = self.splitsLeft - 1
   end
 
-  for i = self.endNum, num do
+  for i = (self.endNum or 2), num do
     local startX = graphWidth * (self.data[i - 1] - minX) / (maxX - minX)
     local startY = graphHeight * (self.data[-(i - 1)] - minY) / (maxY - minY)
 
@@ -1723,7 +1669,7 @@ function CT:refreshNormalGraph(reset)
       self:refresh()
     end)
   elseif self.frame.zoomed then
-    self.frame.slider:SetMinMaxValues(lineTable[4]:GetLeft() - self.frame:GetLeft(), self.lastLine:GetRight() - self.frame:GetRight())
+    self.frame.slider:SetMinMaxValues(self.lines[4]:GetLeft() - self.frame:GetLeft(), self.lastLine:GetRight() - self.frame:GetRight())
     self.frame.slider:SetValue(0)
   end
 end
@@ -1860,6 +1806,42 @@ function CT:refreshNormalGraphBACKUP(reset)
   end
 end
 
+function CT.loadDefaultGraphs()
+  if CT.displayedDB then -- Show the default graphs
+    local set = CT.displayed
+    local db = CT.displayedDB
+
+    if db.graphs.defaults then
+      for name in pairs(db.graphs.defaults) do
+        set.graphs[name]:toggle()
+      end
+    else
+      local default
+
+      if set.role == "HEALER" then
+        default = "Healing"
+      elseif set.role == "DAMAGER" then
+        default = "Damage"
+      elseif set.role == "TANK" then
+        default = "Damage"
+      end
+
+      default = "Holy Power" -- NOTE: Testing only
+
+      db.graphs.defaults = {}
+      db.graphs.defaults[default] = true
+
+      set.graphs[default]:toggle("show")
+    end
+  end
+end
+
+local function hideAllGraphs(self)
+  for i, graph in ipairs(self.displayed) do
+    graph:toggle("hide")
+  end
+end
+
 function CT:buildGraph()
   local graph, mouseOver, dot, dragOverlay, slider
   local graphHeight = 100
@@ -1869,57 +1851,54 @@ function CT:buildGraph()
     createGraphTooltip()
   end
 
-  do -- Create graph frame and background and set basic values
-    self.graph = CreateFrame("ScrollFrame", nil, self)
-    graph = self.graph
-    CT.graphFrame = graph
-    graph.anchor = CreateFrame("Frame", nil, self)
-    graph:SetScrollChild(graph.anchor)
-    graph.anchor:SetSize(100, 100)
-    graph.anchor:SetAllPoints(graph)
-    -- graph.anchor:SetPoint("RIGHT", graph)
+  local graphFrame = self.graphFrame
 
-    graph.bg = graph:CreateTexture(nil, "BACKGROUND")
-    graph.bg:SetTexture(0.07, 0.07, 0.07, 1.0)
-    graph.bg:SetAllPoints()
-    graph.startX = 10
-    graph.XMin = 0
-    graph.XMax = 10
-    graph.YMin = -5
-    graph.YMax = 105
-    -- graph.active = {}
+  if not graphFrame then -- Create graph frame and background and set basic values
+    self.graphFrame = CreateFrame("ScrollFrame", nil, self)
+    graphFrame = self.graphFrame
+    CT.graphFrame = graphFrame
+    graphFrame.anchor = CreateFrame("Frame", nil, self)
+    graphFrame:SetScrollChild(graphFrame.anchor)
+    graphFrame.anchor:SetSize(100, 100)
+    graphFrame.anchor:SetAllPoints(graphFrame)
+    -- graphFrame.anchor:SetPoint("RIGHT", graphFrame)
 
-    graph.displayed = {}
+    graphFrame.bg = graphFrame:CreateTexture(nil, "BACKGROUND")
+    graphFrame.bg:SetTexture(0.07, 0.07, 0.07, 1.0)
+    graphFrame.bg:SetAllPoints()
+
+    graphFrame.displayed = {} -- Holds every currently displayed graph
+    graphFrame.hideAllGraphs = hideAllGraphs
   end
 
   do -- Create Graph Borders
-    graph.border = {}
+    graphFrame.border = {}
 
     for i = 1, 4 do
-      local border = graph:CreateTexture(nil, "BORDER")
-      graph.border[i] = border
+      local border = graphFrame:CreateTexture(nil, "BORDER")
+      graphFrame.border[i] = border
       border:SetTexture(0.2, 0.2, 0.2, 1.0)
       border:SetSize(2, 2)
 
       if i == 1 then
-        border:SetPoint("TOPRIGHT", graph, 0, 0)
-        border:SetPoint("TOPLEFT", graph, 0, 0)
+        border:SetPoint("TOPRIGHT", graphFrame, 0, 0)
+        border:SetPoint("TOPLEFT", graphFrame, 0, 0)
       elseif i == 2 then
-        border:SetPoint("BOTTOMRIGHT", graph, 0, 0)
-        border:SetPoint("BOTTOMLEFT", graph, 0, 0)
+        border:SetPoint("BOTTOMRIGHT", graphFrame, 0, 0)
+        border:SetPoint("BOTTOMLEFT", graphFrame, 0, 0)
       elseif i == 3 then
-        border:SetPoint("TOPLEFT", graph, 0, 0)
-        border:SetPoint("BOTTOMLEFT", graph, 0, 0)
+        border:SetPoint("TOPLEFT", graphFrame, 0, 0)
+        border:SetPoint("BOTTOMLEFT", graphFrame, 0, 0)
       else
-        border:SetPoint("TOPRIGHT", graph, 0, 0)
-        border:SetPoint("BOTTOMRIGHT", graph, 0, 0)
+        border:SetPoint("TOPRIGHT", graphFrame, 0, 0)
+        border:SetPoint("BOTTOMRIGHT", graphFrame, 0, 0)
       end
     end
   end
 
   do -- MouseoverLine
-    self.graph.mouseOverLine = CreateFrame("Frame", nil, self.graph)
-    mouseOver = self.graph.mouseOverLine
+    graphFrame.mouseOverLine = CreateFrame("Frame", nil, graphFrame)
+    mouseOver = graphFrame.mouseOverLine
     mouseOver:SetSize(2, graphHeight)
     mouseOver:SetPoint("TOP", 0, 0)
     mouseOver:SetPoint("BOTTOM", 0, 0)
@@ -1930,8 +1909,8 @@ function CT:buildGraph()
   end
 
   do -- Dot
-    self.graph.mouseOverLine.dot = CreateFrame("Frame", nil, self.graph.mouseOverLine)
-    dot = self.graph.mouseOverLine.dot
+    graphFrame.mouseOverLine.dot = CreateFrame("Frame", nil, graphFrame.mouseOverLine)
+    dot = graphFrame.mouseOverLine.dot
     dot:SetSize(10, 10)
     dot:SetPoint("CENTER", 0, 0)
     dot.texture = dot:CreateTexture(nil, "OVERLAY")
@@ -1941,8 +1920,8 @@ function CT:buildGraph()
   end
 
   do -- Drag Overlay
-    self.graph.dragOverlay = CreateFrame("Frame", nil, self.graph)
-    dragOverlay = self.graph.dragOverlay
+    graphFrame.dragOverlay = CreateFrame("Frame", nil, graphFrame)
+    dragOverlay = graphFrame.dragOverlay
     dragOverlay:SetSize(60, graphHeight)
     dragOverlay:SetPoint("TOP", 0, 0)
     dragOverlay:SetPoint("BOTTOM", 0, 0)
@@ -1953,11 +1932,11 @@ function CT:buildGraph()
   end
 
   do -- Slider bar
-    graph.slider = CreateFrame("Slider", nil, graph)
-    slider = graph.slider
+    graphFrame.slider = CreateFrame("Slider", nil, graphFrame)
+    slider = graphFrame.slider
     slider:SetSize(100, 20)
-    slider:SetPoint("TOPLEFT", graph, 0, 0)
-    slider:SetPoint("TOPRIGHT", graph, 0, 0)
+    slider:SetPoint("TOPLEFT", graphFrame, 0, 0)
+    slider:SetPoint("TOPRIGHT", graphFrame, 0, 0)
 
     slider:SetBackdrop({
       bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
@@ -1975,9 +1954,8 @@ function CT:buildGraph()
     -- slider:SetValueStep(25)
 
     slider:SetScript("OnValueChanged", function(self, value)
-      -- print(value)
-      graph.anchor:SetSize(graph:GetWidth(), graph:GetHeight())
-      graph:SetHorizontalScroll(value)
+      graphFrame.anchor:SetSize(graphFrame:GetWidth(), graphFrame:GetHeight())
+      graphFrame:SetHorizontalScroll(value)
     end)
 
     slider:Hide()
@@ -1985,10 +1963,9 @@ function CT:buildGraph()
 
   local UIScale = UIParent:GetEffectiveScale()
   local YELLOW = "|cFFFFFF00"
-  local graph = self.graph
   local mouseLines = {}
 
-  self.graph.mouseOverLine:SetScript("OnUpdate", function(mouseOver, elapsed)
+  mouseOver:SetScript("OnUpdate", function(mouseOver, elapsed)
     local mouseX, mouseY = GetCursorPosition()
     local mouseX = (mouseX / UIScale)
     local mouseY = (mouseY / UIScale)
@@ -1996,17 +1973,16 @@ function CT:buildGraph()
 
     mouseOver:SetPoint("LEFT", UIParent, mouseX, 0)
 
-    if not self.graph.displayed[1] then return end
+    if not graphFrame.displayed[1] then return end -- No displayed graphs
 
-    local active1 = self.graph.displayed[1]
-    local lineTable = CT.graphLines[active1.name]
+    local active1 = graphFrame.displayed[1]
 
     local count = 0
     local mouseOverCenter = mouseOver:GetCenter()
 
     wipe(mouseLines)
-    for i = 1, #lineTable, 2 do
-      line = lineTable[i]
+    for i = 1, #active1.lines do
+      line = active1.lines[i]
 
       if line then
         if line:GetRight() > mouseX then
@@ -2022,35 +1998,18 @@ function CT:buildGraph()
 
     local num, line = nearestValue(mouseLines, mouseOverCenter)
 
-    if num and active1.data[num + 1] then
+    if num and active1.data[num] then
       local startX = active1.data[num]
-      local startY = active1.data[num + 1]
+      local startY = active1.data[-num]
 
       local text = "Time: " .. YELLOW .. formatTimer(startX) .. "|r\n"
 
-      for i = 1, #self.graph.active do
-        local graph = self.graph.active[i]
-        local startY = graph.data[num + 1]
+      for i = 1, #graphFrame.displayed do
+        local graph = graphFrame.displayed[i]
+        local startY = graph.data[-num]
 
-        if graph.valueFormat then
-          if graph.valueFormat[1] == "/" then
-            startY = startY / graph.valueFormat[2]
-          elseif graph.valueFormat[1] == "*" then
-            startY = startY * graph.valueFormat[2]
-          elseif graph.valueFormat[1] == "+" then
-            startY = startY + graph.valueFormat[2]
-          elseif graph.valueFormat[1] == "-" then
-            startY = startY - graph.valueFormat[2]
-          elseif graph.valueFormat[1] == "%" then
-            startY = startY % graph.valueFormat[2]
-          elseif graph.valueFormat[1] == "percent" then
-            startY = round(startY, 0) .. "%"
-          elseif graph.valueFormat[1] == "HPS" or graph.valueFormat[1] == "DPS" then
-            startY = round(startY, 1) .. " " .. graph.valueFormat[1]
-          end
-        end
-
-        text = text .. "\n" .. graph.convertedColor .. graph.name .. "|r: " .. startY
+        graph.displayText[5] = floor(startY)
+        text = text .. table.concat(graph.displayText)
       end
 
       CT.graphTooltip:SetText(text, 1, 1, 1, 1)
@@ -2059,38 +2018,42 @@ function CT:buildGraph()
       CT.graphTooltip:SetAlpha(0)
     end
   end)
-  self.graph:SetScript("OnEnter", function(g)
-    local mouseOver = self.graph.mouseOverLine
 
-    self.graph.mouseOverLine:Show()
-    CT.graphTooltip:SetOwner(self.graph.mouseOverLine.dot, "ANCHOR_TOPLEFT", 25, 8)
+  graphFrame:SetScript("OnEnter", function(graphFrame)
+    mouseOver:Show()
+    CT.graphTooltip:SetOwner(mouseOver.dot, "ANCHOR_TOPLEFT", 25, 8)
     CT.graphTooltip:SetCurrencyToken(1)
     CT.graphTooltip:SetBackdropColor(0.1, 0.1, 0.1, 1.0)
     CT.graphTooltip:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.4)
   end)
-  self.graph:SetScript("OnLeave", function(g)
-    self.graph.mouseOverLine:Hide()
+
+  graphFrame:SetScript("OnLeave", function(graphFrame)
+    mouseOver:Hide()
     CT.graphTooltip:Hide()
   end)
-  self.graph:SetScript("OnMouseDown", function(graphFrame, button)
+
+  graphFrame:SetScript("OnMouseDown", function(graphFrame, button)
     if not CT.current then return end
+
     if button == "LeftButton" and not graphFrame.zoomed then
-      local mouseOverLeft = graphFrame.mouseOverLine:GetLeft() - graphFrame:GetLeft()
+      local mouseOverLeft = mouseOver:GetLeft() - graphFrame:GetLeft()
 
       graphFrame.dragOverlay:Show()
       graphFrame.dragOverlay:SetPoint("LEFT", mouseOverLeft, 0)
-      graphFrame.dragOverlay:SetPoint("RIGHT", graphFrame.mouseOverLine, 0, 0)
+      graphFrame.dragOverlay:SetPoint("RIGHT", mouseOver, 0, 0)
 
       graphFrame.mouseOverLeft = mouseOverLeft
     end
   end)
-  self.graph:SetScript("OnMouseUp", function(graphFrame, button)
+
+  graphFrame:SetScript("OnMouseUp", function(graphFrame, button)
     if not CT.current then return end
+
     local graphs = CT.current.graphs
 
     if button == "LeftButton" then
       if not graphFrame.zoomed then
-        local mouseOverRight = graphFrame.mouseOverLine:GetRight()
+        local mouseOverRight = mouseOver:GetRight()
         local graphWidth = graphFrame:GetWidth()
         local graphLeft = graphFrame:GetLeft()
 
@@ -2098,9 +2061,11 @@ function CT:buildGraph()
         graphFrame.dragOverlay:Hide()
         graphFrame.slider:Show()
 
-        for i, graph in ipairs(graphFrame.active) do
-          graph.XMin = (graphFrame.mouseOverLeft / graphWidth) * graph.XMax
-          graph.XMax = ((mouseOverRight - graphLeft) / graphWidth) * graph.XMax
+        for i, graph in ipairs(graphFrame.displayed) do
+          local dbGraph = CT.currentDB.graphs[graph.name]
+
+          dbGraph.XMin = (graphFrame.mouseOverLeft / graphWidth) * graph.XMax
+          dbGraph.XMax = ((mouseOverRight - graphLeft) / graphWidth) * graph.XMax
           graph:refresh(true)
         end
       end
@@ -2110,12 +2075,14 @@ function CT:buildGraph()
 
         graphFrame.zoomed = false
         graphFrame.dragOverlay:Hide()
-        graphFrame.mouseOverLine.dot:Hide()
         graphFrame.slider:Hide()
+        mouseOver.dot:Hide()
         slider:SetValue(0)
 
-        for i, graph in ipairs(graphFrame.active) do
-          graph.XMin = 0
+        for i, graph in ipairs(graphFrame.displayed) do
+          local dbGraph = CT.currentDB.graphs[graph.name]
+
+          dbGraph.XMin = 0
 
           if (#graph.data % graphs.splitAmount) == 0 then
             graph.splitCount = graph.splitCount + 1
@@ -2123,7 +2090,7 @@ function CT:buildGraph()
 
           if timer > graph.XMax then
             -- graph.XMax = graph.XMax + max(timer - graph.XMax, graph.startX)
-            graph.XMax = graph.XMax + max(timer - graph.XMax, graph.startX * graph.splitCount)
+            dbGraph.XMax = graph.XMax + max(timer - graph.XMax, graph.startX * graph.splitCount)
           end
 
           graph:refresh(true)
@@ -2132,5 +2099,8 @@ function CT:buildGraph()
     end
   end)
 
+  CT.loadDefaultGraphs()
+
   self.graphCreated = true
+  return graphFrame
 end

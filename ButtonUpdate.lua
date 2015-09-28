@@ -1145,7 +1145,7 @@ function func:expanderDamage(time, timer)
 end
 
 function func:expanderActivity(time, timer)
-  local inactivity = timer - CT.displayed.activity.total
+  local inactivity = timer - (CT.displayed.activity.total or 0)
   local activityPercent = round(100 - ((inactivity / timer) * 100), 1)
   if activityPercent > 0 then
     self.value:SetText(activityPercent .. "%")
@@ -1156,8 +1156,8 @@ function func:expanderActivity(time, timer)
 
   local text = CT.base.expander.textData.value
 
-  local activity = CT.displayed.activity.total + (CT.displayed.currentCastDuration or 0) + (CT.displayed.currentGCDDuration or 0)
-  local timeCasting = CT.displayed.activity.timeCasting + (CT.displayed.currentCastDuration or 0)
+  local activity = (CT.displayed.activity.total or 0) + (CT.displayed.currentCastDuration or 0) + (CT.displayed.currentGCDDuration or 0)
+  local timeCasting = (CT.displayed.activity.timeCasting or 0) + (CT.displayed.currentCastDuration or 0)
   local timeGCD = (CT.displayed.activity.totalGCD or 0) + (CT.displayed.currentGCDDuration or 0)
 
   -- Group 1
@@ -1188,6 +1188,8 @@ end
 function func:expanderResource1(time, timer)
   local power = CT.displayed.power[1]
   if power then
+    self.hasDisplayedText = true
+
     self.powerNum = 1
 
     local value = round(100 - ((power.wasted / power.total) * 100), 0)
@@ -1248,6 +1250,17 @@ function func:expanderResource1(time, timer)
       -- text[14]:SetText()
       -- text[15]:SetText()
       -- text[16]:SetText()
+    end
+  elseif self.hasDisplayedText then -- No table, but text hasn't been wiped
+    self.hasDisplayedText = false
+    self.value:SetText()
+
+    if self.expanded then
+      local text = CT.base.expander.textData.value
+
+      for i = 1, #text do -- Remove all the shown text
+        text[i]:SetText()
+      end
     end
   end
 end
@@ -1322,6 +1335,8 @@ end
 function func:expanderAuraUptime(time, timer)
   local aura = CT.displayed.auras[self.spellID]
   if aura then
+    self.hasDisplayedText = true
+
     local totalUptime = (aura.totalUptime or 0) + (aura.timer or 0)
     if totalUptime < 0 then totalUptime = 0 end
     local value = round(100 - ((timer - totalUptime) / timer) * 100, 1)
@@ -1360,12 +1375,25 @@ function func:expanderAuraUptime(time, timer)
       -- text[15]:SetText()
       -- text[16]:SetText()
     end
+  elseif self.hasDisplayedText then -- No table, but text hasn't been wiped
+    self.hasDisplayedText = false
+    self.value:SetText()
+
+    if self.expanded then
+      local text = CT.base.expander.textData.value
+
+      for i = 1, #text do -- Remove all the shown text
+        text[i]:SetText()
+      end
+    end
   end
 end
 
 function func:expanderShortCD(time, timer)
   local spell = CT.displayed.spells[self.spellID]
   if spell then
+    self.hasDisplayedText = true
+
     local totalCD = (spell.totalCD or 0) + (spell.CD or 0)
     local value = round(100 - ((timer - totalCD) / timer) * 100, 1)
     if value > 100 then value = 100 end
@@ -1398,12 +1426,25 @@ function func:expanderShortCD(time, timer)
       text[8]:SetFormattedText("%.2f", spell.longestDelay or 0)
       text[9]:SetText(spell.procCount or 0)
     end
+  elseif self.hasDisplayedText then -- No spell, but text hasn't been wiped
+    self.hasDisplayedText = false
+    self.value:SetText()
+
+    if self.expanded then
+      local text = CT.base.expander.textData.value
+
+      for i = 1, #text do -- Remove all the shown text
+        text[i]:SetText()
+      end
+    end
   end
 end
 
 function func:expanderExecute(time, timer)
   local spell = CT.displayed.spells[self.spellID]
   if spell then
+    self.hasDisplayedText = true
+
     local totalUptime = (spell.totalUptime or 0) + (spell.uptime or 0)
     if totalUptime < 0 then totalUptime = 0 end
     local value = round(100 - ((timer - totalUptime) / timer) * 100, 1)
@@ -1436,6 +1477,17 @@ function func:expanderExecute(time, timer)
       -- text[14]:SetText()
       -- text[15]:SetText()
       -- text[16]:SetText()
+    end
+  elseif self.hasDisplayedText then -- No table, but text hasn't been wiped
+    self.hasDisplayedText = false
+    self.value:SetText()
+
+    if self.expanded then
+      local text = CT.base.expander.textData.value
+
+      for i = 1, #text do -- Remove all the shown text
+        text[i]:SetText()
+      end
     end
   end
 end
@@ -1524,6 +1576,8 @@ end
 function func:expanderEnvenom(time, timer)
   local spell = CT.displayed.spells[self.spellID]
   if spell then
+    self.hasDisplayedText = true
+
     local aura = CT.displayed.auras[self.spellID]
 
     local totalUptime = (aura.totalUptime or 0) + (aura.uptime or 0)
@@ -1563,6 +1617,17 @@ function func:expanderEnvenom(time, timer)
       -- text[14]:SetText()
       -- text[15]:SetText()
       -- text[16]:SetText()
+    end
+  elseif self.hasDisplayedText then -- No table, but text hasn't been wiped
+    self.hasDisplayedText = false
+    self.value:SetText()
+
+    if self.expanded then
+      local text = CT.base.expander.textData.value
+
+      for i = 1, #text do -- Remove all the shown text
+        text[i]:SetText()
+      end
     end
   end
 end

@@ -1525,14 +1525,8 @@ function CT.getPlayerDetails()
     end
   end
 
-  if not CT.specData then
-    CT.specData = {}
-  else
-    wipe(CT.specData)
-  end
+  CT.specData = CT.specData and wipe(CT.specData) or {}
 
-  CT.updatePowerTypes()
-  addBasicGraphs(role)
   classFunc(specName)
 end
 

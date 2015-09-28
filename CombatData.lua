@@ -273,7 +273,7 @@ local function getSpellCost(spellID)
   local cost, powerType, powerIndex
 
   for i = 1, #data.power do
-    local index = data.power[i].num
+    local index = data.power[i].index
     local powerName = data.power[i].name
 
     if costText:match(powerName) then
@@ -388,18 +388,18 @@ local function addSpell(spellID, spellName, school)
     spell.school = school
     spell.schoolColor = CT.spells.schoolColors[school]
 
-    for i = 1, #uptimeGraphs.categories do
-      local category = uptimeGraphs.categories[i]
-      if category[spellID] then
-        category[spellID].color = spell.schoolColor.decimals
-        category[spellID].convertedColor = "|c" .. spell.schoolColor.hex
-        local lineTable = CT.uptimeGraphLines[category[spellID].category][category[spellID].name]
-
-        for i = 1, #lineTable do
-          lineTable[i]:SetVertexColor(category[spellID].color[1], category[spellID].color[2], category[spellID].color[3])
-        end
-      end
-    end
+    -- for i = 1, #uptimeGraphs.categories do
+    --   local category = uptimeGraphs.categories[i]
+    --   if category[spellID] then
+    --     category[spellID].color = spell.schoolColor.decimals
+    --     category[spellID].convertedColor = "|c" .. spell.schoolColor.hex
+    --     local lineTable = CT.uptimeGraphLines[category[spellID].category][category[spellID].name]
+    --
+    --     for i = 1, #lineTable do
+    --       lineTable[i]:SetVertexColor(category[spellID].color[1], category[spellID].color[2], category[spellID].color[3])
+    --     end
+    --   end
+    -- end
   end
 
   return spell
@@ -505,8 +505,7 @@ local function spellHeal(time, event, _, srcGUID, srcName, srcFlags, _, dstGUID,
   if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
 
   if not CT.tracking then
-    CT:Print("Beginning tracking from spell HEAL. Source:", srcName, "Spell:", spellName)
-    CT.startTracking()
+    CT.startTracking("Beginning tracking from HEAL. Source: " .. srcName .. " Spell: " .. spellName .. ".")
   end
 
   if srcName == data.name then -- From player
@@ -583,8 +582,7 @@ local function spellDamage(time, event, _, srcGUID, srcName, _, _, dstGUID, dstN
   if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
 
   if not CT.tracking then
-    CT:Print("Beginning tracking from spell DAMAGE. Source:", srcName, "Spell:", spellName)
-    CT.startTracking()
+    CT.startTracking("Beginning tracking from DAMAGE. Source: " .. srcName .. " Spell: " .. spellName .. ".")
   end
 
   if (srcName == data.petName) or (srcName == data.name) then -- From player or player's pet
@@ -690,8 +688,7 @@ local function spellMissed(time, event, _, srcGUID, srcName, _, _, dstGUID, dstN
   if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
 
   if not CT.tracking then
-    CT:Print("Beginning tracking from spell MISSED. Source:", srcName, "Spell:", spellName)
-    CT.startTracking()
+    CT.startTracking("Beginning tracking from MISSED. Source: " .. srcName .. " Spell: " .. spellName .. ".")
   end
 
   if (srcName == data.petName) or (srcName == data.name) then -- From player or player's pet
@@ -771,8 +768,7 @@ local function swingDamage(time, event, _, srcGUID, srcName, _, _, dstGUID, dstN
   if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
 
   if not CT.tracking then
-    CT:Print("Beginning tracking from swing damage. Source:", srcName)
-    CT.startTracking()
+    CT.startTracking("Beginning tracking from swing damage. Source:", srcName .. ".")
   end
 
   if (srcName == data.petName) or (srcName == data.name) then
@@ -849,7 +845,7 @@ local function castSent(unit, spellName, rank, dstName, lineID)
 
   if not CT.tracking then
     if IsHarmfulSpell(spellName) then
-      CT.startTracking()
+      CT.startTracking("Starting tracking from harmful spell cast.")
     elseif data and data.name ~= dstName then -- Make sure I didn't cast it on myself
       local dstUnitID
 
@@ -874,7 +870,7 @@ local function castSent(unit, spellName, rank, dstName, lineID)
         local reaction = UnitReaction("player", dstUnitID)
 
         if (reaction == 2 or reaction == 4) then -- Hostile or neutral, start tracking
-          CT.startTracking()
+          CT.startTracking("Starting tracking from cast with neutral or hostile NPC.")
         end
       end
     end
@@ -1069,13 +1065,6 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
 
     if cost then
       local power = data.power[powerIndex]
-
-      -- if not power.spellCosts[spellID] then
-      --   power.spellCosts[spellID] = {}
-      --   power.addCostLine = true
-      --   power.numSpellsCost = (power.numSpellsCost or 1) + 1
-      --   spell.powerSpent = {}
-      -- end
 
       if powerIndex ~= 0 then
         cost = power.spent
@@ -1520,6 +1509,7 @@ end
 
 local function unitPowerFrequent(unit, powerType)
   if unit ~= "player" then return end
+  if not data then print("Blocking unit power update.") return end
 
   local powerTypeIndex = CT.powerTypes["SPELL_POWER_" .. powerType]
   local power = data.power[powerTypeIndex]
@@ -1682,6 +1672,7 @@ combatevents["PLAYER_STOPPED_MOVING"] = stoppedMoving
 -- Player Target and Focus
 --------------------------------------------------------------------------------
 local function targetChanged()
+  if true then CT:Print("Blocking targetChanged") return end
   if not CT.current then return end
   local uptimeGraphs = CT.current.uptimeGraphs
   local currentTime = GetTime()
@@ -1921,7 +1912,65 @@ function CT.plateCastBarStop(castBar)
   container.casting = false
   -- print(container.name, "finished a cast.")
 end
+--------------------------------------------------------------------------------
+-- Keybinds
+--------------------------------------------------------------------------------
+local activeMods = {}
+local function keyDown(self, key) -- Fire whenever a key is pressed
+  local k = self.binds[key]
 
+  if not k then
+    k = {}
+    k.count = 0
+    k.name = key
+    k.action = GetBindingAction(key)
+    k.action2 = GetBindingByKey(key)
+
+    -- print(key, k.action, k.action2)
+
+    self.binds[key] = k
+  end
+
+  k.count = k.count + 1
+
+  if key == "ESCAPE" and CT.shown then
+    CT.base:Hide()
+  end
+
+	-- print(key)
+end
+
+local modifiers = {
+  ["LCTRL"] = "CTRL-",
+  ["RCTRL"] = "CTRL-",
+  ["LSHIFT"] = "SHIFT-",
+  ["RSHIFT"] = "SHIFT-",
+  ["LALT"] = "ALT-",
+  ["RALT"] = "ALT-",
+}
+
+local function modKeys(key, num) -- NOTE: If the player alt tabs, alt gets added, but the release won't register, causing duplicates
+  if num == 1 then -- Add it to active list
+    activeMods[#activeMods + 1] = modifiers[key]
+    -- print("Adding", key)
+  else -- Remove it
+    for i = 1, #activeMods do
+      if activeMods[i] == modifiers[key] then
+        -- print("Found mod to remove", key, i)
+        tremove(activeMods, i)
+      end
+    end
+  end
+
+  -- print("Modifier", key, bool)
+end
+
+CT.keys = CreateFrame("Frame")
+CT.keys:SetScript("OnKeyDown", keyDown)
+CT.keys:SetPropagateKeyboardInput(true)
+
+CT.keys.binds = {}
+combatevents["MODIFIER_STATE_CHANGED"] = modKeys
 --------------------------------------------------------------------------------
 -- Misc
 --------------------------------------------------------------------------------

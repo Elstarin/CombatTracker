@@ -118,6 +118,8 @@ CT.uptimeGraphLines.Buff = {}
 CT.uptimeGraphLines.Debuff = {}
 CT.uptimeGraphLines.Misc = {}
 
+CT.setButtons = {}
+
 -- do -- Line graphs
 --   graphs = {}
 --   graphs.updateDelay = 0.2
@@ -224,21 +226,21 @@ end
 --------------------------------------------------------------------------------
 local plateIndex
 local index = 2
-local function updateHandler(self, elapsed) -- Dedicated function to avoid creating the throwaway function every update
+local function updateHandler(self, elapsed) -- Dedicated handler to avoid creating the throwaway function every update
   local time = GetTime()
-  CT.currentTime = time
 
   local timer = 0
-  if CT.combatStart then
-    timer = (CT.combatStop or time) - CT.combatStart
+  if CT.currentDB then
+    timer = (CT.currentDB.stop or time) - CT.currentDB.start
+    CT.currentDB.fightLength = timer
   end
-
-  if CT.current then CT.current.fightLength = timer end
 
   CT.combatTimer = timer
   CT.lastTick = elapsed
 
   if CT.shown and CT.displayed then -- All updates to displayed data go in here
+    local timer = (CT.displayedDB.stop or time) - CT.displayedDB.start
+
     if CT.forceUpdate or time >= (self.lastNormalUpdate or 0) then
       for i = 1, #CT.update do -- Update drop down menus or expanders
         local self = CT.update[i]
@@ -294,11 +296,15 @@ local function updateHandler(self, elapsed) -- Dedicated function to avoid creat
     end
 
     do -- Handle graph updates
-      local graphs = CT.current.temp.graphs
+      local graphs = CT.current.graphs
       -- local uptimeGraphs = CT.current.uptimeGraphs
 
-      if (time >= graphs.lastUpdate or 0) or CT.forceUpdate then -- Take line graph points every graphs.lastUpdate seconds
-        for i = 1, #CT.graphList do graphs[CT.graphList[i]].update(timer) end
+      if (graphs.lastUpdate or 0) < time or CT.forceUpdate then -- Take line graph points every graphs.lastUpdate seconds
+        for i = 1, #CT.graphList do
+          local graph = graphs[CT.graphList[i]]
+
+          graph:update(timer)
+        end
 
         graphs.lastUpdate = time + graphs.updateDelay
       end
@@ -433,6 +439,7 @@ function CT:OnInitialize()
       "GROUP_ROSTER_UPDATE",
       "PLAYER_ENTERING_WORLD",
       "UNIT_AURA",
+      "MODIFIER_STATE_CHANGED",
     }
 
     local unitEvents = {
@@ -469,33 +476,20 @@ function CT:OnInitialize()
 
   local lastEventTime = GetTime()
   local function eventHandler(self, event, ...) -- Dedicated handler to avoid creating a throw away function every event
-    if event == "UNIT_SPELLCAST_SENT" then -- Let this pass even if not tracking to allow for early combat detection
-      combatevents[event](...)
-    elseif CT.tracking and combatevents[event] then
-      if not CT.current then return end
-      combatevents[event](...)
+    if not CT.tracking then -- Anything that happens out of combat or related to early combat detection
+      if event == "UNIT_SPELLCAST_SENT" then -- Let this pass even if not tracking to allow for early combat detection
+        return combatevents[event] and combatevents[event](...)
+      end
+    else -- Everything that's specific to combat
+      if event == "COMBAT_LOG_EVENT_UNFILTERED" then
+        local _, event = ...
+        return combatevents[event] and combatevents[event](...)
+      elseif combatevents[event] then
+        return combatevents[event](...)
+      end
     end
 
-    if event == "COMBAT_LOG_EVENT_UNFILTERED" then
-      if not CT.current then return end
-      if not CT.tracking then
-        local _, event, _, srcGUID, srcName = ...
-
-        if srcName == CT.current.name and event == "SPELL_AURA_APPLIED" then
-          -- print(event, GetTime())
-
-          C_Timer.After(0, function()
-            -- print(event, GetTime())
-          end)
-          -- print("Ignoring:", event)
-        end
-      else
-        local _, event = ...
-        if combatevents[event] then
-          combatevents[event](...)
-        end
-      end
-    elseif event == "PLAYER_LOGIN" then
+    if event == "PLAYER_LOGIN" then
       eventFrame:UnregisterEvent("PLAYER_LOGIN")
       CT.player.loggedIn = true
 
@@ -505,31 +499,29 @@ function CT:OnInitialize()
       -- print("Collected " .. CT.round(num, 3) .. " MB of garbage")
 
       if testMode then
-        -- CT.startTracking()
-
         C_Timer.After(1.0, function()
-          if CT.mainButtons[buttonClickNum] then
-            CT.mainButtons[buttonClickNum]:Click("LeftButton")
-          elseif CT.mainButtons[1] then
-            CT.mainButtons[#CT.mainButtons]:Click("LeftButton")
+          if CT.buttons[buttonClickNum] then
+            CT.buttons[buttonClickNum]:Click("LeftButton")
+          elseif CT.buttons[1] then
+            CT.buttons[#CT.buttons]:Click("LeftButton")
           end
         end)
       else
         C_Timer.After(1.0, function()
-          if CT.mainButtons[buttonClickNum] then
-            CT.mainButtons[buttonClickNum]:Click("LeftButton")
-          elseif CT.mainButtons[1] then
-            CT.mainButtons[#CT.mainButtons]:Click("LeftButton")
+          if CT.buttons[buttonClickNum] then
+            CT.buttons[buttonClickNum]:Click("LeftButton")
+          elseif CT.buttons[1] then
+            CT.buttons[#CT.buttons]:Click("LeftButton")
           end
         end)
 
         CT.base:Hide()
       end
 
-      CT.startTracking()
+      CT.startTracking("Starting tracking from logging in.")
     elseif event == "PLAYER_LOGOUT" then
       -- CT.cleanSetsTable()
-      CombatTrackerCharDB[CT.player.specName].sets.current = nil
+      -- CombatTrackerCharDB[CT.player.specName].sets.current = nil
     elseif event == "ENCOUNTER_START" then
       local encounterID, encounterName, difficultyID, raidSize = ...
 
@@ -568,9 +560,9 @@ function CT:OnInitialize()
         -- CT.cycleMainButtons()
       end
     elseif event == "PLAYER_REGEN_DISABLED" then -- Start Combat
-      CT.startTracking()
+      return CT.startTracking("Starting tracking from entering combat.")
     elseif event == "PLAYER_REGEN_ENABLED" then -- Stop Combat
-      CT.stopTracking()
+      return CT.stopTracking()
     elseif event == "PLAYER_TALENT_UPDATE" then
       if IsLoggedIn() then
         CT.getPlayerDetails()
@@ -769,17 +761,9 @@ function CT:OnEnable()
   -- wipe(CombatTrackerCharDB)
   if not CombatTrackerCharDB[specName] then CombatTrackerCharDB[specName] = {} end
   if not CombatTrackerCharDB[specName].sets then CombatTrackerCharDB[specName].sets = {} end
-  -- if not CombatTrackerCharDB[specName].sets.current then CombatTrackerCharDB[specName].sets.current = {} end
-
-  CT.setDB = CombatTrackerCharDB[specName].sets
-  -- CT.current = CombatTrackerCharDB[specName].sets.current
-
-  -- CT.setBasicData()
 
   CT.getPlayerDetails()
-  CT.createMainButtons()
-  CT.setButtonAnchors()
-  CT.scrollFrameUpdate()
+  CT.createSpecDataButtons()
 
   -- CT.showLastFight()
 end
@@ -1069,7 +1053,7 @@ end
 
 local function addGraphDropDownButtons(parent)
   for i, name in ipairs(CT.graphList) do
-    local self = CT.displayed.temp.graphs[name]
+    local self = CT.displayed.graphs[name]
 
     if not parent[i] then
       parent[i] = CreateFrame("CheckButton", nil, parent)
@@ -1123,15 +1107,12 @@ local function addGraphDropDownButtons(parent)
       end
 
       b:SetScript("OnClick", function()
-        local text = CT.base.expander.graph.titleText
+        local text = CT.base.expander.graphFrame.titleText
 
         if b:GetChecked() then -- Show graph
-          self:toggle()
-          self:refresh()
-          -- CT.showLineGraph(self)
+          self:toggle("show")
         else -- Hide graph
-          -- CT.hideLineGraphs(self)
-          self:toggle()
+          self:toggle("hide")
         end
       end)
     end
@@ -1930,7 +1911,9 @@ do -- Create Base Frame
       if m:IsShown() then
         m:Hide()
       else
-        CT.createSetButtons(m, CT.setDB, leftClickFunc, rightClickFunc)
+        local _, specName = GetSpecializationInfo(GetSpecialization())
+
+        CT.createSetButtons(m, CombatTrackerCharDB[specName].sets)
         m:Show()
       end
     end)
@@ -2234,30 +2217,29 @@ function CT:expanderFrame()
       f.mainUptimeGraph:SetPoint("BOTTOM", f, 0, 10)
       f.mainUptimeGraph:SetTexture(0.1, 0.1, 0.1, 1)
 
-      CT.buildGraph(f)
+      local graphFrame = CT.buildGraph(f)
 
-      local graph = f.graph
-      graph:ClearAllPoints()
-      graph:SetParent(f)
-      graph:SetPoint("LEFT", f.mainUptimeGraph, 0, 0)
-      graph:SetPoint("RIGHT", f.mainUptimeGraph, 0, 0)
-      graph:SetPoint("TOP", f.mainUptimeGraph, 0, -20)
-      graph:SetPoint("BOTTOM", f.mainUptimeGraph, 0, 0)
+      graphFrame:ClearAllPoints()
+      graphFrame:SetParent(f)
+      graphFrame:SetPoint("LEFT", f.mainUptimeGraph, 0, 0)
+      graphFrame:SetPoint("RIGHT", f.mainUptimeGraph, 0, 0)
+      graphFrame:SetPoint("TOP", f.mainUptimeGraph, 0, -20)
+      graphFrame:SetPoint("BOTTOM", f.mainUptimeGraph, 0, 0)
 
-      graph.titleText = graph:CreateFontString(nil, "ARTWORK")
-      graph.titleText:SetPoint("BOTTOMLEFT", graph, "TOPLEFT", 2, 4)
-      graph.titleText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-      graph.titleText:SetTextColor(1, 1, 1, 1)
-      graph.titleText:SetJustifyH("LEFT")
-      graph.titleText:SetText("Currently Displayed: ")
-      graph.titleText.default = "Currently Displayed: "
+      graphFrame.titleText = graphFrame:CreateFontString(nil, "ARTWORK")
+      graphFrame.titleText:SetPoint("BOTTOMLEFT", graphFrame, "TOPLEFT", 2, 4)
+      graphFrame.titleText:SetFont("Fonts\\FRIZQT__.TTF", 12)
+      graphFrame.titleText:SetTextColor(1, 1, 1, 1)
+      graphFrame.titleText:SetJustifyH("LEFT")
+      graphFrame.titleText:SetText("Currently Displayed: ")
+      graphFrame.titleText.default = "Currently Displayed: "
 
       local b
       do
-        f.mainGraphButton = CreateFrame("Button", nil, graph)
+        f.mainGraphButton = CreateFrame("Button", nil, graphFrame)
         b = f.mainGraphButton
         b:SetSize(90, 20)
-        b:SetPoint("BOTTOMRIGHT", graph, "TOPRIGHT", -1, 1)
+        b:SetPoint("BOTTOMRIGHT", graphFrame, "TOPRIGHT", -1, 1)
 
         b.normal = b:CreateTexture(nil, "BACKGROUND")
         b.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
@@ -2332,6 +2314,7 @@ function CT:expanderFrame()
           end)
         end
       end)
+
       b:SetScript("OnClick", function(button, click)
         if b.popup:IsShown() then
           b.popup:Hide()
@@ -2346,40 +2329,42 @@ function CT:expanderFrame()
   end
 end
 
-local function createButtonFrame(self, button)
+local function createButtonFrame(button)
   button:SetPoint("TOPLEFT", 0, 0)
   button:SetPoint("TOPRIGHT", 0, 0)
   button:SetSize(150, 44)
 
-  button.background = button:CreateTexture(nil, "BACKGROUND")
-  button.background:SetPoint("TOPLEFT", button, 4.5, -4)
-  button.background:SetPoint("BOTTOMRIGHT", button, -4, 3)
-  button.background:SetTexture(0.07, 0.07, 0.07, 1.0)
+  do -- Basic textures and stuff
+    button.background = button:CreateTexture(nil, "BACKGROUND")
+    button.background:SetPoint("TOPLEFT", button, 4.5, -4)
+    button.background:SetPoint("BOTTOMRIGHT", button, -4, 3)
+    button.background:SetTexture(0.07, 0.07, 0.07, 1.0)
 
-  button.normal = button:CreateTexture(nil, "BACKGROUND")
-  button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-  button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-  button.normal:SetAllPoints(button)
-  button:SetNormalTexture(button.normal)
+    button.normal = button:CreateTexture(nil, "BACKGROUND")
+    button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+    button.normal:SetAllPoints(button)
+    button:SetNormalTexture(button.normal)
 
-  button.highlight = button:CreateTexture(nil, "BACKGROUND")
-  button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-  button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-  button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-  button.highlight:SetAllPoints(button)
-  button:SetHighlightTexture(button.highlight)
+    button.highlight = button:CreateTexture(nil, "BACKGROUND")
+    button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+    button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
+    button.highlight:SetAllPoints(button)
+    button:SetHighlightTexture(button.highlight)
 
-  button.disabled = button:CreateTexture(nil, "BACKGROUND")
-  button.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-  button.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-  button.disabled:SetAllPoints(button)
-  button:SetDisabledTexture(button.disabled)
+    button.disabled = button:CreateTexture(nil, "BACKGROUND")
+    button.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
+    button.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
+    button.disabled:SetAllPoints(button)
+    button:SetDisabledTexture(button.disabled)
 
-  button.pushed = button:CreateTexture(nil, "BACKGROUND")
-  button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-  button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-  button.pushed:SetAllPoints(button)
-  button:SetPushedTexture(button.pushed)
+    button.pushed = button:CreateTexture(nil, "BACKGROUND")
+    button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
+    button.pushed:SetAllPoints(button)
+    button:SetPushedTexture(button.pushed)
+  end
 
   do -- Create Icon
     button.icon = button:CreateTexture(nil, "OVERLAY")
@@ -2387,16 +2372,6 @@ local function createButtonFrame(self, button)
     button.icon:SetPoint("LEFT", 30, 0)
     button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     button.icon:SetAlpha(0.9)
-  end
-
-  do -- Update icon texture
-    if self.iconTexture then
-      self.button.icon:SetTexture(self.iconTexture)
-    else
-      self.button.icon:SetTexture(CT.player.specIcon)
-    end
-
-    SetPortraitToTexture(self.button.icon, self.button.icon:GetTexture())
   end
 
   button.expander = button:CreateTexture(nil, "BACKGROUND")
@@ -2510,45 +2485,18 @@ local function createButtonFrame(self, button)
   end
 
   do -- Main Text
-    self.title = button:CreateFontString(nil, "ARTWORK")
-    self.title:SetPoint("LEFT", button.icon, "RIGHT", 10, 0)
-    self.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
-    self.title:SetTextColor(1, 1, 0, 1)
-    self.title:SetText(self.name)
+    button.title = button:CreateFontString(nil, "ARTWORK")
+    button.title:SetPoint("LEFT", button.icon, "RIGHT", 10, 0)
+    button.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+    button.title:SetTextColor(1, 1, 0, 1)
 
-    self.value = button:CreateFontString(nil, "ARTWORK")
-    self.value:SetPoint("RIGHT", button, -13, 0)
-    self.value:SetFont("Fonts\\FRIZQT__.TTF", 22)
-    self.value:SetTextColor(1, 1, 0, 1)
+    button.value = button:CreateFontString(nil, "ARTWORK")
+    button.value:SetPoint("RIGHT", button, -13, 0)
+    button.value:SetFont("Fonts\\FRIZQT__.TTF", 22)
+    button.value:SetTextColor(1, 1, 0, 1)
   end
 
-  do -- Button Scripts
-    local lastClickTime = GetTime()
-    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    button:SetScript("OnClick", function(button, click)
-      if GetTime() > lastClickTime then
-        PlaySound("igMainMenuOptionCheckBoxOn")
-        self:expanderToggle(click)
-
-        local time = GetTime()
-        local timer
-        if CT.combatStart then
-          timer = (CT.combatStop or time) - CT.combatStart
-        else
-          timer = 0
-        end
-
-        if CT.current then
-          if self.expanded and self.expanderUpdate then
-            self:expanderUpdate(time, timer)
-          elseif self.shown and self.update then
-            self:update(time, timer)
-          end
-        end
-
-        lastClickTime = GetTime() + 0.1
-      end
-    end)
+  do -- Generic Scripts
     button:SetScript("OnEnter", function(button)
       button.dragger:SetAlpha(1)
       button.upArrow:SetAlpha(1)
@@ -2565,40 +2513,148 @@ local function createButtonFrame(self, button)
   end
 end
 
-function CT.createMainButtons()
+function CT.createSpecDataButtons()
   for i = 1, #CT.specData do
-    local self = CT.buttons[i]
+    local b = CT.buttons[i]
 
-    if not self then
-      self = {}
-      setmetatable(self, CT)
-      CT.buttons[i] = self
-      local specData = CT.specData[i]
+    if not b then
+      CT.buttons[i] = CreateFrame("Button", "MainButton" .. i, CT.contentFrame)
+      b = CT.buttons[i]
 
-      self.button = CreateFrame("Button", "MainButton" .. i, CT.contentFrame)
-      self.name = specData.name
-      self.num = i
-      self.powerIndex = specData.powerIndex
-      self.update = specData.func
-      self.expanderUpdate = specData.expanderFunc
-      self.dropDownFunc = specData.dropDownFunc
-      self.lineTable = specData.lines
-      self.costsPower = specData.costsPower
-      self.givesPower = specData.givesPower
-      self.spellID = specData.spellID or select(7, GetSpellInfo(self.name))
-      self.iconTexture = specData.icon or GetSpellTexture(self.spellID) or GetSpellTexture(self.name) or CT.player.specIcon
-      self.graphUpdateDelay = 0
-      self.text = {}
-      self.expanded = false
-      self.expandedDown = false
+      b.text = {}
+      -- b.expanded = false
+      -- b.expandedDown = false
 
-      CT.mainButtons[i] = self.button
-      CT.mainButtons[i].self = self
-      self.button.name = name
-      self.button.num = i
+      -- CT.mainButtons[i] = b.button
+      -- CT.mainButtons[i].self = b
+      -- b.button.name = name
+      -- b.button.num = i
 
-      createButtonFrame(self, self.button)
-      tinsert(CT.update, self)
+      createButtonFrame(b)
+      tinsert(CT.update, b)
+
+      do -- Button Scripts
+        local lastClickTime = GetTime()
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b:SetScript("OnClick", function(button, click)
+          if GetTime() > lastClickTime then
+            PlaySound("igMainMenuOptionCheckBoxOn")
+            CT.expanderToggle(button, click)
+
+            local time = GetTime()
+            local timer
+            if CT.combatStart then
+              timer = (CT.combatStop or time) - CT.combatStart
+            else
+              timer = 0
+            end
+
+            if CT.current then
+              if button.expanded and button.expanderUpdate then
+                button:expanderUpdate(time, timer)
+              elseif button.shown and button.update then
+                button:update(time, timer)
+              end
+            end
+
+            lastClickTime = GetTime() + 0.1
+          end
+        end)
+      end
+    end
+
+    local specData = CT.specData[i]
+
+    b.name = specData.name
+    b.num = i
+    b.powerIndex = specData.powerIndex
+    b.update = specData.func
+    b.expanderUpdate = specData.expanderFunc
+    b.dropDownFunc = specData.dropDownFunc
+    b.lineTable = specData.lines
+    b.costsPower = specData.costsPower
+    b.givesPower = specData.givesPower
+    b.spellID = specData.spellID or select(7, GetSpellInfo(b.name))
+    b.iconTexture = specData.icon or GetSpellTexture(b.spellID) or GetSpellTexture(b.name) or CT.player.specIcon
+
+    b.title:SetText(b.name)
+
+    do -- Update icon texture
+      if b.iconTexture then
+        b.icon:SetTexture(b.iconTexture)
+      else
+        b.icon:SetTexture(CT.player.specIcon)
+      end
+
+      SetPortraitToTexture(b.icon, b.icon:GetTexture())
+    end
+
+    b:Show()
+  end
+
+  if CT.buttons[1] then
+    if not CT.topAnchor1 then CT.topAnchor1 = {CT.buttons[1]:GetPoint(1)} end
+    if not CT.topAnchor2 then CT.topAnchor2 = {CT.buttons[1]:GetPoint(2)} end
+  end
+
+  CT.totalNumButtons = #CT.specData
+
+  CT.setButtonAnchors(CT.buttons)
+end
+
+function CT.createSavedSetButtons(table)
+  for i = 1, #CT.buttons do
+    CT.buttons[i]:Hide()
+  end
+
+  for i = 1, #table do
+    local b = CT.setButtons[i]
+
+    if not b then
+      CT.setButtons[i] = CreateFrame("Button", "SetButton" .. i, CT.contentFrame)
+      b = CT.setButtons[i]
+
+      b.name = table.setName
+      b.num = i
+      b.text = {}
+      b.expanded = false
+      b.expandedDown = false
+
+      createButtonFrame(b)
+    elseif b then
+      b:Hide()
+    end
+
+    local text = table[i].setName or "Unknown"
+    local time = CT.formatTimer(table[i].fightLength) or "0:00"
+    b.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
+    b.title:SetPoint("LEFT", 20, 0)
+    b.title:SetJustifyH("LEFT")
+    b.title:SetFormattedText("%s. %s%s|r (%s%s|r)", i, "|cFFFFFF00", text, "|cFF00CCFF", time)
+
+    do -- Button Scripts
+      b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+      b:SetScript("OnClick", function(button, click)
+        PlaySound("igMainMenuOptionCheckBoxOn")
+
+        if click == "LeftButton" then
+          local set, db = CT.loadSavedSet(table[i])
+          CT.forceUpdate = true
+        else
+          local t = tremove(table, i) -- Remove saved variables
+          t = nil
+
+          if not InCombatLockdown() then
+            collectgarbage("collect")
+          end
+
+          CT.createSavedSetButtons(table) -- Refresh list
+        end
+
+        if not InCombatLockdown() then
+          collectgarbage("collect")
+        end
+      end)
     end
   end
 
@@ -2607,33 +2663,19 @@ function CT.createMainButtons()
     if not CT.topAnchor2 then CT.topAnchor2 = {CT.buttons[1].button:GetPoint(2)} end
   end
 
-  CT.totalNumButtons = #CT.specData
+  CT.setButtonAnchors(CT.setButtons)
 end
 
-function CT.scrollFrameUpdate()
-  local button
+function CT.scrollFrameUpdate(table)
   local height = 0
 
-  for i = 1, #CT.mainButtons do
-    button = CT.mainButtons[i]
-    if button.expander.expanded and button:IsShown() then
-      height = height + button.expander.expandedHeight
-    elseif not button.expander.expanded and button:IsShown() then
-      height = height + button.expander.defaultHeight
-    end
+  local spacing = CT.settings.buttonSpacing
+
+  for i, button in ipairs(table) do
+    height = height + button:GetHeight() + spacing
   end
 
-  local totalHeight = CT.scrollFrame:GetHeight()
-  if height <= totalHeight then
-    CT.scrollBar:SetMinMaxValues(1, 1)
-    return
-  elseif button.expander.expanded then
-    CT.scrollBar:SetMinMaxValues(1, (height - totalHeight) + (button.expander.expandedHeight - button.expander.defaultHeight) - 5)
-    return
-  elseif not button.expander.expanded then
-    CT.scrollBar:SetMinMaxValues(1, (height - totalHeight) + button.expander.defaultHeight)
-    return
-  end
+  CT.scrollBar:SetMinMaxValues(0, max(height - CT.scrollBar:GetHeight(), 0))
 end
 
 function CT.updateButtonList()
@@ -2686,16 +2728,17 @@ function CT.slideButtonAnimation(button, direction)
   end
 end
 
-function CT.setButtonAnchors()
-  -- CT:Print("SETTING ANCHORS")
-  for i = 1, #CT.mainButtons do
-    local button = CT.mainButtons[i]
+function CT.setButtonAnchors(table)
+  local table = table or CT.buttons
+
+  for i = 1, #table do
+    local button = table[i]
     if i == 1 then
       button:ClearAllPoints()
       button:SetPoint("TOPLEFT")
       button:SetPoint("TOPRIGHT")
     else
-      local prevButtonExpander = CT.mainButtons[i - 1].expander
+      local prevButtonExpander = table[i - 1].expander
       button:ClearAllPoints()
       button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, -CT.settings.buttonSpacing)
       button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, -CT.settings.buttonSpacing)
@@ -2703,6 +2746,8 @@ function CT.setButtonAnchors()
     local _, coords = button.expander:GetCenter()
     button.coords = coords
   end
+
+  CT.scrollFrameUpdate(table)
 end
 
 function CT:setButtonAnchorsDragging()
@@ -2780,7 +2825,7 @@ function CT.cycleMainButtons() -- NOTE: If order is changed, this gets all messe
 end
 
 function CT:dragMainButton()
-  local button = self.button
+  local button = self
   local topDistance, bottomDistance = 0, 0
   local frameLeft = CT.contentFrame:GetLeft()
   local buttonHeight = button:GetHeight() / 2
@@ -2804,32 +2849,32 @@ function CT:dragMainButton()
       if IsMouseButtonDown() then
         local mouseX, mouseY = GetCursorPosition()
         local mouseY = (mouseY / UIScale) - 10
-        self.button:ClearAllPoints()
-        self.button:SetPoint("BOTTOMLEFT", UIParent, CT.contentFrame:GetLeft(), mouseY)
-        local _, dragCenter = self.button.expander:GetCenter()
+        self:ClearAllPoints()
+        self:SetPoint("BOTTOMLEFT", UIParent, CT.contentFrame:GetLeft(), mouseY)
+        local _, dragCenter = self.expander:GetCenter()
         self.buttonUp = nil
         self.buttonDown = nil
 
-        if CT.mainButtons[self.button.num - 1] then
-          self.buttonUp = CT.mainButtons[self.button.num - 1]
-          topDistance = CT.mainButtons[self.button.num - 1].coords - dragCenter
+        if CT.mainButtons[self.num - 1] then
+          self.buttonUp = CT.mainButtons[self.num - 1]
+          topDistance = CT.mainButtons[self.num - 1].coords - dragCenter
         end
-        if CT.mainButtons[self.button.num + 1] then
-          self.buttonDown = CT.mainButtons[self.button.num + 1]
-          bottomDistance = dragCenter - CT.mainButtons[self.button.num + 1].coords
+        if CT.mainButtons[self.num + 1] then
+          self.buttonDown = CT.mainButtons[self.num + 1]
+          bottomDistance = dragCenter - CT.mainButtons[self.num + 1].coords
         end
 
         if topDistance <= buttonHeight and self.buttonUp then
-          local tempNum = self.button.num
-          self.button.num = self.buttonUp.num
+          local tempNum = self.num
+          self.num = self.buttonUp.num
           self.buttonUp.num = tempNum
           CT.updateButtonOrderByNum()
           CT:setButtonAnchorsDragging()
           CT.slideButtonAnimation(self.buttonUp, "down")
         end
         if bottomDistance < buttonHeight and self.buttonDown then
-          local tempNum = self.button.num
-          self.button.num = self.buttonDown.num
+          local tempNum = self.num
+          self.num = self.buttonDown.num
           self.buttonDown.num = tempNum
           CT.updateButtonOrderByNum()
           CT:setButtonAnchorsDragging()
@@ -2837,9 +2882,9 @@ function CT:dragMainButton()
         end
       else
         self:Hide()
-        self.button:SetFrameLevel(buttonLevel)
-        self.button.dragging = false
-        self.button = nil
+        self:SetFrameLevel(buttonLevel)
+        self.dragging = false
+        self = nil
         CT:setButtonAnchors()
         for i = 1, #CT.mainButtons do
           CT.mainButtons[i]:Enable()
@@ -2915,7 +2960,7 @@ end
 -- Utility Functions
 --------------------------------------------------------------------------------
 function CT:arrowClick(direction)
-  local button = self.button
+  local button = self
   if direction == "up" and CT.mainButtons[button.num - 1] then
     local upperButton = CT.mainButtons[button.num - 1]
     upperButton.num = button.num

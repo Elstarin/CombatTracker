@@ -8,9 +8,9 @@ local CT = CombatTracker
 -- DropDown Menu Types
 --------------------------------------------------------------------------------
 function CT:type1(lineTable)
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   dropDown.lineHeight = 43
   dropDown.linePadding = 3
@@ -92,7 +92,7 @@ function CT:type1(lineTable)
 
     local graph = self.graph
     graph:ClearAllPoints()
-    graph:SetParent(self.button.dropDown)
+    graph:SetParent(self.dropDown)
     graph:SetPoint("LEFT", 0, 3)
     graph:SetPoint("RIGHT", 0, 3)
     graph:SetPoint("BOTTOM", 0, 0)
@@ -102,9 +102,9 @@ function CT:type1(lineTable)
 end
 
 function CT:type1AddLeft(spellName)
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   local lineNum = #dropDown.line
   local num = #dropDown.left
@@ -171,9 +171,9 @@ function CT:type1AddLeft(spellName)
 end
 
 function CT:type1AddRight(spellName)
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   local lineNum = #dropDown.line
   local num = #dropDown.right
@@ -240,9 +240,9 @@ function CT:type1AddRight(spellName)
 end
 
 function CT:type2(lineTable)
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   dropDown.lineHeight = 43
   dropDown.linePadding = 3
@@ -289,7 +289,7 @@ function CT:type2(lineTable)
 
     local graph = self.graph
     graph:ClearAllPoints()
-    graph:SetParent(self.button.dropDown)
+    graph:SetParent(self.dropDown)
     graph:SetPoint("LEFT", 0, 3)
     graph:SetPoint("RIGHT", 0, 3)
     graph:SetPoint("BOTTOM", 0, 0)
@@ -297,9 +297,9 @@ function CT:type2(lineTable)
 end
 
 function CT:type3(lineTable)
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   dropDown.lineHeight = 23
   dropDown.linePadding = 23
@@ -357,7 +357,7 @@ function CT:type3(lineTable)
 
     local graph = self.graph
     graph:ClearAllPoints()
-    graph:SetParent(self.button.dropDown)
+    graph:SetParent(self.dropDown)
     graph:SetPoint("LEFT", 0, 3)
     graph:SetPoint("RIGHT", 0, 3)
     graph:SetPoint("BOTTOM", 0, 0)
@@ -365,9 +365,9 @@ function CT:type3(lineTable)
 end
 
 function CT:type3AddLine()
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   dropDown.numLines = dropDown.numLines + 1
 
@@ -408,9 +408,9 @@ function CT:type3AddLine()
 end
 
 function CT:type4(spellName)
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   if not dropDown.line then
     dropDown.line = {}
@@ -518,7 +518,7 @@ function CT:type4(spellName)
 
     local graph = self.graph
     graph:ClearAllPoints()
-    graph:SetParent(self.button.dropDown)
+    graph:SetParent(self.dropDown)
     graph:SetPoint("LEFT", 0, 3)
     graph:SetPoint("RIGHT", 0, 3)
     graph:SetPoint("BOTTOM", 0, 0)
@@ -528,9 +528,9 @@ end
 -- DropDown Menu Functions
 --------------------------------------------------------------------------------
 function CT:expanderToggle(click)
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   if click == "LeftButton" then
     if not CT.base.expander then
@@ -541,7 +541,7 @@ function CT:expanderToggle(click)
       if CT.base.expander.last then CT.base.expander.last.expanded = false end
 
       if CT.base.expander.last ~= self then
-        self:expandedMenu()
+        CT.expandedMenu(self)
       else
         CT:expanderFrame()
       end
@@ -549,14 +549,14 @@ function CT:expanderToggle(click)
       self.expanded = true
     else
       if CT.base.expander.last ~= self then
-        self:expandedMenu()
+        CT:expandedMenu(self)
       end
 
       CT:expanderFrame()
     end
   elseif click == "RightButton" then
     if not self.expandedDown and (dropDown.dropHeight or 1) > 0 then -- Expand drop down
-      self.button:UnlockHighlight()
+      self:UnlockHighlight()
 
       if not self.dropDownCreated then
         self:dropDownFunc(self.lineTable)
@@ -579,19 +579,19 @@ function CT:expanderToggle(click)
 
         self:dropAnimationDown()
 
-        expander.defaultHeight = self.button:GetHeight()
+        expander.defaultHeight = self:GetHeight()
         expander.expandedHeight = expander.defaultHeight + dropDown.dropHeight
         CT.updateButtonList()
         CT.scrollFrameUpdate()
       end
     elseif self.expandedDown == true then -- Collapse drop down
-      self.button:UnlockHighlight()
+      self:UnlockHighlight()
       expander.expanded = false
       self.expandedDown = false
 
       self:dropAnimationUp()
 
-      expander.defaultHeight = self.button:GetHeight()
+      expander.defaultHeight = self:GetHeight()
       expander.expandedHeight = expander.defaultHeight + dropDown.dropHeight
       CT.updateButtonList()
       CT.scrollFrameUpdate()
@@ -600,9 +600,9 @@ function CT:expanderToggle(click)
 end
 
 function CT:dropAnimationDown()
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   if not dropDown.animationDown then
     dropDown.animationDown = dropDown:CreateAnimationGroup()
@@ -657,9 +657,9 @@ function CT:dropAnimationDown()
 end
 
 function CT:dropAnimationUp()
-  local button = self.button
-  local dropDown = self.button.dropDown
-  local expander = self.button.expander
+  local button = self
+  local dropDown = self.dropDown
+  local expander = self.expander
 
   if not dropDown.animationUp then
     dropDown.animationUp = dropDown:CreateAnimationGroup()
