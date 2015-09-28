@@ -785,7 +785,7 @@ elseif CLASS == "PALADIN" then
         t.costsPower = 1
         t.givesPower = 2
 
-        CT.addCooldownGraph(20473, "Holy Shock", colors.yellow)
+        -- CT.addCooldownGraph(20473, "Holy Shock", colors.yellow)
       end
 
       do -- CT.player.talents[6]

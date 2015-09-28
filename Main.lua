@@ -297,7 +297,6 @@ local function updateHandler(self, elapsed) -- Dedicated handler to avoid creati
 
     do -- Handle graph updates
       local graphs = CT.current.graphs
-      -- local uptimeGraphs = CT.current.uptimeGraphs
 
       if (graphs.lastUpdate or 0) < time or CT.forceUpdate then -- Take line graph points every graphs.lastUpdate seconds
         for i = 1, #CT.graphList do
@@ -309,6 +308,13 @@ local function updateHandler(self, elapsed) -- Dedicated handler to avoid creati
         graphs.lastUpdate = time + graphs.updateDelay
       end
 
+      if CT.forceUpdate or time >= (self.lastUptimeGraphUpdate or 0) then -- Update uptime graphs
+        self.uptimeGraphsUpdate(time, timer)
+
+        self.lastUptimeGraphUpdate = time + 0.05
+      end
+
+
       -- local uptimeGraphs = CT.current.uptimeGraphs
       -- local graphs = CT.current.graphs
     --
@@ -318,11 +324,11 @@ local function updateHandler(self, elapsed) -- Dedicated handler to avoid creati
       --   graphs.lastUpdate = time + graphs.updateDelay
       -- end
     --
-    --   if CT.forceUpdate or time >= (self.lastUptimeGraphUpdate or 0) then -- Update uptime graphs
-    --     self.uptimeGraphsUpdate(time, timer)
-    --
-    --     self.lastUptimeGraphUpdate = time + 0.05
-    --   end
+      -- if CT.forceUpdate or time >= (self.lastUptimeGraphUpdate or 0) then -- Update uptime graphs
+      --   self.uptimeGraphsUpdate(time, timer)
+      --
+      --   self.lastUptimeGraphUpdate = time + 0.05
+      -- end
     end
   end
 
@@ -505,6 +511,8 @@ function CT:OnInitialize()
           elseif CT.buttons[1] then
             CT.buttons[#CT.buttons]:Click("LeftButton")
           end
+
+          -- CT.startTracking("Starting tracking from logging in.")
         end)
       else
         C_Timer.After(1.0, function()
@@ -513,12 +521,14 @@ function CT:OnInitialize()
           elseif CT.buttons[1] then
             CT.buttons[#CT.buttons]:Click("LeftButton")
           end
+
+          -- CT.startTracking("Starting tracking from logging in.")
         end)
 
         CT.base:Hide()
       end
 
-      CT.startTracking("Starting tracking from logging in.")
+      -- CT.startTracking("Starting tracking from logging in.")
     elseif event == "PLAYER_LOGOUT" then
       -- CT.cleanSetsTable()
       -- CombatTrackerCharDB[CT.player.specName].sets.current = nil
@@ -775,8 +785,10 @@ end
 --------------------------------------------------------------------------------
 -- Main Button Functions
 --------------------------------------------------------------------------------
-local profile = false
+local profile = true
 local function profileCode()
+  collectgarbage("collect")
+
   local start = debugprofilestop()
 
   local t = {}
@@ -785,27 +797,23 @@ local function profileCode()
   -- local timer = time - CT.combatStart
   local data = CT.current
   local infinity = math.huge
-  local self = graphs[1]
 
   local function callback()
 
   end
 
+  local f = CreateFrame("Frame")
+
   -- local loop = 100 -- 100
   -- local loop = 10000 -- 10 thousand
-  -- local loop = 100000 -- 100 thousand
-  local loop = 500000 -- 500 thousand
+  local loop = 100000 -- 100 thousand
+  -- local loop = 500000 -- 500 thousand
   -- local loop = 1000000 -- 1 million
   -- local loop = 10000000 -- 10 million
   -- local loop = 100000000 -- 100 million
   for i = 1, loop do
-    -- C_Timer.NewTicker(0.1, callback, 1)
-
-    -- C_Timer.After(0, testFunc)
-
-    -- C_Timer.After(0, function()
-    --
-    -- end)
+    local texture = f:CreateTexture(nil, "ARTWORK")
+    texture:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
   end
 
   local MS = debugprofilestop() - start

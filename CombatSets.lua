@@ -441,6 +441,7 @@ local function basicUptimeGraphData(set, db)
   db.uptimeGraphs.misc = db.uptimeGraphs.misc or {}
 
   function set.addCooldown(spellID, spellName, color)
+    print("Adding cooldown graph:", spellName)
     local setGraph = set.uptimeGraphs.cooldowns[spellID]
     local dbGraph = db.uptimeGraphs.cooldowns[spellID]
 
@@ -449,31 +450,41 @@ local function basicUptimeGraphData(set, db)
       setGraph = set.uptimeGraphs.cooldowns[spellID]
     end
 
+    -- dbGraph = nil -- NOTE: Testing only
+
     if not dbGraph then
       db.uptimeGraphs.cooldowns[spellID] = {}
       dbGraph = db.uptimeGraphs.cooldowns[spellID]
-      dbGraph.data = {}
     end
 
     dbGraph.__index = dbGraph
     setmetatable(setGraph, dbGraph)
 
-    dbGraph.data = dbGraph.data or {}
+    dbGraph.data = dbGraph.data or {[1] = 0}
     dbGraph.XMin = dbGraph.XMin or 0
     dbGraph.XMax = dbGraph.XMax or 10
-    dbGraph.YMin = dbGraph.YMin or -5
-    dbGraph.YMax = dbGraph.YMax or 105
+    dbGraph.YMin = dbGraph.YMin or 0
+    dbGraph.YMax = dbGraph.YMax or 10
     dbGraph.shown = dbGraph.shown or false
+    dbGraph.data[1] = 0
 
     setGraph.lines = {}
-    setGraph.name = name
-    setGraph.splitCount = 1
-    setGraph.startX = 10
-    setGraph.startY = dbGraph.YMax
-    setGraph.toggle = CT.toggleNormalGraph
+    setGraph.name = spellName
+    setGraph.spellID = spellID
+    setGraph.category = "cooldowns"
+    setGraph.toggle = CT.toggleUptimeGraph
     setGraph.refresh = CT.refreshUptimeGraph
-    setGraph.update, setGraph.color = CT.getGraphUpdateFunc(setGraph, set, db, name)
+    setGraph.color = color or colors.yellow
+    setGraph.endNum = 1
+    setGraph.startX = 10
+
+    setGraph:toggle("show")
+    setGraph:refresh(true)
+
+    return setGraph, dbGraph
   end
+
+  local setGraph, dbGraph = set.addCooldown(20473, "Holy Shock", CT.colors.yellow)
 end
 
 function CT.buildNewSet()

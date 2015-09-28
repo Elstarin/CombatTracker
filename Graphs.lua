@@ -192,36 +192,27 @@ function CT.mainUpdate.uptimeGraphsUpdate(time, timer)
 
   local uptimeGraphs = CT.current.uptimeGraphs
 
-  for i, v in ipairs(uptimeGraphs.categories) do
-
-    for i = 1, #v do
-      local self = v[i]
-
-      local lineTable = CT.uptimeGraphLines[self.category][self.name]
-
+  for categoryName, category in pairs(uptimeGraphs) do
+    for graphName, self in pairs(category) do
       if timer > self.XMax then
-        self.XMax = self.XMax + max(timer - self.XMax, self.startX)
+        local dbGraph = getmetatable(self)
 
-        if self.shown and CT.base.expander.shown then
+        if dbGraph then
+          dbGraph.XMax = self.XMax + max(timer - self.XMax, self.startX)
+        else
+          print("No dbGraph for", self.name .. "!")
+        end
+
+        if self.frame then
           self:refresh(true)
         end
       end
 
-      if self.shown and CT.base.expander.shown then
-        for i = 1, #CT.base.expander.uptimeGraph do
-          local graphFrame = CT.base.expander.uptimeGraph[i]
-          local graph = graphFrame.graph
+      if self.frame and self.lastLine then
+        local width = self.frame.bg:GetWidth() * (timer - self.data[#self.data]) / self.XMax
+        if width < 1 then width = 1 end
 
-          if graph then
-            local width = graphFrame.bg:GetWidth() * (timer - graph.data[#graph.data]) / self.XMax
-            if width < 1 then width = 1 end
-
-            local line = lineTable[#lineTable]
-            if line then
-              line:SetWidth(width)
-            end
-          end
-        end
+        self.lastLine:SetWidth(width)
       end
     end
   end
@@ -275,6 +266,7 @@ function CT.addLineGraph(name, valueTable, color, YMin, YMax)
 end
 
 function CT.addAuraGraph(spellID, spellName, auraType, count, color)
+  if true then print("Blocking add aura graph. Name:", spellName .. ".", "Type:", auraType .. ".") return end
   if not CT.current then return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
@@ -334,6 +326,7 @@ function CT.addAuraGraph(spellID, spellName, auraType, count, color)
 end
 
 function CT.addCooldownGraph(spellID, spellName, color)
+  if true then print("Blocking add cooldown graph. Name:", spellName .. ".") return end
   if not CT.current then return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
@@ -887,134 +880,179 @@ local function setUptimeGraphNameWidth()
   end
 end
 
-function CT.toggleUptimeGraph(self, refresh)
-  local uptimeGraphs = CT.current.uptimeGraphs
+-- function CT.toggleUptimeGraph(self, refresh)
+--   local uptimeGraphs = CT.current.uptimeGraphs
+--
+--   for index, v in ipairs(uptimeGraphs.categories) do
+--     for i = 1, #v do
+--       v[i].shown = false
+--
+--       if v[i] ~= self then
+--         if v[i].checkButton then
+--           v[i].checkButton:SetChecked(false)
+--         end
+--       end
+--     end
+--   end
+--
+--   if CT.base.expander.uptimeGraph then -- Run through all uptime graphs and hide them
+--     local stopFunc
+--
+--     for i = 1, #CT.base.expander.uptimeGraph do
+--       local graphFrame = CT.base.expander.uptimeGraph[i]
+--       local graph = graphFrame.graph
+--
+--       if graphFrame.nameBox then
+--         graphFrame.nameBox:Hide()
+--         graphFrame.name:Hide()
+--         graphFrame.bg:SetPoint("LEFT", graphFrame.anchorFrame, 0, 0)
+--       end
+--
+--       if graph then
+--         local lineTable = CT.uptimeGraphLines[graph.category][graph.name]
+--         for k, v in pairs(lineTable) do
+--           v:Hide()
+--         end
+--
+--         if i > 1 then
+--           CT.base.expander.uptimeGraphBG.height = CT.base.expander.uptimeGraphBG.height - graphFrame:GetHeight()
+--           graphFrame:Hide()
+--         end
+--
+--         -- If an already shown graph was clicked,
+--         -- return it so that it doesn't add it back in
+--         if not refresh and (self == graph) then
+--           stopFunc = true
+--         elseif not refresh and self.targetData and (self.targetData[i] == graph) then
+--           stopFunc = true
+--         end
+--
+--         graph.graphFrame = nil
+--         graphFrame.graph = nil
+--       end
+--     end
+--
+--     CT.base.expander.uptimeGraph.titleText:SetText(CT.base.expander.uptimeGraph.titleText.default)
+--
+--     if stopFunc then
+--       if self.checkButton then
+--         self.checkButton:SetChecked(false)
+--       end
+--
+--       CT.base.expander.uptimeGraphBG:SetHeight(CT.base.expander.uptimeGraphBG.height)
+--
+--       return
+--     end
+--   end
+--
+--   self.shown = true
+--
+--   if self.shown and self.targetData and #self.targetData > 1 then -- If uptime graph has multiple lines
+--     self.graphFrame = CT.base.expander.uptimeGraph
+--
+--     for i = 1, #self.targetData do
+--       local graphFrame = CT.base.expander.uptimeGraph[i]
+--       if not graphFrame then
+--         graphFrame = CT.buildUptimeGraph(CT.base.expander, CT.base.expander.uptimeGraphBG)
+--       end
+--
+--       if not graphFrame:IsShown() then
+--         CT.base.expander.uptimeGraphBG.height = CT.base.expander.uptimeGraphBG.height + graphFrame:GetHeight()
+--         graphFrame:Show()
+--       end
+--
+--       createUptimeGraphName(graphFrame, self.targetData[i].name)
+--
+--       graphFrame.graph = self.targetData[i]
+--       self.targetData[i].graphFrame = graphFrame
+--
+--       for k, v in pairs(self.targetData[i].lines) do
+--         v:Show()
+--       end
+--     end
+--
+--     setUptimeGraphNameWidth()
+--
+--     do -- Text
+--       if not self.string then
+--         self.convertedColor = CT.convertColor(self.color[1], self.color[2], self.color[3])
+--         self.string = self.convertedColor .. self.name .. "|r, "
+--       end
+--
+--       local string = CT.base.expander.uptimeGraph.titleText.default .. self.convertedColor .. self.name
+--       CT.base.expander.uptimeGraph.titleText:SetText(string)
+--     end
+--
+--     self:refresh(true)
+--   elseif self.shown then -- Single line uptime graph
+--     self.graphFrame = CT.base.expander.uptimeGraph
+--     CT.base.expander.uptimeGraph.graph = self
+--     CT.base.expander.uptimeGraph:Show()
+--
+--     do -- Text
+--       if not self.string then
+--         self.convertedColor = CT.convertColor(self.color[1], self.color[2], self.color[3])
+--         self.string = self.convertedColor .. self.name .. "|r, "
+--       end
+--
+--       local string = CT.base.expander.uptimeGraph.titleText.default .. self.convertedColor .. self.name
+--       CT.base.expander.uptimeGraph.titleText:SetText(string)
+--     end
+--
+--     local lineTable = CT.uptimeGraphLines[self.category][self.name]
+--     for k, v in pairs(lineTable) do
+--       v:Show()
+--     end
+--
+--     self:refresh(true)
+--   end
+--
+--   CT.base.expander.uptimeGraphBG:SetHeight(CT.base.expander.uptimeGraphBG.height)
+-- end
 
-  for index, v in ipairs(uptimeGraphs.categories) do
-    for i = 1, #v do
-      v[i].shown = false
+function CT:toggleUptimeGraph(command)
+  if not CT.uptimeGraphFrame then CT:Print("Tried to toggle an uptime graph before uptime graph frame was loaded.", self.name) return end
 
-      if v[i] ~= self then
-        if v[i].checkButton then
-          v[i].checkButton:SetChecked(false)
-        end
+  local frame = CT.uptimeGraphFrame
+  local found = nil
+  local dbGraph = getmetatable(self)
+
+  if not command then -- Don't bother running through if a show or hide command was sent
+    for i = 1, #frame.displayed do
+      if frame.displayed[i] == self then -- Graph is currently displayed
+        found = i
+        break
       end
     end
   end
 
-  if CT.base.expander.uptimeGraph then -- Run through all uptime graphs and hide them
-    local stopFunc
+  if found or (command and command == "hide") then -- Hide graph
+    print("Hiding:", self.name .. ".")
 
-    for i = 1, #CT.base.expander.uptimeGraph do
-      local graphFrame = CT.base.expander.uptimeGraph[i]
-      local graph = graphFrame.graph
+    tremove(frame.displayed, found) -- Remove it from list
+    self.frame = nil
+    -- dbGraph.shown = false
 
-      if graphFrame.nameBox then
-        graphFrame.nameBox:Hide()
-        graphFrame.name:Hide()
-        graphFrame.bg:SetPoint("LEFT", graphFrame.anchorFrame, 0, 0)
-      end
-
-      if graph then
-        local lineTable = CT.uptimeGraphLines[graph.category][graph.name]
-        for k, v in pairs(lineTable) do
-          v:Hide()
-        end
-
-        if i > 1 then
-          CT.base.expander.uptimeGraphBG.height = CT.base.expander.uptimeGraphBG.height - graphFrame:GetHeight()
-          graphFrame:Hide()
-        end
-
-        -- If an already shown graph was clicked,
-        -- return it so that it doesn't add it back in
-        if not refresh and (self == graph) then
-          stopFunc = true
-        elseif not refresh and self.targetData and (self.targetData[i] == graph) then
-          stopFunc = true
-        end
-
-        graph.graphFrame = nil
-        graphFrame.graph = nil
+    for i = 1, #self.lines do -- Hide all the lines
+      if self.lines[i] then
+        self.lines[i]:Hide()
       end
     end
+  elseif not found or (command and command == "show") then -- Show graph
+    print("Showing:", self.name .. ".")
 
-    CT.base.expander.uptimeGraph.titleText:SetText(CT.base.expander.uptimeGraph.titleText.default)
+    tinsert(frame.displayed, self) -- Add it to list
+    self.frame = frame
+    -- dbGraph.shown = true
 
-    if stopFunc then
-      if self.checkButton then
-        self.checkButton:SetChecked(false)
+    self:refresh(true) -- Create/update lines
+
+    for i = 1, #self.lines do -- Show all the lines
+      if self.lines[i] then
+        self.lines[i]:Show()
       end
-
-      CT.base.expander.uptimeGraphBG:SetHeight(CT.base.expander.uptimeGraphBG.height)
-
-      return
     end
   end
-
-  self.shown = true
-
-  if self.shown and self.targetData and #self.targetData > 1 then -- If uptime graph has multiple lines
-    self.graphFrame = CT.base.expander.uptimeGraph
-
-    for i = 1, #self.targetData do
-      local graphFrame = CT.base.expander.uptimeGraph[i]
-      if not graphFrame then
-        graphFrame = CT.buildUptimeGraph(CT.base.expander, CT.base.expander.uptimeGraphBG)
-      end
-
-      if not graphFrame:IsShown() then
-        CT.base.expander.uptimeGraphBG.height = CT.base.expander.uptimeGraphBG.height + graphFrame:GetHeight()
-        graphFrame:Show()
-      end
-
-      createUptimeGraphName(graphFrame, self.targetData[i].name)
-
-      graphFrame.graph = self.targetData[i]
-      self.targetData[i].graphFrame = graphFrame
-
-      for k, v in pairs(self.targetData[i].lines) do
-        v:Show()
-      end
-    end
-
-    setUptimeGraphNameWidth()
-
-    do -- Text
-      if not self.string then
-        self.convertedColor = CT.convertColor(self.color[1], self.color[2], self.color[3])
-        self.string = self.convertedColor .. self.name .. "|r, "
-      end
-
-      local string = CT.base.expander.uptimeGraph.titleText.default .. self.convertedColor .. self.name
-      CT.base.expander.uptimeGraph.titleText:SetText(string)
-    end
-
-    self:refresh(true)
-  elseif self.shown then -- Single line uptime graph
-    self.graphFrame = CT.base.expander.uptimeGraph
-    CT.base.expander.uptimeGraph.graph = self
-    CT.base.expander.uptimeGraph:Show()
-
-    do -- Text
-      if not self.string then
-        self.convertedColor = CT.convertColor(self.color[1], self.color[2], self.color[3])
-        self.string = self.convertedColor .. self.name .. "|r, "
-      end
-
-      local string = CT.base.expander.uptimeGraph.titleText.default .. self.convertedColor .. self.name
-      CT.base.expander.uptimeGraph.titleText:SetText(string)
-    end
-
-    local lineTable = CT.uptimeGraphLines[self.category][self.name]
-    for k, v in pairs(lineTable) do
-      v:Show()
-    end
-
-    self:refresh(true)
-  end
-
-  CT.base.expander.uptimeGraphBG:SetHeight(CT.base.expander.uptimeGraphBG.height)
 end
 
 function CT:updateUptimeAnchors()
@@ -1049,52 +1087,41 @@ end
 function CT:refreshUptimeGraph(reset)
   if not CT.uptimeGraphFrame then CT:Print("Tried to refresh uptime graph before CT.uptimeGraphFrame was created.") return end
   if not CT.uptimeGraphFrame.displayed[1] then CT:Print("Tried to refresh uptime graph without any displayed.") return end
+  if not self.lines then CT:Print("Tried to refresh uptime graph without any line table.") return end
 
   local frame = CT.uptimeGraphFrame
   local frameWidth, frameHeight = frame.bg:GetSize()
+  local setGraph = self
+  local dbGraph = getmetatable(self)
 
-  for index = 1, #CT.uptimeGraphFrame.displayed do
-    local setGraph = frame[index]
+  if reset then setGraph.endNum = 1 end
 
-    if reset then setGraph.endNum = 1 end
+  for i = setGraph.endNum, #setGraph.data do
+    local line = setGraph.lines[i]
+    if not line then
+      line = frame.anchor:CreateTexture(nil, "ARTWORK")
+      line:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+      line.startX = setGraph.data[i]
 
-    for i = setGraph.endNum, #setGraph.data do
-      local addedLine
-      local offSetY = 0
+      setGraph.lines[i] = line
+      setGraph.lastLine = line
 
-      local line = setGraph.lines[i]
-      if not line then
-        line = frame.anchor:CreateTexture(nil, "ARTWORK")
-        line:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        line.startX = setGraph.data[i]
-
-        setGraph.lines[i] = line
-        setGraph.lastLine = line
-        addedLine = true
-
-        if (i % 2) == 0 then
-          line:SetVertexColor(setGraph.color[1], setGraph.color[2], setGraph.color[3], setGraph.color[4])
-        else
-          line:SetVertexColor(0, 0, 0, 0)
-        end
+      if (i % 2) == 0 then
+        line:SetVertexColor(unpack(setGraph.color))
+      else
+        line:SetVertexColor(0.5, 0.5, 0.5, 1)
+        -- line:SetVertexColor(0, 0, 0, 0)
       end
-
-      line:SetPoint("LEFT", frame.bg, frameWidth * setGraph.data[i] / setGraph.XMax, offSetY)
-      line:SetWidth(1)
-
-      if lineTable[i - 1] then
-        local prevLine = lineTable[i - 1]
-        prevLine.stopX = graph.data[i]
-
-        if prevLine.startX >= graph.data[i] then -- Stops lines from begining before the new end point
-          prevLine.startX = graph.data[i] - 0.01
-        end
-
-        prevLine:SetWidth(graphWidth * (prevLine.stopX - prevLine.startX) / self.XMax)
-      end
-
-      graph.endNum = i + 1
     end
+
+    line:SetPoint("LEFT", frame.bg, frameWidth * setGraph.data[i] / setGraph.XMax, 0)
+    line:SetSize(1, 8)
+
+    if setGraph.lines[i - 1] then
+      setGraph.lines[i - 1]:SetPoint("RIGHT", line)
+    end
+
+    setGraph.endNum = i + 1
   end
 end
 
@@ -1390,6 +1417,7 @@ function CT:buildUptimeGraph(relativeFrame)
   end)
 
   self.uptimeGraphCreated = true
+
   return graph
 end
 --------------------------------------------------------------------------------
@@ -1507,7 +1535,7 @@ function CT.showLineGraph(self, name)
 end
 
 function CT:toggleNormalGraph(command)
-  if not CT.graphFrame then CT:Print("Tried to toggle a graph before graph frame was loaded.") return end
+  if not CT.graphFrame then CT:Print("Tried to toggle a graph before graph frame was loaded.", self.name) return end
 
   local frame = CT.graphFrame
   local found = nil
@@ -1534,7 +1562,7 @@ function CT:toggleNormalGraph(command)
         self.lines[i]:Hide()
       end
     end
-  elseif not found or (command and command == "show") then -- Show graph
+  elseif not dbGraph.shown and not found or (command and command == "show") then -- Show graph
     print("Showing:", self.name .. ".")
 
     tinsert(frame.displayed, self) -- Add it to list
