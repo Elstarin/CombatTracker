@@ -147,6 +147,7 @@ local combatevents = CT.combatevents
 local lastMouseoverButton
 local buttonClickNum = 7
 local testMode = true
+local trackingOnLogIn = true
 -- local start = debugprofilestop() / 1000
 -- print((debugprofilestop() / 1000) - start)
 
@@ -512,7 +513,7 @@ function CT:OnInitialize()
             CT.buttons[#CT.buttons]:Click("LeftButton")
           end
 
-          -- CT.startTracking("Starting tracking from logging in.")
+          if trackingOnLogIn then CT.startTracking("Starting tracking from logging in.") end
         end)
       else
         C_Timer.After(1.0, function()
@@ -522,7 +523,7 @@ function CT:OnInitialize()
             CT.buttons[#CT.buttons]:Click("LeftButton")
           end
 
-          -- CT.startTracking("Starting tracking from logging in.")
+          if trackingOnLogIn then CT.startTracking("Starting tracking from logging in.") end
         end)
 
         CT.base:Hide()
@@ -785,7 +786,7 @@ end
 --------------------------------------------------------------------------------
 -- Main Button Functions
 --------------------------------------------------------------------------------
-local profile = true
+local profile = false
 local function profileCode()
   collectgarbage("collect")
 
@@ -1941,7 +1942,7 @@ function CT:expanderFrame()
 
     CT.finalizeGraphLength() -- This also does a full graph refresh, and I need them to instantly refresh when it shows
   elseif not CT.base.expander then
-    local f
+    local f, uptimeGraph, graphFrame
     do -- Main Frame
       CT.base.expander = CreateFrame("Frame", nil, CT.base)
       f = CT.base.expander
@@ -2112,30 +2113,38 @@ function CT:expanderFrame()
     end
 
     do -- Uptime Graph
-      f.uptimeGraphBG = f:CreateTexture(nil, "BORDER")
-      f.uptimeGraphBG:SetPoint("LEFT", f.dataFrames[3], 0, 0)
-      f.uptimeGraphBG:SetPoint("RIGHT", f.dataFrames[4], 0, 0)
-      f.uptimeGraphBG:SetPoint("TOP", f.dataFrames[4], "BOTTOM", 0, -10)
-      f.uptimeGraphBG:SetTexture(0.1, 0.1, 0.1, 1)
-      f.uptimeGraphBG:SetHeight(20)
-      f.uptimeGraphBG.height = 20
+      -- f.uptimeGraphBG = f:CreateTexture(nil, "BORDER")
+      -- f.uptimeGraphBG:SetPoint("LEFT", f.dataFrames[3], 0, 0)
+      -- f.uptimeGraphBG:SetPoint("RIGHT", f.dataFrames[4], 0, 0)
+      -- f.uptimeGraphBG:SetPoint("TOP", f.dataFrames[4], "BOTTOM", 0, -10)
+      -- f.uptimeGraphBG:SetTexture(0.1, 0.1, 0.1, 1)
+      -- f.uptimeGraphBG:SetHeight(20)
+      -- f.uptimeGraphBG.height = 20
 
-      local uptimeGraph = CT.buildUptimeGraph(f, f.uptimeGraphBG)
+      uptimeGraph = CT.buildUptimeGraph(f)
 
-      uptimeGraph.titleText = uptimeGraph:CreateFontString(nil, "ARTWORK")
-      uptimeGraph.titleText:SetPoint("BOTTOMLEFT", uptimeGraph, "TOPLEFT", 2, 4)
-      uptimeGraph.titleText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-      uptimeGraph.titleText:SetTextColor(1, 1, 1, 1)
-      uptimeGraph.titleText:SetJustifyH("LEFT")
-      uptimeGraph.titleText:SetText("Current Graph: ")
-      uptimeGraph.titleText.default = "Current Graph: "
+      uptimeGraph:ClearAllPoints()
+      uptimeGraph:SetParent(f)
+      uptimeGraph:SetPoint("LEFT", f.dataFrames[3], 0, 0)
+      uptimeGraph:SetPoint("RIGHT", f.dataFrames[4], 0, 0)
+      uptimeGraph:SetPoint("TOP", f.dataFrames[4], "BOTTOM", 0, -10)
+      uptimeGraph:SetHeight(25)
+
+      -- uptimeGraph.titleText = uptimeGraph:CreateFontString(nil, "ARTWORK")
+      -- uptimeGraph.titleText:SetPoint("BOTTOMLEFT", uptimeGraph, "TOPLEFT", 2, 4)
+      -- uptimeGraph.titleText:SetFont("Fonts\\FRIZQT__.TTF", 12)
+      -- uptimeGraph.titleText:SetTextColor(1, 1, 1, 1)
+      -- uptimeGraph.titleText:SetJustifyH("LEFT")
+      -- uptimeGraph.titleText:SetText("Current Graph: ")
+      -- uptimeGraph.titleText.default = "Current Graph: "
 
       local b
       do
         f.uptimeGraphButton = CreateFrame("Button", nil, uptimeGraph)
         b = f.uptimeGraphButton
         b:SetSize(90, 20)
-        b:SetPoint("TOPRIGHT", f.uptimeGraphBG, -1, 1)
+        b:SetPoint("TOPRIGHT", uptimeGraph, -3, -3)
+        -- b:SetPoint("TOPRIGHT", f.uptimeGraphBG, -1, 1)
 
         b.normal = b:CreateTexture(nil, "BACKGROUND")
         b.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
@@ -2218,36 +2227,42 @@ function CT:expanderFrame()
     end
 
     do -- Main Graph
-      f.mainUptimeGraph = f:CreateTexture(nil, "ARTWORK")
-      f.mainUptimeGraph:SetPoint("LEFT", f.uptimeGraphBG, 0, 0)
-      f.mainUptimeGraph:SetPoint("RIGHT", f.uptimeGraphBG, 0, 0)
-      f.mainUptimeGraph:SetPoint("TOP", f.uptimeGraphBG, "BOTTOM", 0, -10)
-      f.mainUptimeGraph:SetPoint("BOTTOM", f, 0, 10)
-      f.mainUptimeGraph:SetTexture(0.1, 0.1, 0.1, 1)
+      -- f.mainUptimeGraph = f:CreateTexture(nil, "ARTWORK")
+      -- f.mainUptimeGraph:SetPoint("LEFT", f.uptimeGraphBG, 0, 0)
+      -- f.mainUptimeGraph:SetPoint("RIGHT", f.uptimeGraphBG, 0, 0)
+      -- f.mainUptimeGraph:SetPoint("TOP", f.uptimeGraphBG, "BOTTOM", 0, -10)
+      -- f.mainUptimeGraph:SetPoint("BOTTOM", f, 0, 10)
+      -- f.mainUptimeGraph:SetTexture(0.1, 0.1, 0.1, 1)
 
       local graphFrame = CT.buildGraph(f)
 
       graphFrame:ClearAllPoints()
       graphFrame:SetParent(f)
-      graphFrame:SetPoint("LEFT", f.mainUptimeGraph, 0, 0)
-      graphFrame:SetPoint("RIGHT", f.mainUptimeGraph, 0, 0)
-      graphFrame:SetPoint("TOP", f.mainUptimeGraph, 0, -20)
-      graphFrame:SetPoint("BOTTOM", f.mainUptimeGraph, 0, 0)
+      graphFrame:SetPoint("LEFT", uptimeGraph, 0, 0)
+      graphFrame:SetPoint("RIGHT", uptimeGraph, 0, 0)
+      graphFrame:SetPoint("TOP", uptimeGraph, "BOTTOM", 0, -10)
+      graphFrame:SetPoint("BOTTOM", f, 0, 10)
 
-      graphFrame.titleText = graphFrame:CreateFontString(nil, "ARTWORK")
-      graphFrame.titleText:SetPoint("BOTTOMLEFT", graphFrame, "TOPLEFT", 2, 4)
-      graphFrame.titleText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-      graphFrame.titleText:SetTextColor(1, 1, 1, 1)
-      graphFrame.titleText:SetJustifyH("LEFT")
-      graphFrame.titleText:SetText("Currently Displayed: ")
-      graphFrame.titleText.default = "Currently Displayed: "
+      -- graphFrame:SetPoint("LEFT", f.mainUptimeGraph, 0, 0)
+      -- graphFrame:SetPoint("RIGHT", f.mainUptimeGraph, 0, 0)
+      -- graphFrame:SetPoint("TOP", f.mainUptimeGraph, 0, -20)
+      -- graphFrame:SetPoint("BOTTOM", f.mainUptimeGraph, 0, 0)
+
+      -- graphFrame.titleText = graphFrame:CreateFontString(nil, "ARTWORK")
+      -- graphFrame.titleText:SetPoint("BOTTOMLEFT", graphFrame, "TOPLEFT", 2, 4)
+      -- graphFrame.titleText:SetFont("Fonts\\FRIZQT__.TTF", 12)
+      -- graphFrame.titleText:SetTextColor(1, 1, 1, 1)
+      -- graphFrame.titleText:SetJustifyH("LEFT")
+      -- graphFrame.titleText:SetText("Currently Displayed: ")
+      -- graphFrame.titleText.default = "Currently Displayed: "
 
       local b
       do
         f.mainGraphButton = CreateFrame("Button", nil, graphFrame)
         b = f.mainGraphButton
         b:SetSize(90, 20)
-        b:SetPoint("BOTTOMRIGHT", graphFrame, "TOPRIGHT", -1, 1)
+        b:SetPoint("TOPRIGHT", graphFrame, -3, -3)
+        -- b:SetPoint("BOTTOMRIGHT", graphFrame, "TOPRIGHT", -1, 1)
 
         b.normal = b:CreateTexture(nil, "BACKGROUND")
         b.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")

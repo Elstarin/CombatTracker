@@ -161,9 +161,17 @@ local function finishCooldown(spell)
     local self = uptimeGraphs.cooldowns[spellID]
     self.data[#self.data + 1] = spell.finishedTime - CT.combatStart
     self:refresh()
-  elseif uptimeGraphs.cooldowns[spellID].ignore then
+  elseif uptimeGraphs.cooldowns[spellID] and uptimeGraphs.cooldowns[spellID].ignore then
     uptimeGraphs.cooldowns[spellID].ignore = false
   end
+
+  -- if uptimeGraphs.cooldowns[spellID] and not uptimeGraphs.cooldowns[spellID].ignore then
+  --   local self = uptimeGraphs.cooldowns[spellID]
+  --   self.data[#self.data + 1] = spell.finishedTime - CT.combatStart
+  --   self:refresh()
+  -- elseif uptimeGraphs.cooldowns[spellID].ignore then
+  --   uptimeGraphs.cooldowns[spellID].ignore = false
+  -- end
 end
 
 local function runCooldown(spell, spellID, spellName)
@@ -1186,7 +1194,7 @@ local function unitAura(unitID)
 end
 
 local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, dstName, dstFlags, _, spellID, spellName, school, auraType, amount)
-  if (srcName ~= data.name) and (dstName ~= data.name) then return end -- If it doesn't effect player then it shouldn't matter
+  if (srcName ~= data.playerName) and (dstName ~= data.playerName) then return end -- If it doesn't effect player then it shouldn't matter
   -- Actually, it will matter for dispellable debuffs
 
   local uptimeGraphs = CT.current.uptimeGraphs
@@ -1236,7 +1244,30 @@ local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
 
   tinsert(CT.activeAuras, aura)
 
-  if uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then -- Uptime graph
+  do -- Handles creating and refreshing of uptime graph
+    local type
+    if auraType == "BUFF" then
+      type = "buffs"
+    elseif auraType == "DEBUFF" then
+      type = "debuffs"
+    end
+
+    local setGraph = data.uptimeGraphs[type][spellID]
+
+    if not setGraph and spellName == "Illuminated Healing" then -- NOTE: Testing only for second check
+      setGraph = data.addAura(spellID, spellName, type, count, color)
+    end
+
+    if setGraph then -- Don't merge with above, always needs to be checked
+      if not setGraph[dstGUID] then
+        setGraph.addNewLine(dstGUID, dstName)
+      end
+
+      setGraph[dstGUID]:refresh()
+    end
+  end
+
+  if BreakingThisOnPurpose and uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then -- Uptime graph
     local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
     local num = #self.data + 1
     self.data[num] = timer
@@ -1378,7 +1409,7 @@ local function auraRefresh(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
 end
 
 local function auraRemoved(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
-  if (srcName ~= data.name) and (dstName ~= data.name) then return end
+  if (srcName ~= data.playerName) and (dstName ~= data.playerName) then return end
   -- if not ((dstGUID == data.GUID) or (srcGUID == data.GUID)) then return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
@@ -1415,16 +1446,31 @@ local function auraRemoved(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName,
     aura.offensive[aura.totalCount - 1].stop = GetTime()
   end
 
-  if uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then
-    local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
-    self.data[#self.data + 1] = timer
-
-    if dstGUID and self.targetData[dstGUID] then
-      self.targetData[dstGUID].data[#self.targetData[dstGUID].data + 1] = timer
+  do -- Uptime graph
+    local type
+    if auraType == "BUFF" then
+      type = "buffs"
+    elseif auraType == "DEBUFF" then
+      type = "debuffs"
     end
 
-    self:refresh()
+    local setGraph = data.uptimeGraphs[type][spellID]
+
+    if setGraph and setGraph[dstGUID] then
+      setGraph[dstGUID]:refresh()
+    end
   end
+
+  -- if uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then
+  --   local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
+  --   self.data[#self.data + 1] = timer
+  --
+  --   if dstGUID and self.targetData[dstGUID] then
+  --     self.targetData[dstGUID].data[#self.targetData[dstGUID].data + 1] = timer
+  --   end
+  --
+  --   self:refresh()
+  -- end
 end
 
 local function auraRemovedDose(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
@@ -1934,7 +1980,7 @@ local function keyDown(self, key) -- Fire whenever a key is pressed
   k.count = k.count + 1
 
   if key == "ESCAPE" and CT.shown then
-    CT.base:Hide()
+    -- CT.base:Hide()
   end
 
 	-- print(key)

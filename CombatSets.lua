@@ -450,8 +450,6 @@ local function basicUptimeGraphData(set, db)
       setGraph = set.uptimeGraphs.cooldowns[spellID]
     end
 
-    -- dbGraph = nil -- NOTE: Testing only
-
     if not dbGraph then
       db.uptimeGraphs.cooldowns[spellID] = {}
       dbGraph = db.uptimeGraphs.cooldowns[spellID]
@@ -466,7 +464,6 @@ local function basicUptimeGraphData(set, db)
     dbGraph.YMin = dbGraph.YMin or 0
     dbGraph.YMax = dbGraph.YMax or 10
     dbGraph.shown = dbGraph.shown or false
-    dbGraph.data[1] = 0
 
     setGraph.lines = {}
     setGraph.name = spellName
@@ -474,9 +471,10 @@ local function basicUptimeGraphData(set, db)
     setGraph.category = "cooldowns"
     setGraph.toggle = CT.toggleUptimeGraph
     setGraph.refresh = CT.refreshUptimeGraph
-    setGraph.color = color or colors.yellow
+    setGraph.color = color or CT.colors.yellow
     setGraph.endNum = 1
     setGraph.startX = 10
+    setGraph.frame = CT.graphFrame
 
     setGraph:toggle("show")
     setGraph:refresh(true)
@@ -484,7 +482,74 @@ local function basicUptimeGraphData(set, db)
     return setGraph, dbGraph
   end
 
-  local setGraph, dbGraph = set.addCooldown(20473, "Holy Shock", CT.colors.yellow)
+  function set.addAura(spellID, spellName, type, count, color)
+    print("Adding aura graph:", spellName)
+
+    local setGraph = set.uptimeGraphs[type][spellID]
+    local dbGraph = db.uptimeGraphs[type][spellID]
+
+    if not setGraph then
+      set.uptimeGraphs[type][spellID] = {}
+      setGraph = set.uptimeGraphs[type][spellID]
+    end
+
+    if not dbGraph then
+      db.uptimeGraphs[type][spellID] = {}
+      dbGraph = db.uptimeGraphs[type][spellID]
+    end
+
+    dbGraph.__index = dbGraph
+    setmetatable(setGraph, dbGraph)
+
+    setGraph.name = spellName
+    setGraph.spellID = spellID
+    setGraph.frame = CT.uptimeGraphFrame
+    setGraph.toggle = CT.toggleUptimeGraph
+
+    setGraph.addNewLine = function(GUID, unitName)
+      if not setGraph[GUID] then
+        local num = #setGraph + 1
+
+        print("Adding new line for", unitName .. ".")
+
+        if not setGraph[num] then setGraph[num] = {
+            ["lines"] = {},
+            ["endNum"] = 1,
+            ["startX"] = 10,
+            ["color"] = color or CT.colors.blue,
+            ["refresh"] = CT.refreshUptimeGraph,
+            ["spellID"] = spellID,
+            ["category"] = type,
+            ["GUID"] = GUID,
+          }
+        end
+
+        if not dbGraph[num] then dbGraph[num] = {
+            ["data"] = {[1] = 0},
+            ["shown"] = false,
+            ["XMin"] = 0,
+            ["XMax"] = 10,
+            ["YMin"] = 0,
+            ["YMax"] = 10,
+            ["Y"] = num * -10,
+            ["unitName"] = unitName,
+          }
+        end
+
+        dbGraph[num].__index = dbGraph[num]
+        setmetatable(setGraph[num], dbGraph[num])
+
+        setGraph[GUID] = setGraph[num]
+      end
+    end
+
+    setGraph:toggle("show")
+    -- setGraph:refresh(true)
+
+    return setGraph, dbGraph
+  end
+
+  -- local setGraph, dbGraph = set.addCooldown(20473, "Holy Shock", CT.colors.yellow)
 end
 
 function CT.buildNewSet()

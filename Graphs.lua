@@ -193,26 +193,31 @@ function CT.mainUpdate.uptimeGraphsUpdate(time, timer)
   local uptimeGraphs = CT.current.uptimeGraphs
 
   for categoryName, category in pairs(uptimeGraphs) do
-    for graphName, self in pairs(category) do
-      if timer > self.XMax then
-        local dbGraph = getmetatable(self)
+    for graphName, setGraph in pairs(category) do
+      for i = 1, #setGraph do
+        -- print("Updating line:", i)
+        local self = setGraph[i]
 
-        if dbGraph then
-          dbGraph.XMax = self.XMax + max(timer - self.XMax, self.startX)
-        else
-          print("No dbGraph for", self.name .. "!")
+        if timer > self.XMax then
+          local dbGraph = getmetatable(self)
+
+          if dbGraph then
+            dbGraph.XMax = self.XMax + max(timer - self.XMax, self.startX)
+          else
+            print("No dbGraph for", self.name .. "!")
+          end
+
+          if setGraph.frame then
+            self:refresh(true)
+          end
         end
 
-        if self.frame then
-          self:refresh(true)
+        if setGraph.frame and self.lastLine then
+          local width = setGraph.frame.bg:GetWidth() * (timer - self.data[#self.data]) / self.XMax
+          if width < 1 then width = 1 end
+
+          self.lastLine:SetWidth(width)
         end
-      end
-
-      if self.frame and self.lastLine then
-        local width = self.frame.bg:GetWidth() * (timer - self.data[#self.data]) / self.XMax
-        if width < 1 then width = 1 end
-
-        self.lastLine:SetWidth(width)
       end
     end
   end
@@ -1045,11 +1050,12 @@ function CT:toggleUptimeGraph(command)
     self.frame = frame
     -- dbGraph.shown = true
 
-    self:refresh(true) -- Create/update lines
+    for i = 1, #self do
+      local setGraph = self[i]
+      setGraph:refresh(true) -- Create/update lines
 
-    for i = 1, #self.lines do -- Show all the lines
-      if self.lines[i] then
-        self.lines[i]:Show()
+      for i = 1, #setGraph.lines do -- Show all the lines
+        setGraph.lines[i]:Show()
       end
     end
   end
@@ -1089,39 +1095,59 @@ function CT:refreshUptimeGraph(reset)
   if not CT.uptimeGraphFrame.displayed[1] then CT:Print("Tried to refresh uptime graph without any displayed.") return end
   if not self.lines then CT:Print("Tried to refresh uptime graph without any line table.") return end
 
+  local timer = 0
+  if CT.currentDB then
+    timer = (CT.currentDB.stop or GetTime()) - CT.currentDB.start
+  end
+
   local frame = CT.uptimeGraphFrame
   local frameWidth, frameHeight = frame.bg:GetSize()
-  local setGraph = self
-  local dbGraph = getmetatable(self)
+  -- local dbGraph = getmetatable(self)
 
-  if reset then setGraph.endNum = 1 end
+  local num = #self.data
+  local lines = self.lines
+  local data = self.data
 
-  for i = setGraph.endNum, #setGraph.data do
-    local line = setGraph.lines[i]
+  if reset then
+    self.endNum = 1
+  else
+    data[num + 1] = timer
+    num = num + 1
+  end
+
+  for i = self.endNum, num do
+    local line = lines[i]
+
     if not line then
-      line = frame.anchor:CreateTexture(nil, "ARTWORK")
-      line:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-      line.startX = setGraph.data[i]
+      lines[i] = frame.anchor:CreateTexture(nil, "ARTWORK")
+      line = lines[i]
 
-      setGraph.lines[i] = line
-      setGraph.lastLine = line
+      line:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+      line.startX = data[i]
+      self.lastLine = line
 
       if (i % 2) == 0 then
-        line:SetVertexColor(unpack(setGraph.color))
+        line:SetVertexColor(unpack(self.color))
       else
         line:SetVertexColor(0.5, 0.5, 0.5, 1)
         -- line:SetVertexColor(0, 0, 0, 0)
       end
     end
 
-    line:SetPoint("LEFT", frame.bg, frameWidth * setGraph.data[i] / setGraph.XMax, 0)
-    line:SetSize(1, 8)
+    line:SetPoint("TOPLEFT", frame.bg, frameWidth * data[i] / self.XMax, self.Y + 5)
+    line:SetSize(1, 5)
 
-    if setGraph.lines[i - 1] then
-      setGraph.lines[i - 1]:SetPoint("RIGHT", line)
+    if lines[i - 1] then
+      lines[i - 1]:SetPoint("RIGHT", line)
     end
 
-    setGraph.endNum = i + 1
+    self.endNum = i + 1
+  end
+
+  local setGraph = CT.displayed.uptimeGraphs[self.category][self.spellID]
+
+  if setGraph then
+    frame:SetHeight(25 + (#setGraph * 10))
   end
 end
 
@@ -1228,45 +1254,23 @@ function CT:buildUptimeGraph(relativeFrame)
   do
     -- graph = CreateFrame("Frame", nil, self)
     graph = CreateFrame("ScrollFrame", nil, self)
-    CT.uptimeGraphFrame = graph
-    CT.uptimeGraphFrame.displayed = {}
+    -- graph:SetHeight(graphHeight)
 
     graph.anchor = CreateFrame("Frame", nil, self)
     graph:SetScrollChild(graph.anchor)
+    graph.anchor:SetSize(100, 100)
+    graph.anchor:SetAllPoints(graph)
 
-    -- CT.scrollChildFrameUptime = CreateFrame("Frame", nil, CT.base)
-    -- graph:SetScrollChild(CT.scrollChildFrameUptime)
-    -- graph:SetScrollChild(CT.scrollChildFrame)
-    graph:SetHeight(graphHeight)
-
-    if not self.uptimeGraph then
-      self.uptimeGraph = graph
-    end
-
-    local num = #self.uptimeGraph + 1
-
-    self.uptimeGraph[num] = graph
     graph.bg = graph:CreateTexture(nil, "BACKGROUND")
     graph.bg:SetTexture(0.07, 0.07, 0.07, 1.0)
-    graph.bg:SetPoint("LEFT", 2, 0)
-    graph.bg:SetPoint("RIGHT", -2, 0)
-    graph.bg:SetPoint("TOP", 0, 0)
-    graph.bg:SetPoint("BOTTOM", 0, 0)
+    graph.bg:SetAllPoints()
 
-    graph.startX = 10
-    graph.XMin = 0
-    graph.XMax = 10
-    graph.YMin = 0
-    graph.YMax = 10
-    graph.anchorFrame = relativeFrame or CT.base.expander.uptimeGraphBG
-    graph.lineHeight = 5
+    graph:SetPoint("LEFT", relativeFrame, 0, 0)
+    graph:SetPoint("RIGHT", relativeFrame, 0, 0)
+    graph:SetPoint("TOP", relativeFrame, 0, 0)
 
-    graph:SetPoint("LEFT", graph.anchorFrame, 0, 0)
-    graph:SetPoint("RIGHT", graph.anchorFrame, 0, 0)
-    graph:SetPoint("TOP", graph.anchorFrame, 0, -graph.anchorFrame.height)
-
-    graph.anchorFrame.height = graph.anchorFrame.height + graphHeight
-    graph.anchorFrame:SetHeight(graph.anchorFrame.height)
+    CT.uptimeGraphFrame = graph
+    CT.uptimeGraphFrame.displayed = {}
   end
 
   do -- Create Graph Borders
