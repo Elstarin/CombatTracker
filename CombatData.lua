@@ -1263,7 +1263,10 @@ local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
         setGraph.addNewLine(dstGUID, dstName)
       end
 
-      setGraph[dstGUID]:refresh()
+      local data = setGraph[dstGUID].data
+      data[#data + 1] = timer
+
+      setGraph:refresh()
     end
   end
 
@@ -1457,7 +1460,10 @@ local function auraRemoved(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName,
     local setGraph = data.uptimeGraphs[type][spellID]
 
     if setGraph and setGraph[dstGUID] then
-      setGraph[dstGUID]:refresh()
+      local data = setGraph[dstGUID].data
+      data[#data + 1] = timer
+
+      setGraph:refresh()
     end
   end
 
@@ -1553,6 +1559,7 @@ local function energize(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName
   -- spellGained.average = spellGained.total / spellGained.casts
 end
 
+local tempOldTime = GetTime()
 local function unitPowerFrequent(unit, powerType)
   if unit ~= "player" then return end
   if not data then print("Blocking unit power update.") return end
@@ -1562,6 +1569,8 @@ local function unitPowerFrequent(unit, powerType)
   local currentTime = GetTime()
   local currentPower = UnitPower(unit, powerTypeIndex)
   local change = currentPower - power.accuratePower
+
+  print(currentTime - tempOldTime)
 
   power.accuratePower = currentPower
   power.change = change
@@ -1596,6 +1605,7 @@ local function unitPowerFrequent(unit, powerType)
 
   power.currentPower = currentPower
   power.oldPower = power.currentPower
+  tempOldTime = currentTime
 end
 
 local function unitPowerFrequentOLD(unit, powerType)

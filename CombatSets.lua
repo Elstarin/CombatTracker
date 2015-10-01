@@ -448,6 +448,7 @@ local function basicUptimeGraphData(set, db)
     if not setGraph then
       set.uptimeGraphs.cooldowns[spellID] = {}
       setGraph = set.uptimeGraphs.cooldowns[spellID]
+      tinsert(set.uptimeGraphs[type], set.uptimeGraphs[type][spellID]) -- Indexed version
     end
 
     if not dbGraph then
@@ -491,6 +492,7 @@ local function basicUptimeGraphData(set, db)
     if not setGraph then
       set.uptimeGraphs[type][spellID] = {}
       setGraph = set.uptimeGraphs[type][spellID]
+      tinsert(set.uptimeGraphs[type], set.uptimeGraphs[type][spellID]) -- Indexed version
     end
 
     if not dbGraph then
@@ -505,6 +507,7 @@ local function basicUptimeGraphData(set, db)
     setGraph.spellID = spellID
     setGraph.frame = CT.uptimeGraphFrame
     setGraph.toggle = CT.toggleUptimeGraph
+    setGraph.refresh = CT.refreshUptimeGraph
 
     setGraph.addNewLine = function(GUID, unitName)
       if not setGraph[GUID] then
@@ -517,7 +520,6 @@ local function basicUptimeGraphData(set, db)
             ["endNum"] = 1,
             ["startX"] = 10,
             ["color"] = color or CT.colors.blue,
-            ["refresh"] = CT.refreshUptimeGraph,
             ["spellID"] = spellID,
             ["category"] = type,
             ["GUID"] = GUID,
@@ -531,7 +533,7 @@ local function basicUptimeGraphData(set, db)
             ["XMax"] = 10,
             ["YMin"] = 0,
             ["YMax"] = 10,
-            ["Y"] = num * -10,
+            ["Y"] = (num - 1) * -10,
             ["unitName"] = unitName,
           }
         end
@@ -544,7 +546,6 @@ local function basicUptimeGraphData(set, db)
     end
 
     setGraph:toggle("show")
-    -- setGraph:refresh(true)
 
     return setGraph, dbGraph
   end

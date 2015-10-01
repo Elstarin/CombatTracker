@@ -497,7 +497,7 @@ function CT:OnInitialize()
     end
 
     if event == "PLAYER_LOGIN" then
-      eventFrame:UnregisterEvent("PLAYER_LOGIN")
+      eventFrame:UnregisterEvent(event)
       CT.player.loggedIn = true
 
       -- local preGC = collectgarbage("count")
@@ -513,7 +513,10 @@ function CT:OnInitialize()
             CT.buttons[#CT.buttons]:Click("LeftButton")
           end
 
-          if trackingOnLogIn then CT.startTracking("Starting tracking from logging in.") end
+          if trackingOnLogIn then
+            CT.startTracking("Starting tracking from logging in. (Test Mode)")
+            CT.base:Show()
+          end
         end)
       else
         C_Timer.After(1.0, function()
@@ -523,13 +526,12 @@ function CT:OnInitialize()
             CT.buttons[#CT.buttons]:Click("LeftButton")
           end
 
-          if trackingOnLogIn then CT.startTracking("Starting tracking from logging in.") end
+          if trackingOnLogIn then
+            CT.startTracking("Starting tracking from logging in.")
+            CT.base:Show()
+          end
         end)
-
-        CT.base:Hide()
       end
-
-      -- CT.startTracking("Starting tracking from logging in.")
     elseif event == "PLAYER_LOGOUT" then
       -- CT.cleanSetsTable()
       -- CombatTrackerCharDB[CT.player.specName].sets.current = nil
@@ -1927,6 +1929,8 @@ do -- Create Base Frame
       end
     end)
   end
+
+  tinsert(UISpecialFrames, CT.base:GetName())
 end
 
 function CT:expanderFrame()
@@ -2113,14 +2117,6 @@ function CT:expanderFrame()
     end
 
     do -- Uptime Graph
-      -- f.uptimeGraphBG = f:CreateTexture(nil, "BORDER")
-      -- f.uptimeGraphBG:SetPoint("LEFT", f.dataFrames[3], 0, 0)
-      -- f.uptimeGraphBG:SetPoint("RIGHT", f.dataFrames[4], 0, 0)
-      -- f.uptimeGraphBG:SetPoint("TOP", f.dataFrames[4], "BOTTOM", 0, -10)
-      -- f.uptimeGraphBG:SetTexture(0.1, 0.1, 0.1, 1)
-      -- f.uptimeGraphBG:SetHeight(20)
-      -- f.uptimeGraphBG.height = 20
-
       uptimeGraph = CT.buildUptimeGraph(f)
 
       uptimeGraph:ClearAllPoints()
@@ -2129,111 +2125,10 @@ function CT:expanderFrame()
       uptimeGraph:SetPoint("RIGHT", f.dataFrames[4], 0, 0)
       uptimeGraph:SetPoint("TOP", f.dataFrames[4], "BOTTOM", 0, -10)
       uptimeGraph:SetHeight(25)
-
-      -- uptimeGraph.titleText = uptimeGraph:CreateFontString(nil, "ARTWORK")
-      -- uptimeGraph.titleText:SetPoint("BOTTOMLEFT", uptimeGraph, "TOPLEFT", 2, 4)
-      -- uptimeGraph.titleText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-      -- uptimeGraph.titleText:SetTextColor(1, 1, 1, 1)
-      -- uptimeGraph.titleText:SetJustifyH("LEFT")
-      -- uptimeGraph.titleText:SetText("Current Graph: ")
-      -- uptimeGraph.titleText.default = "Current Graph: "
-
-      local b
-      do
-        f.uptimeGraphButton = CreateFrame("Button", nil, uptimeGraph)
-        b = f.uptimeGraphButton
-        b:SetSize(90, 20)
-        b:SetPoint("TOPRIGHT", uptimeGraph, -3, -3)
-        -- b:SetPoint("TOPRIGHT", f.uptimeGraphBG, -1, 1)
-
-        b.normal = b:CreateTexture(nil, "BACKGROUND")
-        b.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-        b.normal:SetAllPoints(b)
-        b:SetNormalTexture(b.normal)
-
-        b.highlight = b:CreateTexture(nil, "BACKGROUND")
-        b.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-        b.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-        b.highlight:SetAllPoints(b)
-        b:SetHighlightTexture(b.highlight)
-
-        b.disabled = b:CreateTexture(nil, "BACKGROUND")
-        b.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-        b.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-        b.disabled:SetAllPoints(b)
-        b:SetDisabledTexture(b.disabled)
-
-        b.pushed = b:CreateTexture(nil, "BACKGROUND")
-        b.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-        b.pushed:SetAllPoints(b)
-        b:SetPushedTexture(b.pushed)
-
-        b.title = b:CreateFontString(nil, "ARTWORK")
-        b.title:SetPoint("CENTER", 0, 0)
-        b.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        b.title:SetTextColor(0.93, 0.86, 0.01, 1.0)
-        b.title:SetText("Select Graph")
-      end
-
-      b:SetScript("OnEnter", function()
-        b.info = "Select an uptime graph from the list."
-
-        CT.createInfoTooltip(b, "Uptime Graphs", nil, nil, nil, nil)
-      end)
-
-      b:SetScript("OnLeave", function()
-        CT.createInfoTooltip()
-      end)
-
-      b:SetScript("OnClick", function(button, click)
-        if not b.popup then
-          b.popup = CreateFrame("Frame", nil, b)
-          b.popup:SetSize(150, 20)
-          b.popup:SetPoint("TOPLEFT", b, "TOPRIGHT", 0, 0)
-          b.popup.bg = b.popup:CreateTexture(nil, "BACKGROUND")
-          b.popup.bg:SetAllPoints()
-          b.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
-          b.popup:Hide()
-
-          b.popup:SetScript("OnShow", function()
-            b.popup.exitTime = GetTime() + 1
-
-            if not b.popup.ticker then
-              b.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
-                if not MouseIsOver(b.popup) and not MouseIsOver(b) then
-                  if GetTime() > b.popup.exitTime then
-                    b.popup:Hide()
-                    b.popup.ticker:Cancel()
-                    b.popup.ticker = nil
-                  end
-                else
-                  b.popup.exitTime = GetTime() + 1
-                end
-              end)
-            end
-          end)
-        end
-
-        if b.popup:IsShown() then
-          b.popup:Hide()
-        else
-          addUptimeGraphDropDownButtons(b.popup)
-          b.popup:Show()
-        end
-      end)
+      uptimeGraph.defaultHeight = uptimeGraph:GetHeight()
     end
 
     do -- Main Graph
-      -- f.mainUptimeGraph = f:CreateTexture(nil, "ARTWORK")
-      -- f.mainUptimeGraph:SetPoint("LEFT", f.uptimeGraphBG, 0, 0)
-      -- f.mainUptimeGraph:SetPoint("RIGHT", f.uptimeGraphBG, 0, 0)
-      -- f.mainUptimeGraph:SetPoint("TOP", f.uptimeGraphBG, "BOTTOM", 0, -10)
-      -- f.mainUptimeGraph:SetPoint("BOTTOM", f, 0, 10)
-      -- f.mainUptimeGraph:SetTexture(0.1, 0.1, 0.1, 1)
-
       local graphFrame = CT.buildGraph(f)
 
       graphFrame:ClearAllPoints()
@@ -2242,110 +2137,6 @@ function CT:expanderFrame()
       graphFrame:SetPoint("RIGHT", uptimeGraph, 0, 0)
       graphFrame:SetPoint("TOP", uptimeGraph, "BOTTOM", 0, -10)
       graphFrame:SetPoint("BOTTOM", f, 0, 10)
-
-      -- graphFrame:SetPoint("LEFT", f.mainUptimeGraph, 0, 0)
-      -- graphFrame:SetPoint("RIGHT", f.mainUptimeGraph, 0, 0)
-      -- graphFrame:SetPoint("TOP", f.mainUptimeGraph, 0, -20)
-      -- graphFrame:SetPoint("BOTTOM", f.mainUptimeGraph, 0, 0)
-
-      -- graphFrame.titleText = graphFrame:CreateFontString(nil, "ARTWORK")
-      -- graphFrame.titleText:SetPoint("BOTTOMLEFT", graphFrame, "TOPLEFT", 2, 4)
-      -- graphFrame.titleText:SetFont("Fonts\\FRIZQT__.TTF", 12)
-      -- graphFrame.titleText:SetTextColor(1, 1, 1, 1)
-      -- graphFrame.titleText:SetJustifyH("LEFT")
-      -- graphFrame.titleText:SetText("Currently Displayed: ")
-      -- graphFrame.titleText.default = "Currently Displayed: "
-
-      local b
-      do
-        f.mainGraphButton = CreateFrame("Button", nil, graphFrame)
-        b = f.mainGraphButton
-        b:SetSize(90, 20)
-        b:SetPoint("TOPRIGHT", graphFrame, -3, -3)
-        -- b:SetPoint("BOTTOMRIGHT", graphFrame, "TOPRIGHT", -1, 1)
-
-        b.normal = b:CreateTexture(nil, "BACKGROUND")
-        b.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-        b.normal:SetAllPoints(b)
-        b:SetNormalTexture(b.normal)
-
-        b.highlight = b:CreateTexture(nil, "BACKGROUND")
-        b.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-        b.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-        b.highlight:SetAllPoints(b)
-        b:SetHighlightTexture(b.highlight)
-
-        b.disabled = b:CreateTexture(nil, "BACKGROUND")
-        b.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-        b.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-        b.disabled:SetAllPoints(b)
-        b:SetDisabledTexture(b.disabled)
-
-        b.pushed = b:CreateTexture(nil, "BACKGROUND")
-        b.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-        b.pushed:SetAllPoints(b)
-        b:SetPushedTexture(b.pushed)
-
-        b.title = b:CreateFontString(nil, "ARTWORK")
-        b.title:SetPoint("CENTER", 0, 0)
-        b.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        b.title:SetTextColor(0.93, 0.86, 0.01, 1.0)
-        b.title:SetText("Select Graph")
-
-        b.popup = CreateFrame("Frame", "DropDownFrameMiddleBar", b)
-        b.popup:SetSize(150, 20)
-        b.popup:SetPoint("TOPLEFT", b, "TOPRIGHT", 0, 0)
-        b.popup.bg = b.popup:CreateTexture(nil, "BACKGROUND")
-        b.popup.bg:SetAllPoints()
-        b.popup.bg:SetTexture(0.1, 0.1, 0.1, 1.0)
-
-        b.popup.title = b.popup:CreateFontString(nil, "ARTWORK")
-        b.popup.title:SetPoint("TOP", b.popup, 0, -1)
-        b.popup.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        b.popup.title:SetTextColor(1, 1, 1, 1)
-        b.popup.title:SetText("Graphs:")
-        b.popup:Hide()
-      end
-
-      b:SetScript("OnEnter", function()
-        b.info = "Select a normal graph from the list."
-
-        CT.createInfoTooltip(b, "Normal Graphs", nil, nil, nil, nil)
-      end)
-
-      b:SetScript("OnLeave", function()
-        CT.createInfoTooltip()
-      end)
-
-      b.popup:SetScript("OnShow", function()
-        b.popup.exitTime = GetTime() + 1
-
-        if not b.popup.ticker then
-          b.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
-            if not MouseIsOver(b.popup) and not MouseIsOver(b) then
-              if GetTime() > b.popup.exitTime then
-                b.popup:Hide()
-                b.popup.ticker:Cancel()
-                b.popup.ticker = nil
-              end
-            else
-              b.popup.exitTime = GetTime() + 1
-            end
-          end)
-        end
-      end)
-
-      b:SetScript("OnClick", function(button, click)
-        if b.popup:IsShown() then
-          b.popup:Hide()
-        else
-          addGraphDropDownButtons(b.popup)
-          b.popup:Show()
-        end
-      end)
     end
 
     CT.base.expander.shown = true
