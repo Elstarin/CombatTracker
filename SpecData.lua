@@ -646,7 +646,7 @@ elseif CLASS == "PALADIN" then
                       "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                       "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-          CT.addAuraGraph(86273, t.name, "Buff", nil, colors.blue)
+          -- CT.addAuraGraph(86273, t.name, "Buff", nil, colors.blue)
         elseif t.name == "Empowered Seals" then
           -- t.spellID = 114916
           -- t.func = func.longCD
@@ -758,7 +758,7 @@ elseif CLASS == "PALADIN" then
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-        CT.addAuraGraph(86273, "Illuminated Healing", "Buff", nil, colors.blue)
+        -- CT.addAuraGraph(86273, "Illuminated Healing", "Buff", nil, colors.blue)
       end
 
       do -- All Casts
@@ -772,18 +772,32 @@ elseif CLASS == "PALADIN" then
       end
 
       do -- Holy Shock
-        CT.specData[#CT.specData + 1] = {}
+        CT.specData[#CT.specData + 1] = {
+          name = "Holy Shock",
+          spellID = 20473,
+          func = func.shortCD,
+          expanderFunc = func.expanderShortCD,
+          dropDownFunc = CT.type2,
+          lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
+                      "Holy Power Gained:", "Holy Power Spent:", "Reset Casts:", "Longest Delay:",
+                      "Procs Used:", "Total Procs:", "Biggest Heal:", "Average Heal:",},
+          costsPower = 1,
+          givesPower = 2,
+        }
         local t = CT.specData[#CT.specData]
-        t.name = "Holy Shock"
-        t.spellID = 20473
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
-                    "Holy Power Gained:", "Holy Power Spent:", "Reset Casts:", "Longest Delay:",
-                    "Procs Used:", "Total Procs:", "Biggest Heal:", "Average Heal:",}
-        t.costsPower = 1
-        t.givesPower = 2
+        -- t.name = "Holy Shock"
+        -- t.spellID = 20473
+        -- t.func = func.shortCD
+        -- t.expanderFunc = func.expanderShortCD
+        -- t.dropDownFunc = CT.type2
+        -- t.lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
+        --             "Holy Power Gained:", "Holy Power Spent:", "Reset Casts:", "Longest Delay:",
+        --             "Procs Used:", "Total Procs:", "Biggest Heal:", "Average Heal:",}
+        -- t.costsPower = 1
+        -- t.givesPower = 2
+        t.testFunc = function(time, timer)
+
+        end
 
         -- CT.addCooldownGraph(20473, "Holy Shock", colors.yellow)
       end
@@ -1032,7 +1046,7 @@ elseif CLASS == "PALADIN" then
                       "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                       "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-          CT.addAuraGraph(86273, t.name, "Buff", nil, colors.blue)
+          -- CT.addAuraGraph(86273, t.name, "Buff", nil, colors.blue)
         elseif t.name == "Empowered Seals" then
           -- t.spellID = 114916
           -- t.func = func.longCD
@@ -1155,7 +1169,7 @@ elseif CLASS == "ROGUE" then
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-        CT.addAuraGraph(t.spellID, t.name, "Buff", nil, colors.green)
+        -- CT.addAuraGraph(t.spellID, t.name, "Buff", nil, colors.green)
       end
 
       do -- Deadly Poison
@@ -1169,7 +1183,7 @@ elseif CLASS == "ROGUE" then
         t.lines = {"Uptime:", "Longest Delay:", "Avg Energy Level:", "Avg Combo Points:",
                     "Total Casts:", "Times Refreshed:", "Wasted Time:", "Avg Wasted Time:",}
 
-        CT.addAuraGraph(t.spellID, t.name, "Buff", nil, colors.green)
+        -- CT.addAuraGraph(t.spellID, t.name, "Buff", nil, colors.green)
       end
 
       do -- Dispatch
@@ -1306,7 +1320,7 @@ elseif CLASS == "SHAMAN" then
                       "Average Heal:",}
         t.costsPower = 1
 
-        CT.addAuraGraph(8050, "Flame Shock", "Debuff", nil, colors.blue)
+        -- CT.addAuraGraph(8050, "Flame Shock", "Debuff", nil, colors.blue)
       end
     elseif specName == "Elemental" then
       do -- Flame Shock
@@ -1323,7 +1337,7 @@ elseif CLASS == "SHAMAN" then
                       "Average Heal:",}
         t.costsPower = 1
 
-        CT.addAuraGraph(8050, "Flame Shock", "Debuff", nil, colors.blue)
+        -- CT.addAuraGraph(8050, "Flame Shock", "Debuff", nil, colors.blue)
       end
     elseif specName == "Restoration" then
 
@@ -1385,7 +1399,7 @@ elseif CLASS == "WARLOCK" then
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-        CT.addAuraGraph(980, "Agony", "Debuff", nil, colors.blue)
+        -- CT.addAuraGraph(980, "Agony", "Debuff", nil, colors.blue)
       end
 
       do -- Corruption
@@ -1401,7 +1415,7 @@ elseif CLASS == "WARLOCK" then
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-        CT.addAuraGraph(172, "Corruption", "Debuff", nil, colors.blue)
+        -- CT.addAuraGraph(172, "Corruption", "Debuff", nil, colors.blue)
       end
 
       do -- Unstable Affliction
@@ -1417,7 +1431,7 @@ elseif CLASS == "WARLOCK" then
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-        CT.addAuraGraph(30108, "Unstable Affliction", "Debuff", nil, colors.blue)
+        -- CT.addAuraGraph(30108, "Unstable Affliction", "Debuff", nil, colors.blue)
       end
 
       do -- Haunt
@@ -1433,7 +1447,7 @@ elseif CLASS == "WARLOCK" then
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-        CT.addAuraGraph(48181, "Haunt", "Debuff", nil, colors.blue)
+        -- CT.addAuraGraph(48181, "Haunt", "Debuff", nil, colors.blue)
       end
     elseif specName == "Destruction" then
       do -- Burning Embers
@@ -1461,7 +1475,7 @@ elseif CLASS == "WARLOCK" then
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-        CT.addAuraGraph(348, "Immolate", "Debuff", nil, colors.blue)
+        -- CT.addAuraGraph(348, "Immolate", "Debuff", nil, colors.blue)
       end
 
       do -- Conflagrate

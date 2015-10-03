@@ -272,3 +272,65 @@ local function createTickerTest(duration, callback, ticks)
 
   C_Timer.After(duration, func)
 end
+
+function CT.mouseFrameBorder(parent, size, color)
+  local border = CT.mouseoverBorder
+
+  if not border then
+    border = CreateFrame("Frame", "CT_Mouseover_Border", CT.base)
+    -- border = CT.base:CreateTexture("CT_Mouseover_Border", "OVERLAY")
+    border:SetFrameStrata("HIGH")
+    border:SetSize(10, 10)
+
+    border[1] = border:CreateTexture(nil, "OVERLAY")
+    border[1]:SetPoint("TOPRIGHT", border, 0, 0)
+    border[1]:SetPoint("TOPLEFT", border, 0, 0)
+
+    border[2] = border:CreateTexture(nil, "OVERLAY")
+    border[2]:SetPoint("BOTTOMRIGHT", border, 0, 0)
+    border[2]:SetPoint("BOTTOMLEFT", border, 0, 0)
+
+    border[3] = border:CreateTexture(nil, "OVERLAY")
+    border[3]:SetPoint("TOPLEFT", border, 0, 0)
+    border[3]:SetPoint("BOTTOMLEFT", border, 0, 0)
+
+    border[4] = border:CreateTexture(nil, "OVERLAY")
+    border[4]:SetPoint("TOPRIGHT", border, 0, 0)
+    border[4]:SetPoint("BOTTOMRIGHT", border, 0, 0)
+
+    CT.mouseoverBorder = border
+  end
+
+  do -- Size
+    local size = size or 2
+
+    border[1]:SetSize(size, size)
+    border[2]:SetSize(size, size)
+    border[3]:SetSize(size, size)
+    border[4]:SetSize(size, size)
+  end
+
+  do -- Color
+    local color = color or CT.colors.white
+
+    local c1 = color[1]
+    local c2 = color[2]
+    local c3 = color[3]
+    local c4 = 0.1 or color[4]
+
+    border[1]:SetTexture(c1, c2, c3, c4)
+    border[2]:SetTexture(c1, c2, c3, c4)
+    border[3]:SetTexture(c1, c2, c3, c4)
+    border[4]:SetTexture(c1, c2, c3, c4)
+  end
+
+  if parent then
+    border:Show()
+    border:SetAllPoints(parent)
+  else
+    border:Hide()
+    border:ClearAllPoints()
+  end
+
+  return border
+end

@@ -117,9 +117,6 @@ function CT.startTracking(message)
   -- CT.resetData()
   local set, db = CT.buildNewSet()
 
-  set.GUID = UnitGUID("player")
-  set.petGUID = UnitGUID("pet")
-
   if db.stop then
     print("db.stop exists in start tracking.")
     db.stop = nil
@@ -135,7 +132,7 @@ function CT.startTracking(message)
 
   CT.iterateAuras()
   CT.iterateCooldowns()
-  CT.loadDefaultGraphs()
+  if CT.graphFrame then CT.loadDefaultGraphs() end
 end
 
 function CT.stopTracking()
@@ -310,6 +307,8 @@ local function basicSetData(set, db)
   set.power = {}
   set.playerName = GetUnitName("player", false)
   set.petName = GetUnitName("pet", false)
+  set.playerGUID = UnitGUID("player")
+  set.petGUID = UnitGUID("pet")
   set.prevTarget = "None"
   set.prevFocus = "None"
 
@@ -424,6 +423,8 @@ local function basicGraphData(set, db, role)
     setGraph.toggle = CT.toggleNormalGraph
     setGraph.refresh = CT.refreshNormalGraph
     setGraph.update, setGraph.color = CT.getGraphUpdateFunc(setGraph, set, db, name)
+
+    -- setGraph:update(0)
   end
 end
 
@@ -441,71 +442,92 @@ local function basicUptimeGraphData(set, db)
   db.uptimeGraphs.misc = db.uptimeGraphs.misc or {}
 
   function set.addCooldown(spellID, spellName, color)
-    print("Adding cooldown graph:", spellName)
     local setGraph = set.uptimeGraphs.cooldowns[spellID]
     local dbGraph = db.uptimeGraphs.cooldowns[spellID]
 
     if not setGraph then
       set.uptimeGraphs.cooldowns[spellID] = {}
       setGraph = set.uptimeGraphs.cooldowns[spellID]
-      tinsert(set.uptimeGraphs[type], set.uptimeGraphs[type][spellID]) -- Indexed version
+      tinsert(set.uptimeGraphs.cooldowns, set.uptimeGraphs.cooldowns[spellID]) -- Indexed access
     end
 
     if not dbGraph then
       db.uptimeGraphs.cooldowns[spellID] = {}
       dbGraph = db.uptimeGraphs.cooldowns[spellID]
+      dbGraph.shown = false
+      dbGraph.name = spellName
     end
 
     dbGraph.__index = dbGraph
     setmetatable(setGraph, dbGraph)
 
-    dbGraph.data = dbGraph.data or {[1] = 0}
-    dbGraph.XMin = dbGraph.XMin or 0
-    dbGraph.XMax = dbGraph.XMax or 10
-    dbGraph.YMin = dbGraph.YMin or 0
-    dbGraph.YMax = dbGraph.YMax or 10
-    dbGraph.shown = dbGraph.shown or false
-
-    setGraph.lines = {}
-    setGraph.name = spellName
     setGraph.spellID = spellID
-    setGraph.category = "cooldowns"
     setGraph.toggle = CT.toggleUptimeGraph
     setGraph.refresh = CT.refreshUptimeGraph
-    setGraph.color = color or CT.colors.yellow
-    setGraph.endNum = 1
-    setGraph.startX = 10
-    setGraph.frame = CT.graphFrame
 
-    setGraph:toggle("show")
-    setGraph:refresh(true)
+    setGraph.addNewLine = function(GUID, unitName)
+      local GUID = GUID or set.playerGUID
+      local unitName = unitName or set.playerName
+
+      if not setGraph[GUID] then
+        local num = #setGraph + 1
+
+        setGraph[num] = {
+            ["lines"] = {},
+            ["endNum"] = 1,
+            ["startX"] = 10,
+            ["color"] = color or CT.colors.yellow,
+            ["spellID"] = spellID,
+            ["category"] = "cooldowns",
+            ["GUID"] = GUID,
+          }
+
+        if not dbGraph[num] then dbGraph[num] = {
+            ["data"] = {[1] = 0},
+            ["XMin"] = 0,
+            ["XMax"] = 10,
+            ["YMin"] = 0,
+            ["YMax"] = 10,
+            ["Y"] = (num - 1) * -10,
+            ["unitName"] = unitName,
+          }
+        end
+
+        dbGraph[num].__index = dbGraph[num]
+        setmetatable(setGraph[num], dbGraph[num])
+
+        setGraph[GUID] = setGraph[num]
+      end
+
+      -- if dbGraph.shown then
+      --   setGraph:toggle("show")
+      -- end
+    end
 
     return setGraph, dbGraph
   end
 
   function set.addAura(spellID, spellName, type, count, color)
-    print("Adding aura graph:", spellName)
-
     local setGraph = set.uptimeGraphs[type][spellID]
     local dbGraph = db.uptimeGraphs[type][spellID]
 
     if not setGraph then
       set.uptimeGraphs[type][spellID] = {}
       setGraph = set.uptimeGraphs[type][spellID]
-      tinsert(set.uptimeGraphs[type], set.uptimeGraphs[type][spellID]) -- Indexed version
+      tinsert(set.uptimeGraphs[type], set.uptimeGraphs[type][spellID]) -- Indexed access
     end
 
     if not dbGraph then
       db.uptimeGraphs[type][spellID] = {}
       dbGraph = db.uptimeGraphs[type][spellID]
+      dbGraph.shown = false
+      dbGraph.name = spellName
     end
 
     dbGraph.__index = dbGraph
     setmetatable(setGraph, dbGraph)
 
-    setGraph.name = spellName
     setGraph.spellID = spellID
-    setGraph.frame = CT.uptimeGraphFrame
     setGraph.toggle = CT.toggleUptimeGraph
     setGraph.refresh = CT.refreshUptimeGraph
 
@@ -513,9 +535,7 @@ local function basicUptimeGraphData(set, db)
       if not setGraph[GUID] then
         local num = #setGraph + 1
 
-        print("Adding new line for", unitName .. ".")
-
-        if not setGraph[num] then setGraph[num] = {
+        setGraph[num] = {
             ["lines"] = {},
             ["endNum"] = 1,
             ["startX"] = 10,
@@ -524,11 +544,84 @@ local function basicUptimeGraphData(set, db)
             ["category"] = type,
             ["GUID"] = GUID,
           }
-        end
 
         if not dbGraph[num] then dbGraph[num] = {
             ["data"] = {[1] = 0},
-            ["shown"] = false,
+            ["XMin"] = 0,
+            ["XMax"] = 10,
+            ["YMin"] = 0,
+            ["YMax"] = 10,
+            ["Y"] = (num - 1) * -10,
+            ["unitName"] = unitName,
+          }
+        end
+
+        dbGraph[num].__index = dbGraph[num]
+        setmetatable(setGraph[num], dbGraph[num])
+
+        setGraph[GUID] = setGraph[num]
+      end
+
+      -- if dbGraph.shown then
+      --   setGraph:toggle("show")
+      -- end
+    end
+
+    return setGraph, dbGraph
+  end
+
+  function set.addMisc(graphName, color, flags)
+    local setGraph = set.uptimeGraphs.misc[graphName]
+    local dbGraph = db.uptimeGraphs.misc[graphName]
+
+    if not setGraph then
+      set.uptimeGraphs.misc[graphName] = {}
+      setGraph = set.uptimeGraphs.misc[graphName]
+      tinsert(set.uptimeGraphs.misc, set.uptimeGraphs.misc[graphName]) -- Indexed access
+    end
+
+    if not dbGraph then
+      db.uptimeGraphs.misc[graphName] = {}
+      dbGraph = db.uptimeGraphs.misc[graphName]
+      dbGraph.shown = false
+      dbGraph.name = graphName
+      dbGraph.flags = {}
+    end
+
+    dbGraph.__index = dbGraph
+    setmetatable(setGraph, dbGraph)
+
+    setGraph.toggle = CT.toggleUptimeGraph
+    setGraph.refresh = CT.refreshUptimeGraph
+
+    if flags then
+      for flagName, value in pairs(flags) do
+
+        if not dbGraph.flags[flagName] then
+          dbGraph.flags[flagName] = value or {}
+        end
+      end
+    end
+
+    setGraph.addNewLine = function(GUID, unitName)
+      local GUID = GUID or set.playerGUID
+      local unitName = unitName or set.playerName
+
+      if not setGraph[GUID] then
+        local num = #setGraph + 1
+
+        setGraph[num] = {
+            ["lines"] = {},
+            ["endNum"] = 1,
+            ["startX"] = 10,
+            ["color"] = color or CT.colors.orange,
+            ["spellID"] = spellID,
+            ["category"] = "misc",
+            ["GUID"] = GUID,
+          }
+
+        if not dbGraph[num] then dbGraph[num] = {
+            ["data"] = {[1] = 0},
             ["XMin"] = 0,
             ["XMax"] = 10,
             ["YMin"] = 0,
@@ -545,12 +638,8 @@ local function basicUptimeGraphData(set, db)
       end
     end
 
-    setGraph:toggle("show")
-
     return setGraph, dbGraph
   end
-
-  -- local setGraph, dbGraph = set.addCooldown(20473, "Holy Shock", CT.colors.yellow)
 end
 
 function CT.buildNewSet()
@@ -604,11 +693,17 @@ function CT.buildNewSet()
 end
 
 function CT.loadSavedSet(db)
-  if not db then CT:Print("Tried to load a set without passing the DB table!") return end
+  local _, specName, description, specIcon, background, role, primaryStat = GetSpecializationInfo(GetSpecialization())
+
+  if not db then -- If a db table wasn't passed, load the most recent
+    if specName and CombatTrackerCharDB[specName] and CombatTrackerCharDB[specName].sets then
+      db = CombatTrackerCharDB[specName].sets[1]
+    end
+
+    if not db then CT:Print("Didn't pass a DB table, and failed to find db[1] to load.") return end
+  end
 
   if CT.graphFrame then CT.graphFrame:hideAllGraphs() end
-
-  local _, specName, description, specIcon, background, role, primaryStat = GetSpecializationInfo(GetSpecialization())
 
   local set = {}
 
@@ -625,7 +720,57 @@ function CT.loadSavedSet(db)
   CT.displayed = set
   CT.displayedDB = db
 
-  CT.loadDefaultGraphs()
+  if db.uptimeGraphs then -- Generate all the uptime graphs
+    for graphName, dbGraph in pairs(db.uptimeGraphs["cooldowns"]) do
+      local name = dbGraph.name or GetSpellInfo(graphName) or graphName
+      local setGraph = set.addCooldown(graphName, name, CT.colors.yellow)
+
+      for i = 1, #dbGraph do
+        local GUID = dbGraph[i].unitName .. random(1, 1000000) -- Just generate a random number to act as a pseudo GUID
+        setGraph.addNewLine(GUID, dbGraph[i].unitName)
+      end
+    end
+
+    for graphName, dbGraph in pairs(db.uptimeGraphs["buffs"]) do
+      local name = dbGraph.name or GetSpellInfo(graphName) or graphName
+      local setGraph = set.addAura(graphName, name, "buffs", dbGraph.count or 0, CT.colors.blue)
+
+      for i = 1, #dbGraph do
+        local GUID = dbGraph[i].unitName .. random(1, 1000000)
+        setGraph.addNewLine(GUID, dbGraph[i].unitName)
+      end
+    end
+
+    for graphName, dbGraph in pairs(db.uptimeGraphs["debuffs"]) do
+      local name = dbGraph.name or GetSpellInfo(graphName) or graphName
+      local setGraph = set.addAura(graphName, name, "debuffs", dbGraph.count or 0, CT.colors.blue)
+
+      for i = 1, #dbGraph do
+        local GUID = dbGraph[i].unitName .. random(1, 1000000)
+        setGraph.addNewLine(GUID, dbGraph[i].unitName)
+      end
+    end
+
+    for graphName, dbGraph in pairs(db.uptimeGraphs["misc"]) do
+      local name = dbGraph.name or GetSpellInfo(graphName) or graphName
+      local setGraph = set.addMisc(graphName, CT.colors.orange)
+
+      for i = 1, #dbGraph do
+        local GUID = dbGraph[i].unitName .. random(1, 1000000)
+        setGraph.addNewLine(GUID, dbGraph[i].unitName)
+      end
+    end
+  end
+
+  if CT.graphFrame then
+    CT.loadDefaultGraphs()
+    CT.finalizeGraphLength("line")
+  end
+
+  if CT.uptimeGraphFrame then
+    CT.loadDefaultUptimeGraph()
+    CT.finalizeGraphLength("uptime")
+  end
 
   return set, db
 end

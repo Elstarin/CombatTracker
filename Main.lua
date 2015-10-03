@@ -97,6 +97,8 @@ local checks = {
 --------------------------------------------------------------------------------
 CombatTracker = LibStub("AceAddon-3.0"):NewAddon("CombatTracker", "AceConsole-3.0")
 local CT = CombatTracker
+local baseFrame = CreateFrame("Frame", "CT_Base", UIParent) -- Have to do this early so that the position will be saved
+baseFrame:SetMovable(true)
 CT.__index = CT
 CT.settings = {}
 CT.settings.buttonSpacing = 2
@@ -120,34 +122,17 @@ CT.uptimeGraphLines.Misc = {}
 
 CT.setButtons = {}
 
--- do -- Line graphs
---   graphs = {}
---   graphs.updateDelay = 0.2
---   graphs.lastUpdate = 0
---   graphs.splitAmount = 500
--- end
---
--- do -- Uptime graphs
---   uptimeGraphs = {}
---   uptimeGraphs.cooldowns = {}
---   uptimeGraphs.buffs = {}
---   uptimeGraphs.debuffs = {}
---   uptimeGraphs.misc = {}
---   uptimeGraphs.categories = {
---     uptimeGraphs.cooldowns,
---     uptimeGraphs.buffs,
---     uptimeGraphs.debuffs,
---     uptimeGraphs.misc,
---   }
--- end
-
 CT.loadSpellData = false
 local temp = {}
 local combatevents = CT.combatevents
 local lastMouseoverButton
-local buttonClickNum = 7
+local buttonClickNum = 5
 local testMode = true
-local trackingOnLogIn = true
+local trackingOnLogIn = false
+local loadBaseOnLogin = true
+
+CT.eventFrame = CreateFrame("Frame")
+
 -- local start = debugprofilestop() / 1000
 -- print((debugprofilestop() / 1000) - start)
 
@@ -178,7 +163,8 @@ do
   colors.white = {1.0, 1.0, 1.0, 1.0}
   colors.red = {0.95, 0.04, 0.10, 1.0}
   colors.orange = {0.82, 0.35, 0.09, 1.0}
-  colors.blue = {0.08, 0.38, 0.91, 1.0}
+  colors.blue = {0, 0.0, 1.0, 1.0}
+  colors.blueOLD = {0.08, 0.38, 0.91, 1.0}
   colors.lightblue = {0.53, 0.67, 0.92, 1.0}
   colors.yellow = {0.93, 0.86, 0.01, 1.0}
   colors.darkgreen = {0.13, 0.27, 0.07, 1}
@@ -253,7 +239,7 @@ local function updateHandler(self, elapsed) -- Dedicated handler to avoid creati
         end
       end
 
-      if CT.base.expander then --  and (CT.base.expander.shown or CT.forceUpdate)
+      if CT.base and CT.base.expander then --  and (CT.base.expander.shown or CT.forceUpdate)
         CT.base.expander.titleData.rightText2:SetText(CT.formatTimer(timer))
       end
 
@@ -318,13 +304,13 @@ local function updateHandler(self, elapsed) -- Dedicated handler to avoid creati
 
       -- local uptimeGraphs = CT.current.uptimeGraphs
       -- local graphs = CT.current.graphs
-    --
+
       -- if (time >= graphs.lastUpdate) or CT.forceUpdate then -- Take line graph points every graphs.lastUpdate seconds
       --   self.graphUpdate(time, timer)
       --
       --   graphs.lastUpdate = time + graphs.updateDelay
       -- end
-    --
+
       -- if CT.forceUpdate or time >= (self.lastUptimeGraphUpdate or 0) then -- Update uptime graphs
       --   self.uptimeGraphsUpdate(time, timer)
       --
@@ -382,6 +368,290 @@ CT.settings.updateDelay = 0.1
 CT.mainUpdate = CreateFrame("Frame")
 CT.mainUpdate:SetScript("OnUpdate", updateHandler)
 --------------------------------------------------------------------------------
+-- Main Event Handler
+--------------------------------------------------------------------------------
+local lastEventTime = GetTime()
+local function eventHandler(self, event, ...) -- Dedicated handler to avoid creating a throw away function every event
+  if not CT.tracking then -- Anything that happens out of combat or related to early combat detection
+    if event == "UNIT_SPELLCAST_SENT" then -- Let this pass even if not tracking to allow for early combat detection
+      return combatevents[event] and combatevents[event](...)
+    end
+  else -- Everything that's specific to combat
+    if event == "COMBAT_LOG_EVENT_UNFILTERED" then
+      local _, event = ...
+      return combatevents[event] and combatevents[event](...)
+    elseif combatevents[event] then
+      return combatevents[event](...)
+    end
+  end
+
+  if event == "PLAYER_LOGIN" then
+    CT.eventFrame:UnregisterEvent(event)
+    CT.player.loggedIn = true
+
+    -- local preGC = collectgarbage("count")
+    -- collectgarbage("collect")
+    -- local num = (preGC - collectgarbage("count")) / 1000
+    -- print("Collected " .. CT.round(num, 3) .. " MB of garbage")
+
+    if testMode then
+      C_Timer.After(1.0, function()
+        if trackingOnLogIn then
+          CT.startTracking("Starting tracking from logging in. (Test Mode)")
+        end
+
+        if CT.base then
+          if CT.buttons[buttonClickNum] then
+            CT.buttons[buttonClickNum]:Click("LeftButton")
+          elseif CT.buttons[1] then
+            CT.buttons[#CT.buttons]:Click("LeftButton")
+          end
+
+          CT.base:Show()
+        end
+      end)
+    end
+  elseif event == "PLAYER_LOGOUT" then
+    local _, specName = GetSpecializationInfo(GetSpecialization())
+
+    if specName and CombatTrackerCharDB[specName] then
+      if CombatTrackerCharDB[specName].sets then
+        if CombatTrackerCharDB[specName].sets.currentDB then
+          CombatTrackerCharDB[specName].sets.currentDB = nil -- Don't let it save the currentDB
+          -- CombatTrackerCharDB[specName].sets.current = nil -- Uhh, how did this get created in the first place? Keep an eye out for it popping up again
+        end
+      end
+    end
+  elseif event == "ENCOUNTER_START" then
+    local encounterID, encounterName, difficultyID, raidSize = ...
+
+    CT.fightName = encounterName
+  elseif event == "ENCOUNTER_END" then
+    -- function CT:ENCOUNTER_END(eventName, ...)
+    --   local encounterID, encounterName, difficultyID, raidSize, endStatus = ...
+    --   CT.fightName = encounterName
+    --   -- NOTE: encounterID
+    --   --[[
+    --     DIFFICULTY IDs:
+    --     0 - None; not in an Instance.
+    --     1 - 5-player Instance.
+    --     2 - 5-player Heroic Instance.
+    --     3 - 10-player Raid Instance.
+    --     4 - 25-player Raid Instance.
+    --     5 - 10-player Heroic Raid Instance.
+    --     6 - 25-player Heroic Raid Instance.
+    --     7 - Raid Finder Instance.
+    --     8 - Challenge Mode Instance.
+    --     9 - 40-player Raid Instance.
+    --     10 - Not used.
+    --     11 - Heroic Scenario Instance.
+    --     12 - Scenario Instance.
+    --     13 - Not used.
+    --     14 - Flexible Raid.
+    --     15 - Heroic Flexible Raid.
+    --     END STATUS:
+    --     0 - Wipe.
+    --     1 - Success.
+    --   ]]--
+    -- end
+  elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
+    if IsLoggedIn() then
+      -- CT:Print(event)
+      -- CT.cycleMainButtons()
+    end
+  elseif event == "PLAYER_REGEN_DISABLED" then -- Start Combat
+    return CT.startTracking("Starting tracking from entering combat.")
+  elseif event == "PLAYER_REGEN_ENABLED" then -- Stop Combat
+    return CT.stopTracking()
+  elseif event == "PLAYER_TALENT_UPDATE" then
+    if IsLoggedIn() then
+      CT.getPlayerDetails()
+    end
+  elseif event == "PLAYER_ALIVE" then
+    CT.player.alive = true
+  elseif event == "PLAYER_DEAD" then
+    CT.player.alive = false
+  elseif event == "UPDATE_SHAPESHIFT_FORMS" then
+    -- print(event)
+    -- local maxNum = GetNumShapeshiftForms()
+    -- local stanceNum = GetShapeshiftForm()
+    -- local startTime, duration, isActive = GetShapeshiftFormCooldown(stanceNum)
+    -- local index = GetShapeshiftFormID()
+    -- local icon, name, active, castable = GetShapeshiftFormInfo(stanceNum)
+  elseif event == "UPDATE_SHAPESHIFT_FORM" then
+    if CT.current and GetTime() > lastEventTime then
+      CT.current.stance.num = GetShapeshiftForm()
+      local uptimeGraphs = CT.current.uptimeGraphs
+
+      if CT.current.stance.num > 0 then
+        local icon, name, active, castable = GetShapeshiftFormInfo(CT.current.stance.num)
+        local stanceName, _, _, _, _, _, stanceID = GetSpellInfo(name)
+        CT.current.stance.name = stanceName
+        CT.current.stanceID = stanceID
+        CT.current.stanceSwitchTime = GetTime()
+
+        if uptimeGraphs.misc["Stance"] and CT.combatStart then -- TODO: Fix stance
+          local self = uptimeGraphs.misc["Stance"]
+          local num = #self.data + 1
+          self.data[num] = CT.current.stanceSwitchTime - CT.combatStart
+
+          self.data[num + 1] = CT.current.stanceSwitchTime - CT.combatStart
+          self.spellName[num + 1] = stanceName
+
+          if self.colorPrimary and self.color == self.colorPrimary then
+            self.color = self.colorSecondary
+            self.colorChange[num + 1] = self.colorSecondary
+          else
+            self.color = self.colorPrimary
+            self.colorChange[num + 1] = self.colorPrimary
+          end
+
+          self:refresh()
+        end
+      end
+
+      lastEventTime = GetTime() + 0.1
+    end
+  elseif event == "PET_ATTACK_START" then
+    if uptimeGraphs.misc["Pet"] then
+      local self = uptimeGraphs.misc["Pet"]
+      local num = #self.data + 1
+      self.data[num] = GetTime() - CT.combatStart
+      -- self.spellName[num] = stanceName -- TODO: Pet name here?
+
+      self:refresh()
+    end
+
+    CT.current.pet.active = true
+  elseif event == "PET_ATTACK_STOP" then
+    if uptimeGraphs.misc["Pet"] then
+      local self = uptimeGraphs.misc["Pet"]
+      local num = #self.data + 1
+      self.data[num] = GetTime() - CT.combatStart
+
+      self:refresh()
+    end
+
+    CT.current.pet.active = false
+  elseif event == "PET_DISMISS_START" then
+  elseif event == "UNIT_COMBAT" then
+    -- print(event, ...)
+  elseif event == "UNIT_PET" then
+    local petName = GetUnitName("pet", false)
+    if petName then
+      if CT.current.pet then wipe(CT.current.pet) else CT.current.pet = {} end
+      if CT.current.pet.damage then wipe(CT.current.pet.damage) else CT.current.pet.damage = {} end
+      CT.current.pet.name = petName
+
+      if petName then
+        CT.addLineGraph("Total Damage", {"DPS", 100}, colors.orange, -200, 10000) -- Total damage (player + pet)
+
+        CT.addLineGraph("Pet Damage", {"DPS", 100}, colors.lightgrey, -200, 10000) -- Pet Damage
+      end
+    else
+      if graphs["Total Damage"] then
+        graphs["Total Damage"].hideButton = true
+      end
+
+      if graphs["Pet Damage"] then
+        graphs["Pet Damage"].hideButton = true
+      end
+    end
+  elseif event == "UNIT_FLAGS" then
+    if ... == "player" then
+      local inCombat = InCombatLockdown()
+      -- print(GetTime(), inCombat)
+    end
+  elseif event == "PLAYER_ENTERING_WORLD" then
+    if not CT.current then return end
+    local data = CT.current
+
+    local name, instanceType, difficultyID, difficultyName, maxPlayers, dynamicDifficulty, isDynamic, instanceMapID, instanceGroupSize = GetInstanceInfo()
+
+    do -- Gather party/raid GUIDs
+      if not CT.current.group then
+        CT.current.group = {}
+        CT.current.groupPets = {}
+      else
+        wipe(CT.current.group)
+        wipe(CT.current.groupPets)
+      end
+
+      local num = GetNumGroupMembers()
+      local group = "party"
+
+      if num > 4 then
+        group = "raid"
+      end
+
+      for i = 1, num do
+        local unitID = group .. i
+
+        CT.current.group[UnitGUID(unitID)] = unitID
+
+        local petGUID = UnitGUID(unitID .. "pet")
+
+        if petGUID then
+          CT.current.groupPets[petGUID] = unitID .. "pet"
+        end
+      end
+    end
+
+    if instanceType == "arena" then
+      if not CT.current.arena then
+        CT.current.arena = {}
+        CT.current.arenaPets = {}
+      else
+        wipe(CT.current.arena)
+        wipe(CT.current.arenaPets)
+      end
+
+      for i = 1, 5 do
+        local unitID = instanceType .. i
+
+        CT.current.arena[UnitGUID(unitID)] = unitID
+
+        local petGUID = UnitGUID(unitID .. "pet")
+
+        if petGUID then
+          CT.current.groupPets[petGUID] = unitID .. "pet"
+        end
+      end
+    end
+  elseif event == "GROUP_ROSTER_UPDATE" then
+    local data = CT.current
+
+    if not CT.current.group then
+      CT.current.group = {}
+      CT.current.groupPets = {}
+    else
+      wipe(CT.current.group)
+      wipe(CT.current.groupPets)
+    end
+
+    local num = GetNumGroupMembers()
+    local group = "party"
+
+    if num > 4 then
+      group = "raid"
+    end
+
+    for i = 1, num do
+      local unitID = group .. i
+
+      CT.current.group[UnitGUID(unitID)] = unitID
+
+      local petGUID = UnitGUID(unitID .. "pet")
+
+      if petGUID then
+        CT.current.groupPets[petGUID] = unitID .. "pet"
+      end
+    end
+  end
+end
+
+CT.eventFrame:SetScript("OnEvent", eventHandler)
+--------------------------------------------------------------------------------
 -- On Initialize
 --------------------------------------------------------------------------------
 function CT:OnInitialize()
@@ -392,7 +662,6 @@ function CT:OnInitialize()
 
   -- local _, _, _, _, _, id = strsplit("-", destGUID) -- NOTE: Might be handy
 
-  CT.eventFrame = CreateFrame("Frame")
   local eventFrame = CT.eventFrame
 
   do -- Register events
@@ -480,293 +749,9 @@ function CT:OnInitialize()
       eventFrame:RegisterEvent(events[i])
     end
   end
-
-  local lastEventTime = GetTime()
-  local function eventHandler(self, event, ...) -- Dedicated handler to avoid creating a throw away function every event
-    if not CT.tracking then -- Anything that happens out of combat or related to early combat detection
-      if event == "UNIT_SPELLCAST_SENT" then -- Let this pass even if not tracking to allow for early combat detection
-        return combatevents[event] and combatevents[event](...)
-      end
-    else -- Everything that's specific to combat
-      if event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        local _, event = ...
-        return combatevents[event] and combatevents[event](...)
-      elseif combatevents[event] then
-        return combatevents[event](...)
-      end
-    end
-
-    if event == "PLAYER_LOGIN" then
-      eventFrame:UnregisterEvent(event)
-      CT.player.loggedIn = true
-
-      -- local preGC = collectgarbage("count")
-      -- collectgarbage("collect")
-      -- local num = (preGC - collectgarbage("count")) / 1000
-      -- print("Collected " .. CT.round(num, 3) .. " MB of garbage")
-
-      if testMode then
-        C_Timer.After(1.0, function()
-          if CT.buttons[buttonClickNum] then
-            CT.buttons[buttonClickNum]:Click("LeftButton")
-          elseif CT.buttons[1] then
-            CT.buttons[#CT.buttons]:Click("LeftButton")
-          end
-
-          if trackingOnLogIn then
-            CT.startTracking("Starting tracking from logging in. (Test Mode)")
-            CT.base:Show()
-          end
-        end)
-      else
-        C_Timer.After(1.0, function()
-          if CT.buttons[buttonClickNum] then
-            CT.buttons[buttonClickNum]:Click("LeftButton")
-          elseif CT.buttons[1] then
-            CT.buttons[#CT.buttons]:Click("LeftButton")
-          end
-
-          if trackingOnLogIn then
-            CT.startTracking("Starting tracking from logging in.")
-            CT.base:Show()
-          end
-        end)
-      end
-    elseif event == "PLAYER_LOGOUT" then
-      -- CT.cleanSetsTable()
-      -- CombatTrackerCharDB[CT.player.specName].sets.current = nil
-    elseif event == "ENCOUNTER_START" then
-      local encounterID, encounterName, difficultyID, raidSize = ...
-
-      CT.fightName = encounterName
-    elseif event == "ENCOUNTER_END" then
-      -- function CT:ENCOUNTER_END(eventName, ...)
-      --   local encounterID, encounterName, difficultyID, raidSize, endStatus = ...
-      --   CT.fightName = encounterName
-      --   -- NOTE: encounterID
-      --   --[[
-      --     DIFFICULTY IDs:
-      --     0 - None; not in an Instance.
-      --     1 - 5-player Instance.
-      --     2 - 5-player Heroic Instance.
-      --     3 - 10-player Raid Instance.
-      --     4 - 25-player Raid Instance.
-      --     5 - 10-player Heroic Raid Instance.
-      --     6 - 25-player Heroic Raid Instance.
-      --     7 - Raid Finder Instance.
-      --     8 - Challenge Mode Instance.
-      --     9 - 40-player Raid Instance.
-      --     10 - Not used.
-      --     11 - Heroic Scenario Instance.
-      --     12 - Scenario Instance.
-      --     13 - Not used.
-      --     14 - Flexible Raid.
-      --     15 - Heroic Flexible Raid.
-      --     END STATUS:
-      --     0 - Wipe.
-      --     1 - Success.
-      --   ]]--
-      -- end
-    elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
-      if IsLoggedIn() then
-        -- CT:Print(event)
-        -- CT.cycleMainButtons()
-      end
-    elseif event == "PLAYER_REGEN_DISABLED" then -- Start Combat
-      return CT.startTracking("Starting tracking from entering combat.")
-    elseif event == "PLAYER_REGEN_ENABLED" then -- Stop Combat
-      return CT.stopTracking()
-    elseif event == "PLAYER_TALENT_UPDATE" then
-      if IsLoggedIn() then
-        CT.getPlayerDetails()
-      end
-    elseif event == "PLAYER_ALIVE" then
-      CT.player.alive = true
-    elseif event == "PLAYER_DEAD" then
-      CT.player.alive = false
-    elseif event == "UPDATE_SHAPESHIFT_FORMS" then
-      -- print(event)
-      -- local maxNum = GetNumShapeshiftForms()
-      -- local stanceNum = GetShapeshiftForm()
-      -- local startTime, duration, isActive = GetShapeshiftFormCooldown(stanceNum)
-      -- local index = GetShapeshiftFormID()
-      -- local icon, name, active, castable = GetShapeshiftFormInfo(stanceNum)
-    elseif event == "UPDATE_SHAPESHIFT_FORM" then
-      if CT.current and GetTime() > lastEventTime then
-        CT.current.stance.num = GetShapeshiftForm()
-        local uptimeGraphs = CT.current.uptimeGraphs
-
-        if CT.current.stance.num > 0 then
-          local icon, name, active, castable = GetShapeshiftFormInfo(CT.current.stance.num)
-          local stanceName, _, _, _, _, _, stanceID = GetSpellInfo(name)
-          CT.current.stance.name = stanceName
-          CT.current.stanceID = stanceID
-          CT.current.stanceSwitchTime = GetTime()
-
-          if uptimeGraphs.misc["Stance"] and CT.combatStart then -- TODO: Fix stance
-            local self = uptimeGraphs.misc["Stance"]
-            local num = #self.data + 1
-            self.data[num] = CT.current.stanceSwitchTime - CT.combatStart
-
-            self.data[num + 1] = CT.current.stanceSwitchTime - CT.combatStart
-            self.spellName[num + 1] = stanceName
-
-            if self.colorPrimary and self.color == self.colorPrimary then
-              self.color = self.colorSecondary
-              self.colorChange[num + 1] = self.colorSecondary
-            else
-              self.color = self.colorPrimary
-              self.colorChange[num + 1] = self.colorPrimary
-            end
-
-            self:refresh()
-          end
-        end
-
-        lastEventTime = GetTime() + 0.1
-      end
-    elseif event == "PET_ATTACK_START" then
-      if uptimeGraphs.misc["Pet"] then
-        local self = uptimeGraphs.misc["Pet"]
-        local num = #self.data + 1
-        self.data[num] = GetTime() - CT.combatStart
-        -- self.spellName[num] = stanceName -- TODO: Pet name here?
-
-        self:refresh()
-      end
-
-      CT.current.pet.active = true
-    elseif event == "PET_ATTACK_STOP" then
-      if uptimeGraphs.misc["Pet"] then
-        local self = uptimeGraphs.misc["Pet"]
-        local num = #self.data + 1
-        self.data[num] = GetTime() - CT.combatStart
-
-        self:refresh()
-      end
-
-      CT.current.pet.active = false
-    elseif event == "PET_DISMISS_START" then
-    elseif event == "UNIT_COMBAT" then
-      -- print(event, ...)
-    elseif event == "UNIT_PET" then
-      local petName = GetUnitName("pet", false)
-      if petName then
-        if CT.current.pet then wipe(CT.current.pet) else CT.current.pet = {} end
-        if CT.current.pet.damage then wipe(CT.current.pet.damage) else CT.current.pet.damage = {} end
-        CT.current.pet.name = petName
-
-        if petName then
-          CT.addLineGraph("Total Damage", {"DPS", 100}, colors.orange, -200, 10000) -- Total damage (player + pet)
-
-          CT.addLineGraph("Pet Damage", {"DPS", 100}, colors.lightgrey, -200, 10000) -- Pet Damage
-        end
-      else
-        if graphs["Total Damage"] then
-          graphs["Total Damage"].hideButton = true
-        end
-
-        if graphs["Pet Damage"] then
-          graphs["Pet Damage"].hideButton = true
-        end
-      end
-    elseif event == "UNIT_FLAGS" then
-      if ... == "player" then
-        local inCombat = InCombatLockdown()
-        -- print(GetTime(), inCombat)
-      end
-    elseif event == "PLAYER_ENTERING_WORLD" then
-      if not CT.current then return end
-      local data = CT.current
-
-      local name, instanceType, difficultyID, difficultyName, maxPlayers, dynamicDifficulty, isDynamic, instanceMapID, instanceGroupSize = GetInstanceInfo()
-
-      do -- Gather party/raid GUIDs
-        if not CT.current.group then
-          CT.current.group = {}
-          CT.current.groupPets = {}
-        else
-          wipe(CT.current.group)
-          wipe(CT.current.groupPets)
-        end
-
-        local num = GetNumGroupMembers()
-        local group = "party"
-
-        if num > 4 then
-          group = "raid"
-        end
-
-        for i = 1, num do
-          local unitID = group .. i
-
-          CT.current.group[UnitGUID(unitID)] = unitID
-
-          local petGUID = UnitGUID(unitID .. "pet")
-
-          if petGUID then
-            CT.current.groupPets[petGUID] = unitID .. "pet"
-          end
-        end
-      end
-
-      if instanceType == "arena" then
-        if not CT.current.arena then
-          CT.current.arena = {}
-          CT.current.arenaPets = {}
-        else
-          wipe(CT.current.arena)
-          wipe(CT.current.arenaPets)
-        end
-
-        for i = 1, 5 do
-          local unitID = instanceType .. i
-
-          CT.current.arena[UnitGUID(unitID)] = unitID
-
-          local petGUID = UnitGUID(unitID .. "pet")
-
-          if petGUID then
-            CT.current.groupPets[petGUID] = unitID .. "pet"
-          end
-        end
-      end
-    elseif event == "GROUP_ROSTER_UPDATE" then
-      local data = CT.current
-
-      if not CT.current.group then
-        CT.current.group = {}
-        CT.current.groupPets = {}
-      else
-        wipe(CT.current.group)
-        wipe(CT.current.groupPets)
-      end
-
-      local num = GetNumGroupMembers()
-      local group = "party"
-
-      if num > 4 then
-        group = "raid"
-      end
-
-      for i = 1, num do
-        local unitID = group .. i
-
-        CT.current.group[UnitGUID(unitID)] = unitID
-
-        local petGUID = UnitGUID(unitID .. "pet")
-
-        if petGUID then
-          CT.current.groupPets[petGUID] = unitID .. "pet"
-        end
-      end
-    end
-  end
-
-  eventFrame:SetScript("OnEvent", eventHandler)
 end
 
-function CT:OnEnable()
+function CT:OnEnable(load)
   local _, specName = GetSpecializationInfo(GetSpecialization())
 
   if not CombatTrackerDB then CombatTrackerDB = {} end
@@ -775,10 +760,11 @@ function CT:OnEnable()
   if not CombatTrackerCharDB[specName] then CombatTrackerCharDB[specName] = {} end
   if not CombatTrackerCharDB[specName].sets then CombatTrackerCharDB[specName].sets = {} end
 
-  CT.getPlayerDetails()
-  CT.createSpecDataButtons()
-
-  -- CT.showLastFight()
+  if loadBaseOnLogin or load then
+    CT.createBaseFrame()
+    CT.getPlayerDetails()
+    CT.createSpecDataButtons()
+  end
 end
 
 function CT:OnDisable()
@@ -944,212 +930,9 @@ function CT.createSmallButton(b, indexed, checked)
   return b
 end
 
-local function addUptimeGraphDropDownButtons(parent)
-  local texture, text
-  local uptimeGraphs = CT.current.uptimeGraphs
-
-  if not parent then parent = CT.base.expander.uptimeGraphButton.popup end
-
-  for i, v in ipairs(uptimeGraphs.categories) do
-    if not parent[v] and #v > 0 then
-      parent[v] = parent:CreateTexture(nil, "ARTWORK")
-      texture = parent[v]
-      texture:SetTexture(0.1, 0.1, 0.1, 1.0)
-
-      if not parent.prevTexture then
-        texture:SetPoint("TOP", parent, 0, 0)
-      else
-        texture:SetPoint("TOP", parent.prevTexture, "BOTTOM", 0, 0)
-      end
-
-      if v == uptimeGraphs.cooldowns then
-        text = "Cooldown:"
-      elseif v == uptimeGraphs.buffs then
-        text = "Buffs:"
-      elseif v == uptimeGraphs.debuffs then
-        text = "Debuffs:"
-      elseif v == uptimeGraphs.misc then
-        text = "Misc:"
-      else
-        text = "NO NAME FOUND!"
-      end
-
-      texture.title = parent:CreateFontString(nil, "OVERLAY")
-      texture.title:SetPoint("TOP", texture, 0, -1)
-      texture.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-      texture.title:SetTextColor(1, 1, 1, 1)
-      texture.title:SetText(text)
-
-      parent.height = (parent.height or 0) + 25
-      parent.prevTexture = texture
-    else
-      texture = parent[v]
-    end
-
-    for i = 1, #v do
-      local self = v[i]
-
-      if not texture[i] then
-        texture[i] = CreateFrame("CheckButton", nil, parent)
-        local b = texture[i]
-        b:SetSize(parent:GetWidth() - 5, 20)
-        b:SetPoint("TOP", texture, 0, i * -20)
-        parent.height = (parent.height or 0) + b:GetHeight()
-        texture[i].height = (texture[i].height or 0) + 20
-
-        do -- Set Textures and Text
-          b.normal = b:CreateTexture(nil, "BACKGROUND")
-          b.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          b.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-          b.normal:SetAllPoints(b)
-          b:SetNormalTexture(b.normal)
-
-          b.highlight = b:CreateTexture(nil, "BACKGROUND")
-          b.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          b.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-          b.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-          b.highlight:SetAllPoints(b)
-          b:SetHighlightTexture(b.highlight)
-
-          b.pushed = b:CreateTexture(nil, "BACKGROUND")
-          b.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          b.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-          b.pushed:SetAllPoints(b)
-          b:SetPushedTexture(b.pushed)
-
-          b.checked = b:CreateTexture(nil, "BACKGROUND")
-          b.checked:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-          b.checked:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-          b.checked:SetAllPoints(b)
-          b:SetCheckedTexture(b.checked)
-
-          b.disabled = b:CreateTexture(nil, "BACKGROUND")
-          b.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-          b.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-          b.disabled:SetAllPoints(b)
-          b:SetDisabledTexture(b.disabled)
-
-          b.title = b:CreateFontString(nil, "ARTWORK")
-          b.title:SetPoint("CENTER", 0, 0)
-          b.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-          b.title:SetText(self.name)
-
-          b.graph = self
-          self.checkButton = b
-        end
-
-        b:SetScript("OnClick", function(button)
-          CT.toggleUptimeGraph(self)
-        end)
-      end
-
-      if self.shown then
-        texture[i]:SetChecked(true)
-      else
-        texture[i]:SetChecked(false)
-      end
-
-      if self.color then
-        texture[i].title:SetTextColor(self.color[1], self.color[2], self.color[3], self.color[4])
-      end
-    end
-
-    if texture then
-      texture:SetSize(parent:GetWidth(), (#v * 20) + 25)
-    end
-  end
-
-  parent:SetHeight(parent.height)
-end
-
-local function addGraphDropDownButtons(parent)
-  for i, name in ipairs(CT.graphList) do
-    local self = CT.displayed.graphs[name]
-
-    if not parent[i] then
-      parent[i] = CreateFrame("CheckButton", nil, parent)
-      local b = parent[i]
-      b:SetSize(parent:GetWidth() - 20, 20)
-      b:SetPoint("TOP", 0, i * -20)
-
-      parent.height = (parent.height or 0) + 20
-
-      do -- Set Textures and Text
-        b.normal = b:CreateTexture(nil, "BACKGROUND")
-        b.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-        b.normal:SetAllPoints(b)
-        b:SetNormalTexture(b.normal)
-
-        b.highlight = b:CreateTexture(nil, "BACKGROUND")
-        b.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-        b.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-        b.highlight:SetAllPoints(b)
-        b:SetHighlightTexture(b.highlight)
-
-        b.pushed = b:CreateTexture(nil, "BACKGROUND")
-        b.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-        b.pushed:SetAllPoints(b)
-        b:SetPushedTexture(b.pushed)
-
-        b.checked = b:CreateTexture(nil, "BACKGROUND")
-        b.checked:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        b.checked:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-        b.checked:SetAllPoints(b)
-        b:SetCheckedTexture(b.checked)
-
-        b.disabled = b:CreateTexture(nil, "BACKGROUND")
-        b.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-        b.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-        b.disabled:SetAllPoints(b)
-        b:SetDisabledTexture(b.disabled)
-
-        b.title = b:CreateFontString(nil, "ARTWORK")
-        b.title:SetPoint("CENTER", 0, 0)
-        b.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        if self.color then
-          b.title:SetTextColor(self.color[1], self.color[2], self.color[3], self.color[4])
-        else
-          b.title:SetTextColor(0.93, 0.86, 0.01, 1.0)
-        end
-        b.title:SetText(self.name)
-      end
-
-      b:SetScript("OnClick", function()
-        local text = CT.base.expander.graphFrame.titleText
-
-        if b:GetChecked() then -- Show graph
-          self:toggle("show")
-        else -- Hide graph
-          self:toggle("hide")
-        end
-      end)
-    end
-
-    if self.shown then
-      parent[i]:SetChecked(true)
-    else
-      parent[i]:SetChecked(false)
-    end
-
-    if self.hideButton and parent[i]:IsShown() then
-      parent[i]:Hide()
-      parent.height = parent.height - 20
-    elseif not parent[i]:IsShown() then
-      parent[i]:Show()
-      parent.height = (parent.height or 0) + 20
-    end
-  end
-
-  parent:SetHeight(25 + parent.height)
-end
-
 local function findInfoText(s, name, spellID, powerIndex)
-  if not CT.current then return end
-  local spell = CT.current.spells[spellID]
-  local power = CT.current.power[powerIndex]
+  local spell = CT.current and CT.current.spells[spellID]
+  local power = CT.current and CT.current.power[powerIndex]
 
   local pName
   if power then
@@ -1174,7 +957,7 @@ local function findInfoText(s, name, spellID, powerIndex)
 
   local sName
   if spell or name then
-    if spell then
+    if spell and spell.name then
       sName = "|cFFFFFF00" .. spell.name .. "|r"
     else
       sName = "|cFFFFFF00" .. name .. "|r"
@@ -1219,78 +1002,80 @@ local function findInfoText(s, name, spellID, powerIndex)
     end
   end
 
-  if s == "Mana" then
-    return "Includes lots of details about your Mana usage. Mouseover each spell for more details."
-  elseif s == "Rage" then
-    return "Includes lots of details about your Rage usage. Mouseover each spell for more details."
-  elseif s == "Focus" then
-    return "Includes lots of details about your Focus usage. Mouseover each spell for more details."
-  elseif s == "Energy" then
-    return "Includes lots of details about your Energy usage. Mouseover each spell for more details."
-  elseif s == "Combo Points" then
-    return "Includes lots of details about your Combo Point usage. Mouseover each spell for more details."
-  elseif s == "Runes" then
-    return "Includes lots of details about your Rune usage. Mouseover each spell for more details."
-  elseif s == "Runic Power" then
-    return "Includes lots of details about your Runic Power usage. Mouseover each spell for more details."
-  elseif s == "Soul Shards" then
-    return "Includes lots of details about your Soul Shards usage. Mouseover each spell for more details."
-  elseif s == "Eclipse" then
-    return "Includes lots of details about your Eclipse usage. Mouseover each spell for more details."
-  elseif s == "Holy Power" then
-    return "Includes lots of details about your Holy Power usage. Mouseover each spell for more details."
-  elseif s == "Alternate Power" then
-    return "Includes lots of details about your Alternate Power usage. Mouseover each spell for more details."
-  elseif s == "Dark Force" then
-    return "Includes lots of details about your Dark Force usage. Mouseover each spell for more details."
-  elseif s == "Chi" then
-    return "Includes lots of details about your Chi usage. Mouseover each spell for more details."
-  elseif s == "Shadow Orbs" then
-    return "Includes lots of details about your Shadow Orbs usage. Mouseover each spell for more details."
-  elseif s == "Burning Embers" then
-    return "Includes lots of details about your Burning Embers usage. Mouseover each spell for more details."
-  elseif s == "Demonic Fury" then
-    return "Includes lots of details about your Demonic Fury usage. Mouseover each spell for more details."
+  do -- Resources
+    if s == "Mana" then
+      return "Includes lots of details about your Mana usage. Mouseover each spell for more details."
+    elseif s == "Rage" then
+      return "Includes lots of details about your Rage usage. Mouseover each spell for more details."
+    elseif s == "Focus" then
+      return "Includes lots of details about your Focus usage. Mouseover each spell for more details."
+    elseif s == "Energy" then
+      return "Includes lots of details about your Energy usage. Mouseover each spell for more details."
+    elseif s == "Combo Points" then
+      return "Includes lots of details about your Combo Point usage. Mouseover each spell for more details."
+    elseif s == "Runes" then
+      return "Includes lots of details about your Rune usage. Mouseover each spell for more details."
+    elseif s == "Runic Power" then
+      return "Includes lots of details about your Runic Power usage. Mouseover each spell for more details."
+    elseif s == "Soul Shards" then
+      return "Includes lots of details about your Soul Shards usage. Mouseover each spell for more details."
+    elseif s == "Eclipse" then
+      return "Includes lots of details about your Eclipse usage. Mouseover each spell for more details."
+    elseif s == "Holy Power" then
+      return "Includes lots of details about your Holy Power usage. Mouseover each spell for more details."
+    elseif s == "Alternate Power" then
+      return "Includes lots of details about your Alternate Power usage. Mouseover each spell for more details."
+    elseif s == "Dark Force" then
+      return "Includes lots of details about your Dark Force usage. Mouseover each spell for more details."
+    elseif s == "Chi" then
+      return "Includes lots of details about your Chi usage. Mouseover each spell for more details."
+    elseif s == "Shadow Orbs" then
+      return "Includes lots of details about your Shadow Orbs usage. Mouseover each spell for more details."
+    elseif s == "Burning Embers" then
+      return "Includes lots of details about your Burning Embers usage. Mouseover each spell for more details."
+    elseif s == "Demonic Fury" then
+      return "Includes lots of details about your Demonic Fury usage. Mouseover each spell for more details."
+    end
   end
 
   if s == "Holy Shock" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Crusader Strike" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Explosive Shot" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Black Arrow" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Chimaera Shot" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Judgment" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Exorcism" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "All Casts" then
     return "Includes details about every spell cast you did. Mouseover each spell for more details."
   elseif s == "Cleanse" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Light's Hammer" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Execution Sentence" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Holy Prism" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Seraphim" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Empowered Seals" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Stance" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Illuminated Healing" then
-    return ""
+    return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Stance" then
-    return ""
+    -- return "Includes details about every " .. s .. " you cast. Mouseover each spell for more details."
   elseif s == "Stance" then
-    return ""
+    -- return ""
   elseif s == "Stance" then
-    return ""
+    -- return ""
   elseif s == "Damage" then
     return "Includes details about your total damage and every spell that did damage. Mouseover each frame for more details."
   end
@@ -1354,7 +1139,9 @@ local function findInfoText(s, name, spellID, powerIndex)
           "at the time and what the searched for string was so I can add it. Thanks. :)|r"
 end
 
-local function addExpanderText(self)
+local function addExpanderText(self, lines)
+  if not lines then CT:Print("Called expand text without a line table", self and self.name) return end
+
   local frameNum = 1
   local dataFrame = CT.base.expander.dataFrames[frameNum]
   if not CT.base.expander.textFrames then CT.base.expander.textFrames = {} end
@@ -1371,8 +1158,8 @@ local function addExpanderText(self)
     v:Hide()
   end
 
-  for i = 1, #self.lineTable do
-    local lineText = self.lineTable[i]
+  for i = 1, #lines do
+    local lineText = lines[i]
     local f = exp.textFrames[i]
 
     if not f then
@@ -1414,7 +1201,6 @@ local function addExpanderText(self)
     end
 
     f:Show()
-    f.info = findInfoText(lineText, self.name, self.spellID, self.powerIndex)
 
     do -- Calculate each frame's size and position
       local mod = i % 4
@@ -1440,11 +1226,16 @@ local function addExpanderText(self)
       end
     end
 
-    f:SetScript("OnEnter", function()
+    f:SetScript("OnEnter", function(self)
+      CT.mouseFrameBorder(self, 2)
+
+      f.info = findInfoText(lineText, self.name, self.spellID, self.powerIndex)
+
       CT.createInfoTooltip(f, lineText, self.iconTexture, nil, nil, nil)
     end)
 
     f:SetScript("OnLeave", function()
+      CT.mouseFrameBorder()
       CT.createInfoTooltip()
     end)
 
@@ -1454,692 +1245,353 @@ local function addExpanderText(self)
   end
 end
 
-do -- Create Base Frame
-  CT.base = CreateFrame("Frame", "CT_Base", UIParent)
-  local f = CT.base
-  f:SetPoint("CENTER")
-  f:SetSize(350, 556)
+local function createMenuButtons(popup)
+  for i = 1, 4 do
+    local b = popup[i]
 
-  local backdrop = {
-  bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-  edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-  tileSize = 32,
-  edgeSize = 16,}
+    if not b then
+      popup[i] = CreateFrame("Button", "CT_Menu_Button_" .. i, popup)
+      local b = popup[i]
 
-  f:SetBackdrop(backdrop)
-  f:SetBackdropColor(0.15, 0.15, 0.15, 1)
-  f:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.7)
+      b:SetSize(170, (popup:GetHeight() / 2) - 2)
+      b:SetPoint(cornerAnchors[i], 0, 0)
+      -- b:SetPoint("CENTER", 0, 0)
+      -- b1:SetPoint("RIGHT", -(buttonFrame:GetWidth() / 2 + 5), 0)
 
-  f:SetMovable(true)
-  f:EnableMouse(true)
-  f:EnableKeyboard(true)
-  f:SetResizable(true)
+      b.normal = b:CreateTexture(nil, "BACKGROUND")
+      b.normal:SetTexture("Interface\\EncounterJournal\\UI-EncounterJournalTextures")
+      b.normal:SetTexCoord(0.00195313, 0.34179688, 0.42871094, 0.52246094)
+      b.normal:SetAllPoints()
+      b:SetNormalTexture(b.normal)
 
-  f:SetScript("OnMouseDown", function(self, button)
-    if button == "LeftButton" and not self.isMoving then
-      self:StartMoving()
-      self.isMoving = true
-    end
-  end)
-  f:SetScript("OnMouseUp", function(self, button)
-    if button == "LeftButton" and self.isMoving then
-      self:StopMovingOrSizing()
-      self.isMoving = false
-      CT:updateButtonList()
-    end
-  end)
-  f:SetScript("OnEnter", function(self)
-    if lastMouseoverButton then
-      lastMouseoverButton.dragger:SetAlpha(0)
-      lastMouseoverButton.upArrow:SetAlpha(0)
-      lastMouseoverButton.downArrow:SetAlpha(0)
-      lastMouseoverButton:UnlockHighlight()
-    end
-  end)
+      b.highlight = b:CreateTexture(nil, "BACKGROUND")
+      b.highlight:SetTexture("Interface\\EncounterJournal\\UI-EncounterJournalTextures")
+      -- b1.highlight:SetTexCoord(0.34570313, 0.68554688, 0.33300781, 0.42675781)
+      b.highlight:SetTexCoord(0.00195313, 0.34179688, 0.42871094, 0.52246094)
+      b.highlight:SetVertexColor(0.5, 0.5, 0.5, 1)
+      b.highlight:SetAllPoints()
+      b:SetHighlightTexture(b.highlight)
 
-  do -- Close button
-    f.closeButton = CreateFrame("Button", nil, f)
-    f.closeButton:SetSize(40, 40)
-    f.closeButton:SetPoint("TOPRIGHT", -10, -10)
-    f.closeButton:SetNormalTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
-    f.closeButton:SetHighlightTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
+      b.pushed = b:CreateTexture(nil, "BACKGROUND")
+      b.pushed:SetTexture("Interface\\EncounterJournal\\UI-EncounterJournalTextures")
+      b.pushed:SetTexCoord(0.00195313, 0.34179688, 0.33300781, 0.42675781)
+      b.pushed:SetAllPoints()
+      b:SetPushedTexture(b.pushed)
 
-    f.closeButton.BG = f.closeButton:CreateTexture(nil, "BORDER")
-    f.closeButton.BG:SetAllPoints()
-    f.closeButton.BG:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
-    f.closeButton.BG:SetVertexColor(0, 0, 0, 0.3)
+      b.title = b:CreateFontString(nil, "ARTWORK")
+      b.title:SetPoint("CENTER", 0, 0)
+      b.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
+      b.title:SetTextColor(0.8, 0.8, 0, 1)
+      b.title:SetShadowOffset(3, -3)
+      b.title:SetText("Reset Data")
 
-    f.closeButton:SetScript("OnClick", function()
-      CT.base:Hide()
-    end)
-
-    f.closeButton:SetScript("OnEnter", function()
-      f.closeButton.info = "Closes Combat Tracker, but it will still be recording CT.current.\n\nType /ct in chat to open it again. Type /ct help to see a full list of chat commands."
-
-      CT.createInfoTooltip(f.closeButton, "Close", nil, nil, nil, nil)
-    end)
-
-    f.closeButton:SetScript("OnLeave", function()
-      CT.createInfoTooltip()
-    end)
-  end
-
-  do -- Main size dragger
-    f:SetMaxResize(350, 700)
-    f:SetMinResize(350, 556)
-
-    f.dragger = CreateFrame("Button", nil, f)
-    f.dragger:SetSize(20, 20)
-    f.dragger:SetPoint("BOTTOMRIGHT", -1, 2)
-    f.dragger:SetNormalTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Up.png")
-    f.dragger:SetPushedTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Down.png")
-    f.dragger:SetHighlightTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Highlight.png")
-
-    -- NOTE: Need to get resolution properly
-    f.dragger:SetScript("OnMouseDown", function(self)
-      CT.base:StartSizing()
-
-      -- local UIScale = UIParent:GetEffectiveScale()
-      -- local startX, startY = GetCursorPosition()
-      -- local startX = startX / UIScale
-      -- local startY = startY / UIScale
-      --
-      -- local resolutionX = 1920
-      -- local resolutionY = 1080
-      --
-      -- local startLeft, startBottom, startWidth, startHeight = CT.base:GetRect()
-      -- local startScale = CT.base:GetScale()
-      -- -- GetEffectiveScale()
-      --
-      -- self.ticker = C_Timer.NewTicker(0.001, function(ticker)
-      -- local mouseX, mouseY = GetCursorPosition()
-      -- local mouseX = (mouseX / UIScale)
-      -- local mouseY = (mouseY / UIScale)
-      --
-        -- if (mouseX > startX) or (mouseY < startY) then -- Increasing Scale
-        --   local valX = (mouseX - startX) / resolutionX
-        --   local valY = (startY - mouseY) / resolutionY
-        --
-        --   local maxVal = max(valX, valY)
-        --   local newScale = startScale + maxVal
-        --
-        --   CT.base:SetScale(newScale)
-        -- else -- Decreasing Scale
-        --   local valX = (mouseX - startX) / resolutionX
-        --   local valY = (startY - mouseY) / resolutionY
-        --
-        --   local minVal = min(valX, valY)
-        --   local newScale = startScale + minVal
-        --
-        --   CT.base:SetScale(newScale)
-        -- end
-      -- end)
-    end)
-
-    f.dragger:SetScript("OnMouseUp", function(self)
-      CT.base:StopMovingOrSizing()
-
-      -- self.ticker:Cancel()
-    end)
-  end
-
-  do -- Scroll Frame, Main Content Frame, and Scroll Bar
-    CT.scrollFrame = CreateFrame("ScrollFrame", "CT_ScrollFrame", CT.base)
-    CT.scrollFrame:SetPoint("TOPLEFT", 25, -88)
-    CT.scrollFrame:SetPoint("BOTTOMRIGHT", -25, 100)
-
-    CT.scrollBar = CreateFrame("Slider", "CT_ScrollBar", CT.scrollFrame, "UIPanelScrollBarTemplate")
-    CT.scrollBar:SetPoint("TOPRIGHT", CT.scrollFrame, 20, 0)
-    CT.scrollBar:SetPoint("BOTTOMRIGHT", CT.scrollFrame, 20, 0)
-    CT.scrollBar.background = CT.scrollBar:CreateTexture("CT_ScrollBarBackground", "BACKGROUND")
-    CT.scrollBar.background:SetTexture("Interface\\addons\\CombatTracker\\Media\\ScrollBG.tga")
-    CT.scrollBar.background:SetAllPoints()
-    CT.scrollBar.thumbTexture = CT.scrollBar:CreateTexture("CT_ScrollBarThumbTexture")
-    CT.scrollBar.thumbTexture:SetTexture("Interface\\addons\\CombatTracker\\Media\\ThumbSlider.tga")
-    CT.scrollBar.thumbTexture:SetSize(10, 32)
-    CT.scrollBar:SetThumbTexture(CT.scrollBar.thumbTexture)
-
-    CT.scrollBar.AG = CT.scrollBar:CreateAnimationGroup("ScrollHider")
-    CT.scrollBar.AG.A = CT.scrollBar.AG:CreateAnimation("Alpha")
-    CT.scrollBar.AG.A:SetChange(-1)
-    CT.scrollBar.AG.A:SetDuration(1)
-    CT.scrollBar.AG.A:SetStartDelay(1)
-    CT.scrollBar.AG.A:SetSmoothing("OUT")
-    local c1, c2 = CT.scrollBar:GetChildren()
-      c1:Hide()
-      c2:Hide()
-    CT.scrollBar:SetAlpha(0)
-    CT.scrollBar:SetValueStep(46)
-    CT.scrollBar.scrollStep = 1
-    CT.scrollBar:SetWidth(16)
-    CT.scrollBar:SetScript("OnValueChanged", function(self, value)
-      CT.scrollFrame:SetVerticalScroll(value)
-    end)
-
-    CT.scrollBar.AG:SetScript("OnFinished", function(self, requested)
-      CT.scrollBar:SetAlpha(0)
-    end)
-
-    CT.contentFrame = CreateFrame("Frame", "CT_MainContent", CT.base)
-    CT.contentFrame:SetSize(CT.scrollFrame:GetWidth(), CT.scrollFrame:GetHeight())
-    CT.scrollFrame:SetScrollChild(CT.contentFrame)
-    CT.contentFrame:SetPoint("TOPLEFT", CT.base, 25, -88)
-    CT.contentFrame:SetPoint("BOTTOMRIGHT", CT.base, -25, 100)
-
-    CT.scrollBar:SetScript("OnEnter", function(self, value)
-      CT.scrollBar:SetAlpha(1)
-    end)
-
-    CT.scrollBar:SetScript("OnLeave", function(self, value)
-      CT.scrollBar.AG:Stop()
-      CT.scrollBar.AG:Play()
-    end)
-
-    CT.scrollBar:SetScript("OnMouseWheel", function(self, value)
-      local cur_val = CT.scrollBar:GetValue()
-      local min_val, max_val = CT.scrollBar:GetMinMaxValues()
-
-      if value < 0 and cur_val < max_val then
-        cur_val = min(max_val, cur_val + 46)
-        CT.scrollBar:SetValue(cur_val)
-      elseif value > 0 and cur_val > min_val then
-        cur_val = max(min_val, cur_val - 46)
-        CT.scrollBar:SetValue(cur_val)
-      end
-    end)
-
-    CT.scrollFrame:SetScript("OnMouseWheel", function(self, value)
-      CT.scrollBar:SetAlpha(1)
-
-      local cur_val = CT.scrollBar:GetValue()
-      local min_val, max_val = CT.scrollBar:GetMinMaxValues()
-
-      if value < 0 and cur_val < max_val then
-        cur_val = min(max_val, cur_val + 46)
-        CT.scrollBar:SetValue(cur_val)
-      elseif value > 0 and cur_val > min_val then
-        cur_val = max(min_val, cur_val - 46)
-        CT.scrollBar:SetValue(cur_val)
-      end
-
-      CT.scrollBar.AG:Stop()
-      CT.scrollBar.AG:Play()
-    end)
-  end
-
-  do -- Top, bottom, left, and right textures and gradients
-    f.top = CreateFrame("Frame", nil, f)
-    f.top:SetPoint("TOPLEFT", f, 5, -5)
-    f.top:SetPoint("TOPRIGHT", f, -5, -5)
-    f.top:SetPoint("BOTTOM", CT.scrollFrame, "TOP", 0, 15)
-    f.top.texture = f.top:CreateTexture(nil, "BACKGROUND")
-    f.top.texture:SetTexture(0.1, 0.1, 0.1, 1)
-    f.top.texture:SetAllPoints()
-
-    f.bottom = CreateFrame("Frame", nil, f)
-    f.bottom:SetPoint("BOTTOMLEFT", f, 5, 5)
-    f.bottom:SetPoint("BOTTOMRIGHT", f, -5, 5)
-    f.bottom:SetPoint("TOP", CT.scrollFrame, "BOTTOM", 0, -15)
-    f.bottom.texture = f.bottom:CreateTexture(nil, "BACKGROUND")
-    f.bottom.texture:SetTexture(0.1, 0.1, 0.1, 1)
-    f.bottom.texture:SetAllPoints()
-
-    do -- Left Texture and Gradient
-      f.left = CreateFrame("Frame", nil, f)
-      f.left:SetPoint("TOPLEFT", f.top, "BOTTOMLEFT", 0, 0)
-      f.left:SetPoint("BOTTOMLEFT", f.bottom, "TOPLEFT", 0, 0)
-      f.left:SetPoint("RIGHT", CT.scrollFrame, "LEFT", -15, 0)
-      f.left.texture = f.left:CreateTexture(nil, "BACKGROUND")
-      f.left.texture:SetTexture(0.1, 0.1, 0.1, 1)
-      f.left.texture:SetAllPoints()
-      f.left.gradient = f.left:CreateTexture(nil, "ARTWORK")
-      f.left.gradient:SetWidth(10)
-      f.left.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-      f.left.gradient:SetGradientAlpha("HORIZONTAL", 0.1, 0.1, 0.1, 1, 0.1, 0.1, 0.1, 0)
-      f.left.gradient:SetPoint("TOPLEFT", f.left, "TOPRIGHT", 0, 0)
-      f.left.gradient:SetPoint("BOTTOMLEFT", f.left, "BOTTOMRIGHT", 0, 0)
-    end
-
-    do -- Right Texture and Gradient
-      f.right = CreateFrame("Frame", nil, f)
-      f.right:SetPoint("TOPRIGHT", f.top, "BOTTOMRIGHT", 0, 0)
-      f.right:SetPoint("BOTTOMRIGHT", f.bottom, "TOPRIGHT", 0, 0)
-      f.right:SetPoint("LEFT", CT.scrollFrame, "RIGHT", 15, 0)
-      f.right.texture = f.right:CreateTexture(nil, "BACKGROUND")
-      f.right.texture:SetTexture(0.1, 0.1, 0.1, 1)
-      f.right.texture:SetAllPoints()
-      f.right.gradient = f.right:CreateTexture(nil, "ARTWORK")
-      f.right.gradient:SetWidth(10)
-      f.right.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-      f.right.gradient:SetGradientAlpha("HORIZONTAL", 0.1, 0.1, 0.1, 0, 0.1, 0.1, 0.1, 1)
-      f.right.gradient:SetPoint("TOPRIGHT", f.right, "TOPLEFT", 0, 0)
-      f.right.gradient:SetPoint("BOTTOMRIGHT", f.right, "BOTTOMLEFT", 0, 0)
-    end
-
-    do -- Top and Bottom Gradients
-      f.top.gradient = f.top:CreateTexture(nil, "BACKGROUND")
-      f.top.gradient:SetHeight(10)
-      f.top.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-      f.top.gradient:SetGradientAlpha("VERTICAL", 0.1, 0.1, 0.1, 0, 0.1, 0.1, 0.1, 1)
-      f.top.gradient:SetPoint("TOPLEFT", f.left, "TOPRIGHT", 0, 0)
-      f.top.gradient:SetPoint("TOPRIGHT", f.right, "TOPLEFT", 0, 0)
-
-      f.bottom.gradient = f.bottom:CreateTexture(nil, "BACKGROUND")
-      f.bottom.gradient:SetHeight(10)
-      f.bottom.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-      f.bottom.gradient:SetGradientAlpha("VERTICAL", 0.1, 0.1, 0.1, 1, 0.1, 0.1, 0.1, 0)
-      f.bottom.gradient:SetPoint("BOTTOMLEFT", f.left, "BOTTOMRIGHT", 0, 0)
-      f.bottom.gradient:SetPoint("BOTTOMRIGHT", f.right, "BOTTOMLEFT", 0, 0)
-    end
-
-    do -- Button Container Frame and Button 1 and 2
-      local width = f.left:GetWidth()
-      f.bottom.buttonFrame = CreateFrame("Frame", nil, f.bottom)
-      local buttonFrame = f.bottom.buttonFrame
-      buttonFrame:SetPoint("TOPLEFT", width, -20)
-      buttonFrame:SetPoint("TOPRIGHT", -width, -20)
-      buttonFrame:SetPoint("BOTTOMLEFT", width, 5)
-      buttonFrame:SetPoint("BOTTOMRIGHT", -width, 5)
-      buttonFrame.buttons = {}
-      -- f.bottom.buttonFrame.texture = f.bottom.buttonFrame:CreateTexture(nil, "ARTWORK")
-      -- f.bottom.buttonFrame.texture:SetAllPoints()
-      -- f.bottom.buttonFrame.texture:SetTexture(0.05, 0.05, 0.05, 0)
-
-      local function toggleButtons(ticker)
-        local self = buttonFrame
-
-        if self.buttons[1]:IsShown() then -- not MouseIsOver(self)
-          if not MouseIsOver(self) then
-            self.buttons[1]:Hide()
-            self.buttons[2]:Hide()
-
-            if self.ticker then
-              self.ticker:Cancel()
-              self.ticker = nil
-            end
-          end
-        else
-          self.buttons[1]:Show()
-          self.buttons[2]:Show()
-
-          if not self.ticker then
-            self.ticker = C_Timer.NewTicker(0.1, toggleButtons)
-          end
-        end
-      end
-
-      buttonFrame:SetScript("OnEnter", toggleButtons)
-      buttonFrame:SetScript("OnLeave", toggleButtons)
-
-      do -- Button 1
-        buttonFrame.buttons[1] = CreateFrame("Button", nil, f.bottom.buttonFrame)
-        local b1 = buttonFrame.buttons[1]
-        b1:SetSize(150, buttonFrame:GetHeight() - 10)
-        b1:SetPoint("LEFT", 10, 0)
-        b1:SetPoint("CENTER", 0, 0)
-        -- b1:SetPoint("RIGHT", -(buttonFrame:GetWidth() / 2 + 5), 0)
-        b1.normal = b1:CreateTexture(nil, "BACKGROUND")
-        b1.normal:SetTexture("Interface\\EncounterJournal\\UI-EncounterJournalTextures")
-        b1.normal:SetTexCoord(0.00195313, 0.34179688, 0.42871094, 0.52246094)
-        b1.normal:SetAllPoints()
-        b1:SetNormalTexture(b1.normal)
-
-        b1.highlight = b1:CreateTexture(nil, "BACKGROUND")
-        b1.highlight:SetTexture("Interface\\EncounterJournal\\UI-EncounterJournalTextures")
-        -- b1.highlight:SetTexCoord(0.34570313, 0.68554688, 0.33300781, 0.42675781)
-        b1.highlight:SetTexCoord(0.00195313, 0.34179688, 0.42871094, 0.52246094)
-        b1.highlight:SetVertexColor(0.5, 0.5, 0.5, 1)
-        b1.highlight:SetAllPoints()
-        b1:SetHighlightTexture(b1.highlight)
-
-        b1.pushed = b1:CreateTexture(nil, "BACKGROUND")
-        b1.pushed:SetTexture("Interface\\EncounterJournal\\UI-EncounterJournalTextures")
-        b1.pushed:SetTexCoord(0.00195313, 0.34179688, 0.33300781, 0.42675781)
-        b1.pushed:SetAllPoints()
-        b1:SetPushedTexture(b1.pushed)
-
-        b1.title = b1:CreateFontString(nil, "ARTWORK")
-        b1.title:SetPoint("CENTER", 0, 0)
-        b1.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
-        b1.title:SetTextColor(0.8, 0.8, 0, 1)
-        b1.title:SetShadowOffset(3, -3)
-        b1.title:SetText("Reset Data")
-
-        b1:SetScript("OnClick", function(self, button)
-          CT.resetData(button)
-        end)
-
-        b1:Hide()
-      end
-
-      do -- Button 2
-        buttonFrame.buttons[2] = CreateFrame("Button", nil, f.bottom.buttonFrame)
-        local b2 = buttonFrame.buttons[2]
-        b2:SetSize(150, buttonFrame:GetHeight() - 10)
-        -- b2:SetPoint("LEFT", (buttonFrame:GetWidth() / 2 + 5), 0)
-        b2:SetPoint("RIGHT", -10, 0)
-        b2:SetPoint("CENTER", 0, 0)
-        b2.normal = b2:CreateTexture(nil, "BACKGROUND")
-        -- b2.normal:SetTexture("Interface\\addons\\CombatTracker\\Media\\TestButton.png")
-        -- b2.normal:SetTexture("Interface\\addons\\CombatTracker\\Media\\OptionsButtonBlueTest.tga")
-        b2.normal:SetTexture("Interface\\EncounterJournal\\UI-EncounterJournalTextures")
-        b2.normal:SetTexCoord(0.00195313, 0.34179688, 0.42871094, 0.52246094)
-        b2.normal:SetAllPoints()
-        b2:SetNormalTexture(b2.normal)
-
-        b2.highlight = b2:CreateTexture(nil, "BACKGROUND")
-        b2.highlight:SetTexture("Interface\\EncounterJournal\\UI-EncounterJournalTextures")
-        -- b2.highlight:SetTexCoord(0.34570313, 0.68554688, 0.33300781, 0.42675781)
-        b2.highlight:SetTexCoord(0.00195313, 0.34179688, 0.42871094, 0.52246094)
-        b2.highlight:SetVertexColor(0.5, 0.5, 0.5, 1)
-        b2.highlight:SetAllPoints()
-        b2:SetHighlightTexture(b2.highlight)
-
-        b2.pushed = b2:CreateTexture(nil, "BACKGROUND")
-        b2.pushed:SetTexture("Interface\\EncounterJournal\\UI-EncounterJournalTextures")
-        b2.pushed:SetTexCoord(0.00195313, 0.34179688, 0.33300781, 0.42675781)
-        b2.pushed:SetAllPoints()
-        b2:SetPushedTexture(b2.pushed)
-
-        b2.title = b2:CreateFontString(nil, "ARTWORK")
-        b2.title:SetPoint("CENTER", 0, 0)
-        b2.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
-        b2.title:SetTextColor(0.8, 0.8, 0, 1)
-        b2.title:SetShadowOffset(3, -3)
-        b2.title:SetText("Expand Frame")
-
-        b2:SetScript("OnClick", function(self, button)
-          if not profile then
-            CT:expanderFrame()
-          else
-            profileCode()
-          end
-        end)
-
-        b2:Hide()
-      end
+      b:SetScript("OnClick", function(self, button)
+        b.func()
+      end)
     end
   end
 
-  do -- Combat Tracker Title Text
-    f.top.title = f.top:CreateFontString(nil, "ARTWORK")
-    f.top.title:SetPoint("LEFT", f.top, 15, 0)
-    f.top.title:SetFont("Fonts\\FRIZQT__.TTF", 30)
-    f.top.title:SetTextColor(0.8, 0.8, 0, 1)
-    f.top.title:SetShadowOffset(3, -3)
-    f.top.title:SetText("Combat \n  Tracker")
-  end
-
-  do -- Previous Fights button
-    f.prevFights = CreateFrame("Button", nil, f)
-    local b = CT.createSmallButton(f.prevFights)
-    b:SetFrameStrata("TOOLTIP")
-    b.title:SetText("Load Fight")
-    b:SetPoint("LEFT", f.top.title, "TOPRIGHT", 0, -10)
-
-    b:SetScript("OnEnter", function()
-      b.info = "Load a previous fight."
-
-      CT.createInfoTooltip(b, "Uptime Graphs", nil, nil, nil, nil)
-    end)
-
-    b:SetScript("OnLeave", function()
-      CT.createInfoTooltip()
-    end)
-
-    b:SetScript("OnClick", function(self, click)
-      local m = self.dropDownMenu
-
-      if not m then
-        self.dropDownMenu = CreateFrame("Frame", nil, self)
-        m = self.dropDownMenu
-        m:SetSize(150, 20)
-        m:SetPoint("TOPLEFT", self, "TOPRIGHT", 0, 0)
-        m.bg = m:CreateTexture(nil, "BACKGROUND")
-        m.bg:SetAllPoints()
-        m.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
-        m:Hide()
-
-        m:SetScript("OnShow", function()
-          m.exitTime = GetTime() + 1
-
-          if not m.ticker then
-            m.ticker = C_Timer.NewTicker(0.1, function(ticker)
-              if not MouseIsOver(m) and not MouseIsOver(self) then
-                if GetTime() > m.exitTime then
-                  m:Hide()
-                  m.ticker:Cancel()
-                  m.ticker = nil
-                end
-              else
-                m.exitTime = GetTime() + 1
-              end
-            end)
-          end
-        end)
-      end
-
-      if m:IsShown() then
-        m:Hide()
-      else
-        local _, specName = GetSpecializationInfo(GetSpecialization())
-
-        CT.createSetButtons(m, CombatTrackerCharDB[specName].sets)
-        m:Show()
-      end
-    end)
-  end
-
-  tinsert(UISpecialFrames, CT.base:GetName())
+  return popup
 end
 
-function CT:expanderFrame()
-  if CT.base.expander and CT.base.expander:IsShown() then
-    CT.base.expander:Hide()
-    CT.base.expander.shown = false
-  elseif CT.base.expander then
-    CT.base.expander:Show()
-    CT.base.expander.shown = true
-    if CT.tracking then
-      CT.base.expander.titleData.rightText2:SetText(CT.formatTimer((CT.combatStop or GetTime()) - CT.combatStart or GetTime()))
-    end
+function CT:expanderFrame(command)
+  if not CT.base then CT:OnEnable("load") end
 
-    CT.finalizeGraphLength() -- This also does a full graph refresh, and I need them to instantly refresh when it shows
-  elseif not CT.base.expander then
-    local f, uptimeGraph, graphFrame
-    do -- Main Frame
-      CT.base.expander = CreateFrame("Frame", nil, CT.base)
-      f = CT.base.expander
-      f:SetPoint("LEFT", CT.base, "RIGHT")
-      f:SetSize(500, 556)
+  local f = CT.base.expander
 
-      local backdrop = {
-      bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-      edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-      tileSize = 32,
-      edgeSize = 16,}
+  if not f then
+    CT.base.expander = CreateFrame("Frame", nil, CT.base)
+    f = CT.base.expander
+    f:SetPoint("LEFT", CT.base, "RIGHT")
+    f:SetSize(500, 556)
 
-      f:SetBackdrop(backdrop)
-      f:SetBackdropColor(0.15, 0.15, 0.15, 1)
-      f:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.7)
+    local backdrop = {
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tileSize = 32,
+    edgeSize = 16,}
 
-      f:EnableMouse(true)
+    f:SetBackdrop(backdrop)
+    f:SetBackdropColor(0.15, 0.15, 0.15, 1)
+    f:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.7)
 
-      f:SetScript("OnMouseDown", function(self, button)
-        if button == "LeftButton" and not CT.base.isMoving then
-          CT.base:StartMoving()
-          CT.base.isMoving = true -- TODO: Make graphs vanish when moving is started
-        end
-      end)
-      f:SetScript("OnMouseUp", function(self, button)
-        if button == "LeftButton" and CT.base.isMoving then
-          CT.base:StopMovingOrSizing()
-          CT.base.isMoving = false
-          CT:updateButtonList()
-        end
-      end)
-    end
+    f:EnableMouse(true)
 
-    do -- Title Background, icon, and text
-      do -- Title Background
-        f.titleBG = CreateFrame("Button", "CT_Main_Title_Background", f)
-        f.titleBG:SetPoint("TOPLEFT", f, 15, -15)
-        f.titleBG:SetPoint("TOPRIGHT", f, -(f:GetWidth() / 3) - 10, -15)
-        f.titleBG:SetHeight(40)
-        f.titleBG.texture = f.titleBG:CreateTexture(nil, "BACKGROUND")
-        f.titleBG.texture:SetTexture(0.1, 0.1, 0.1, 1)
-        f.titleBG.texture:SetAllPoints()
-
-        f.titleBG:SetScript("OnEnter", function()
-          local displayed = f.titleText:GetText()
-
-          f.titleBG.info = findInfoText(displayed)
-
-          CT.createInfoTooltip(f.titleBG, "Title")
-        end)
-
-        f.titleBG:SetScript("OnLeave", function()
-          CT.createInfoTooltip()
-        end)
+    f:SetScript("OnMouseDown", function(self, button)
+      if button == "LeftButton" and not CT.base.isMoving then
+        CT.base:StartMoving()
+        CT.base.isMoving = true -- TODO: Make graphs vanish when moving is started
       end
+    end)
 
+    f:SetScript("OnMouseUp", function(self, button)
+      if button == "LeftButton" and CT.base.isMoving then
+        CT.base:StopMovingOrSizing()
+        CT.base.isMoving = false
+        CT:updateButtonList()
+      end
+    end)
+
+    f:SetScript("OnShow", function(self)
+      -- print("Expander showing")
+
+      if CT.displayed then
+        if not self.graphFrame.displayed[1] then -- No regular graph is loaded
+          -- print("No regular graph, loading default.")
+
+          CT.loadDefaultGraphs()
+          CT.finalizeGraphLength("line")
+        end
+
+        if not self.uptimeGraph.displayed then -- No uptime graph is loaded
+          -- print("No uptime graph, loading default.")
+
+          CT.loadDefaultUptimeGraph()
+          CT.finalizeGraphLength("uptime")
+        end
+      end
+    end)
+
+    f:SetScript("OnHide", function(self)
+      -- print("Expander hiding")
+    end)
+
+    f:Hide()
+  end
+
+  if not f.titleBG then -- Title Background, icon, and text
+    if not f.titleBG then -- Title Background
+      f.titleBG = CreateFrame("Button", "CT_Main_Title_Background", f)
+      f.titleBG:SetPoint("TOPLEFT", f, 15, -15)
+      f.titleBG:SetPoint("TOPRIGHT", f, -(f:GetWidth() / 3) - 10, -15)
+      f.titleBG:SetHeight(40)
+      f.titleBG.texture = f.titleBG:CreateTexture(nil, "BACKGROUND")
+      f.titleBG.texture:SetTexture(0.1, 0.1, 0.1, 1)
+      f.titleBG.texture:SetAllPoints()
+
+      f.titleBG:SetScript("OnEnter", function()
+        local displayed = f.titleText:GetText()
+
+        f.titleBG.info = findInfoText(displayed)
+
+        CT.createInfoTooltip(f.titleBG, "Title")
+      end)
+
+      f.titleBG:SetScript("OnLeave", function()
+        CT.createInfoTooltip()
+      end)
+    end
+
+    if not f.icon then
       f.icon = f.titleBG:CreateTexture(nil, "OVERLAY")
       f.icon:SetSize(30, 30)
       f.icon:SetPoint("LEFT", f.titleBG, 10, 0)
       f.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
       f.icon:SetAlpha(0.9)
+    end
 
+    if not f.titleText then
       f.titleText = f.titleBG:CreateFontString(nil, "ARTWORK")
       f.titleText:SetPoint("LEFT", f.icon, "RIGHT", 5, 0)
       f.titleText:SetFont("Fonts\\FRIZQT__.TTF", 24)
       f.titleText:SetTextColor(0.8, 0.8, 0, 1)
+    end
 
-      do -- Title Data
-        f.titleData = CreateFrame("Button", "CT_Title_Data", f)
-        f.titleData:SetPoint("TOPLEFT", f, ((f:GetWidth() / 3) * 2) + 0, -15)
-        f.titleData:SetPoint("TOPRIGHT", f, -15, -15)
-        f.titleData:SetHeight(40)
-        f.titleData.texture = f.titleData:CreateTexture(nil, "BACKGROUND")
-        f.titleData.texture:SetTexture(0.1, 0.1, 0.1, 1)
-        f.titleData.texture:SetAllPoints()
+    if not f.titleData then -- Title Data
+      f.titleData = CreateFrame("Button", "CT_Title_Data", f)
+      f.titleData:SetPoint("TOPLEFT", f, ((f:GetWidth() / 3) * 2) + 0, -15)
+      f.titleData:SetPoint("TOPRIGHT", f, -15, -15)
+      f.titleData:SetHeight(40)
+      f.titleData.texture = f.titleData:CreateTexture(nil, "BACKGROUND")
+      f.titleData.texture:SetTexture(0.1, 0.1, 0.1, 1)
+      f.titleData.texture:SetAllPoints()
 
-        f.titleData:SetScript("OnEnter", function()
-          f.titleData.info = "The currently displayed fight and the amount of time in combat."
+      f.titleData:SetScript("OnEnter", function()
+        f.titleData.info = "The currently displayed fight and the amount of time in combat."
 
-          CT.createInfoTooltip(f.titleData, "Title Data", nil, nil, nil, nil)
-        end)
+        CT.createInfoTooltip(f.titleData, "Title Data", nil, nil, nil, nil)
+      end)
 
-        f.titleData:SetScript("OnLeave", function()
-          CT.createInfoTooltip()
-        end)
+      f.titleData:SetScript("OnLeave", function()
+        CT.createInfoTooltip()
+      end)
+    end
+
+    if not f.titleData.leftText1 then -- Top Row Data Text
+      f.titleData.leftText1 = f.titleData:CreateFontString(nil, "ARTWORK")
+      f.titleData.leftText1:SetPoint("TOPLEFT", f.titleData, 5, -5)
+      f.titleData.leftText1:SetFont("Fonts\\FRIZQT__.TTF", 12)
+      f.titleData.leftText1:SetTextColor(1.0, 1.0, 1.0, 1.0)
+      f.titleData.leftText1:SetShadowOffset(1, -1)
+      f.titleData.leftText1:SetJustifyH("LEFT")
+      f.titleData.leftText1:SetText("Fight:")
+    end
+
+    if not f.titleData.rightText1 then
+      f.titleData.rightText1 = f.titleData:CreateFontString(nil, "ARTWORK")
+      f.titleData.rightText1:SetPoint("LEFT", f.titleData.leftText1, "RIGHT", 0, 0)
+      f.titleData.rightText1:SetPoint("RIGHT", f.titleData, -3, 0)
+      f.titleData.rightText1:SetFont("Fonts\\FRIZQT__.TTF", 12)
+      f.titleData.rightText1:SetTextColor(1.0, 1.0, 0.0, 1.0)
+      f.titleData.rightText1:SetShadowOffset(1, -1)
+      f.titleData.rightText1:SetJustifyH("RIGHT")
+    end
+
+    if not f.titleData.leftText2 then -- Bottom Row Data Text
+      f.titleData.leftText2 = f.titleData:CreateFontString(nil, "ARTWORK")
+      f.titleData.leftText2:SetPoint("BOTTOMLEFT", f.titleData, 5, 5)
+      f.titleData.leftText2:SetFont("Fonts\\FRIZQT__.TTF", 12)
+      f.titleData.leftText2:SetTextColor(1.0, 1.0, 1.0, 1.0)
+      f.titleData.leftText2:SetShadowOffset(1, -1)
+      f.titleData.leftText2:SetJustifyH("LEFT")
+      f.titleData.leftText2:SetText("Length:")
+    end
+
+    if not f.titleData.rightText2 then
+      f.titleData.rightText2 = f.titleData:CreateFontString(nil, "ARTWORK")
+      f.titleData.rightText2:SetPoint("LEFT", f.titleData.leftText2, "RIGHT", 0, 0)
+      f.titleData.rightText2:SetPoint("RIGHT", f.titleData, -3, 0)
+      f.titleData.rightText2:SetFont("Fonts\\FRIZQT__.TTF", 12)
+      f.titleData.rightText2:SetTextColor(1.0, 1.0, 0.0, 1.0)
+      f.titleData.rightText2:SetShadowOffset(1, -1)
+      f.titleData.rightText2:SetJustifyH("RIGHT")
+    end
+  end
+
+  if not f.dataFrames then -- Data Frames
+    f.dataFrames = {}
+    f.spellFrames = {}
+    f.textData = {}
+    f.textData.title = {}
+    f.textData.value = {}
+
+    if not f.dataFrames[1] then -- Data 1
+      f.dataFrames[1] = f:CreateTexture(nil, "BORDER")
+      f.dataFrames[1]:SetPoint("LEFT", f.titleBG, 0, 0)
+      f.dataFrames[1]:SetPoint("RIGHT", f, -(f:GetWidth() / 2) - 5, 0)
+      f.dataFrames[1]:SetPoint("TOP", f.titleBG, "BOTTOM", 0, -10)
+      f.dataFrames[1]:SetTexture(0.1, 0.1, 0.1, 1)
+      f.dataFrames[1]:SetHeight(100)
+    end
+
+    if not f.dataFrames[2] then -- Data 2
+      f.dataFrames[2] = f:CreateTexture(nil, "BORDER")
+      f.dataFrames[2]:SetPoint("LEFT", f, (f:GetWidth() / 2) + 5, 0)
+      f.dataFrames[2]:SetPoint("RIGHT", f.titleData, 0, 0)
+      f.dataFrames[2]:SetPoint("TOP", f.titleData, "BOTTOM", 0, -10)
+      f.dataFrames[2]:SetTexture(0.1, 0.1, 0.1, 1)
+      f.dataFrames[2]:SetHeight(100)
+    end
+
+    if not f.dataFrames[3] then -- Data 3
+      f.dataFrames[3] = f:CreateTexture(nil, "BORDER")
+      f.dataFrames[3]:SetPoint("LEFT", f.dataFrames[1], 0, 0)
+      f.dataFrames[3]:SetPoint("RIGHT", f.dataFrames[1], 0, 0)
+      f.dataFrames[3]:SetPoint("TOP", f.dataFrames[1], "BOTTOM", 0, -10)
+      f.dataFrames[3]:SetTexture(0.1, 0.1, 0.1, 1)
+      f.dataFrames[3]:SetHeight(100)
+    end
+
+    if not f.dataFrames[4] then  -- Data 4
+      f.dataFrames[4] = f:CreateTexture(nil, "BORDER")
+      f.dataFrames[4]:SetPoint("LEFT", f.dataFrames[2], 0, 0)
+      f.dataFrames[4]:SetPoint("RIGHT", f.dataFrames[2], 0, 0)
+      f.dataFrames[4]:SetPoint("TOP", f.dataFrames[2], "BOTTOM", 0, -10)
+      f.dataFrames[4]:SetTexture(0.1, 0.1, 0.1, 1)
+      f.dataFrames[4]:SetHeight(100)
+    end
+  end
+
+  local uptimeGraph = f.uptimeGraph
+  if not uptimeGraph then
+    f.uptimeGraph = CT.buildUptimeGraph(f)
+    uptimeGraph = f.uptimeGraph
+
+    uptimeGraph:ClearAllPoints()
+    uptimeGraph:SetParent(f)
+    uptimeGraph:SetPoint("LEFT", f.dataFrames[3], 0, 0)
+    uptimeGraph:SetPoint("RIGHT", f.dataFrames[4], 0, 0)
+    uptimeGraph:SetPoint("TOP", f.dataFrames[4], "BOTTOM", 0, -10)
+    uptimeGraph:SetHeight(25)
+    uptimeGraph.defaultHeight = uptimeGraph:GetHeight()
+  end
+
+  local graphFrame = f.graphFrame
+  if not graphFrame then
+    f.graphFrame = CT.buildGraph(f)
+    graphFrame = f.graphFrame
+
+    graphFrame:ClearAllPoints()
+    graphFrame:SetParent(f)
+    graphFrame:SetPoint("LEFT", uptimeGraph, 0, 0)
+    graphFrame:SetPoint("RIGHT", uptimeGraph, 0, 0)
+    graphFrame:SetPoint("TOP", uptimeGraph, "BOTTOM", 0, -10)
+    graphFrame:SetPoint("BOTTOM", f, 0, 10)
+  end
+
+  if f.shown and (command and command == "hide") or (not command and f:IsShown()) then
+    f:Hide()
+    f.shown = false
+  elseif not f.shown and (command and command == "show") or (not command and not f:IsShown()) then
+    f:Show()
+    f.shown = true
+  end
+
+  if f.shown then
+    if self and self.name then
+      f.currentButton = self
+      print("Expanding", self.name)
+
+      f.icon:SetTexture(self.iconTexture or CT.player.specIcon)
+      SetPortraitToTexture(f.icon, f.icon:GetTexture())
+
+      f.titleText:SetText(self.name)
+
+      addExpanderText(self, self.lineTable)
+
+      local buttonName = self.name
+
+      if not CT.current and not CT.displayed then
+        print("No current set, so loading last saved set.")
+        CT.loadSavedSet() -- Load the most recent set as default
       end
 
-      do -- Top Row Data Text
-        f.titleData.leftText1 = f.titleData:CreateFontString(nil, "ARTWORK")
-        f.titleData.leftText1:SetPoint("TOPLEFT", f.titleData, 5, -5)
-        f.titleData.leftText1:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        f.titleData.leftText1:SetTextColor(1.0, 1.0, 1.0, 1.0)
-        f.titleData.leftText1:SetShadowOffset(1, -1)
-        f.titleData.leftText1:SetJustifyH("LEFT")
-        f.titleData.leftText1:SetText("Fight:")
+      if CT.displayed then
+        local uptimeGraphs = CT.displayed.uptimeGraphs
+        local graphs = CT.displayed.graphs
 
-        f.titleData.rightText1 = f.titleData:CreateFontString(nil, "ARTWORK")
-        f.titleData.rightText1:SetPoint("LEFT", f.titleData.leftText1, "RIGHT", 0, 0)
-        f.titleData.rightText1:SetPoint("RIGHT", f.titleData, -3, 0)
-        f.titleData.rightText1:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        f.titleData.rightText1:SetTextColor(1.0, 1.0, 0.0, 1.0)
-        f.titleData.rightText1:SetShadowOffset(1, -1)
-        f.titleData.rightText1:SetJustifyH("RIGHT")
-        f.titleData.rightText1:SetText(CT.fightName or "None")
-      end
+        for i = 1, #CT.displayed.power do
+          local power = CT.displayed.power[i]
 
-      do -- Bottom Row Data Text
-        f.titleData.leftText2 = f.titleData:CreateFontString(nil, "ARTWORK")
-        f.titleData.leftText2:SetPoint("BOTTOMLEFT", f.titleData, 5, 5)
-        f.titleData.leftText2:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        f.titleData.leftText2:SetTextColor(1.0, 1.0, 1.0, 1.0)
-        f.titleData.leftText2:SetShadowOffset(1, -1)
-        f.titleData.leftText2:SetJustifyH("LEFT")
-        f.titleData.leftText2:SetText("Length:")
+          if power.costFrames then
+            if self.powerNum and self.powerNum == i then
+              for i = 1, #power.costFrames do
+                power.costFrames[i]:Show()
+              end
+            else
+              for i = 1, #power.costFrames do
+                power.costFrames[i]:Hide()
+              end
+            end
+          end
+        end
 
-        f.titleData.rightText2 = f.titleData:CreateFontString(nil, "ARTWORK")
-        f.titleData.rightText2:SetPoint("LEFT", f.titleData.leftText2, "RIGHT", 0, 0)
-        f.titleData.rightText2:SetPoint("RIGHT", f.titleData, -3, 0)
-        f.titleData.rightText2:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        f.titleData.rightText2:SetTextColor(1.0, 1.0, 0.0, 1.0)
-        f.titleData.rightText2:SetShadowOffset(1, -1)
-        f.titleData.rightText2:SetJustifyH("RIGHT")
+        for k, v in pairs(CT.base.expander.spellFrames) do
+          v:Hide()
+        end
       end
     end
 
-    do -- Data Frames
-      f.dataFrames = {}
-      f.spellFrames = {}
-      f.textData = {}
-      f.textData.title = {}
-      f.textData.value = {}
+    if CT.displayed then
+      local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
 
-      do -- Data 1
-        f.dataFrames[1] = f:CreateTexture(nil, "BORDER")
-        f.dataFrames[1]:SetPoint("LEFT", f.titleBG, 0, 0)
-        f.dataFrames[1]:SetPoint("RIGHT", f, -(f:GetWidth() / 2) - 5, 0)
-        f.dataFrames[1]:SetPoint("TOP", f.titleBG, "BOTTOM", 0, -10)
-        f.dataFrames[1]:SetTexture(0.1, 0.1, 0.1, 1)
-        f.dataFrames[1]:SetHeight(100)
-      end
-
-      do -- Data 2
-        f.dataFrames[2] = f:CreateTexture(nil, "BORDER")
-        f.dataFrames[2]:SetPoint("LEFT", f, (f:GetWidth() / 2) + 5, 0)
-        f.dataFrames[2]:SetPoint("RIGHT", f.titleData, 0, 0)
-        f.dataFrames[2]:SetPoint("TOP", f.titleData, "BOTTOM", 0, -10)
-        f.dataFrames[2]:SetTexture(0.1, 0.1, 0.1, 1)
-        f.dataFrames[2]:SetHeight(100)
-      end
-
-      do -- Data 3
-        f.dataFrames[3] = f:CreateTexture(nil, "BORDER")
-        f.dataFrames[3]:SetPoint("LEFT", f.dataFrames[1], 0, 0)
-        f.dataFrames[3]:SetPoint("RIGHT", f.dataFrames[1], 0, 0)
-        f.dataFrames[3]:SetPoint("TOP", f.dataFrames[1], "BOTTOM", 0, -10)
-        f.dataFrames[3]:SetTexture(0.1, 0.1, 0.1, 1)
-        f.dataFrames[3]:SetHeight(100)
-      end
-
-      do -- Data 4
-        f.dataFrames[4] = f:CreateTexture(nil, "BORDER")
-        f.dataFrames[4]:SetPoint("LEFT", f.dataFrames[2], 0, 0)
-        f.dataFrames[4]:SetPoint("RIGHT", f.dataFrames[2], 0, 0)
-        f.dataFrames[4]:SetPoint("TOP", f.dataFrames[2], "BOTTOM", 0, -10)
-        f.dataFrames[4]:SetTexture(0.1, 0.1, 0.1, 1)
-        f.dataFrames[4]:SetHeight(100)
-      end
+      f.titleData.rightText1:SetText(CT.displayedDB.setName or "None loaded")
+      CT.base.expander.titleData.rightText2:SetText(CT.formatTimer(timer))
+    else
+      f.titleData.rightText1:SetText("None loaded")
     end
 
-    do -- Uptime Graph
-      uptimeGraph = CT.buildUptimeGraph(f)
-
-      uptimeGraph:ClearAllPoints()
-      uptimeGraph:SetParent(f)
-      uptimeGraph:SetPoint("LEFT", f.dataFrames[3], 0, 0)
-      uptimeGraph:SetPoint("RIGHT", f.dataFrames[4], 0, 0)
-      uptimeGraph:SetPoint("TOP", f.dataFrames[4], "BOTTOM", 0, -10)
-      uptimeGraph:SetHeight(25)
-      uptimeGraph.defaultHeight = uptimeGraph:GetHeight()
-    end
-
-    do -- Main Graph
-      local graphFrame = CT.buildGraph(f)
-
-      graphFrame:ClearAllPoints()
-      graphFrame:SetParent(f)
-      graphFrame:SetPoint("LEFT", uptimeGraph, 0, 0)
-      graphFrame:SetPoint("RIGHT", uptimeGraph, 0, 0)
-      graphFrame:SetPoint("TOP", uptimeGraph, "BOTTOM", 0, -10)
-      graphFrame:SetPoint("BOTTOM", f, 0, 10)
-    end
-
-    CT.base.expander.shown = true
+    CT.forceUpdate = true
   end
 end
 
@@ -2327,22 +1779,27 @@ local function createButtonFrame(button)
   end
 end
 
-function CT.createSpecDataButtons()
+local function loadButtonsToFrame(table)
+  if not table then return end
+
+  for i = 1, max(#table, #CT.contentFrame) do
+
+  end
+end
+
+function CT.createSpecDataButtons() -- Create the default main buttons
+  for i = 1, #CT.setButtons do
+    CT.setButtons[i]:Hide()
+  end
+
   for i = 1, #CT.specData do
     local b = CT.buttons[i]
 
     if not b then
-      CT.buttons[i] = CreateFrame("Button", "MainButton" .. i, CT.contentFrame)
+      CT.buttons[i] = CreateFrame("Button", "CT_Main_Button_" .. i, CT.contentFrame)
       b = CT.buttons[i]
 
       b.text = {}
-      -- b.expanded = false
-      -- b.expandedDown = false
-
-      -- CT.mainButtons[i] = b.button
-      -- CT.mainButtons[i].self = b
-      -- b.button.name = name
-      -- b.button.num = i
 
       createButtonFrame(b)
       tinsert(CT.update, b)
@@ -2350,27 +1807,72 @@ function CT.createSpecDataButtons()
       do -- Button Scripts
         local lastClickTime = GetTime()
         b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        b:SetScript("OnClick", function(button, click)
+
+        b:SetScript("OnClick", function(self, click)
           if GetTime() > lastClickTime then
-            PlaySound("igMainMenuOptionCheckBoxOn")
-            CT.expanderToggle(button, click)
 
-            local time = GetTime()
-            local timer
-            if CT.combatStart then
-              timer = (CT.combatStop or time) - CT.combatStart
-            else
-              timer = 0
-            end
+            if click == "LeftButton" then
+              if not self.expand then self.expand = CT.expanderFrame end
 
-            if CT.current then
-              if button.expanded and button.expanderUpdate then
-                button:expanderUpdate(time, timer)
-              elseif button.shown and button.update then
-                button:update(time, timer)
+              self:expand("show")
+            elseif click == "RightButton" then
+              if true then CT:Print("Blocking right click, it isn't set up properly and will error.") return end
+
+              if not self.expandedDown and (dropDown.dropHeight or 1) > 0 then -- Expand drop down
+                self:UnlockHighlight()
+
+                if not self.dropDownCreated then
+                  self:dropDownFunc(self.lineTable)
+                  self.dropDownCreated = true
+                end
+
+                if dropDown.numLines ~= 0 then
+                  expander.expanded = true
+                  self.expandedDown = true
+
+                  dropDown:Show()
+
+                  self:update(GetTime())
+
+                  if self.graph then
+                    if self.graphRefresh then
+                      self.graph:refresh()
+                    end
+                  end
+
+                  self:dropAnimationDown()
+
+                  expander.defaultHeight = self:GetHeight()
+                  expander.expandedHeight = expander.defaultHeight + dropDown.dropHeight
+                  CT.updateButtonList()
+                  CT.scrollFrameUpdate()
+                end
+              elseif self.expandedDown == true then -- Collapse drop down
+                self:UnlockHighlight()
+                expander.expanded = false
+                self.expandedDown = false
+
+                self:dropAnimationUp()
+
+                expander.defaultHeight = self:GetHeight()
+                expander.expandedHeight = expander.defaultHeight + dropDown.dropHeight
+                CT.updateButtonList()
+                CT.scrollFrameUpdate()
               end
             end
 
+            if CT.displayed then
+              local time = GetTime()
+              local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
+
+              if self.expanded and self.expanderUpdate then
+                button:expanderUpdate(time, timer)
+              elseif self.shown and self.update then
+                self:update(time, timer)
+              end
+            end
+
+            PlaySound("igMainMenuOptionCheckBoxOn")
             lastClickTime = GetTime() + 0.1
           end
         end)
@@ -2425,7 +1927,7 @@ function CT.createSavedSetButtons(table)
     local b = CT.setButtons[i]
 
     if not b then
-      CT.setButtons[i] = CreateFrame("Button", "SetButton" .. i, CT.contentFrame)
+      CT.setButtons[i] = CreateFrame("Button", "CT_Saved_Set_Button_" .. i, CT.contentFrame)
       b = CT.setButtons[i]
 
       b.name = table.setName
@@ -2453,6 +1955,11 @@ function CT.createSavedSetButtons(table)
 
         if click == "LeftButton" then
           local set, db = CT.loadSavedSet(table[i])
+
+          -- CT.createSpecDataButtons()
+          -- CT.base.bottomExpander.popup[1].title:SetText("Load Saved Fight")
+          CT.base.bottomExpander.popup[1]:Click()
+
           CT.forceUpdate = true
         else
           local t = tremove(table, i) -- Remove saved variables
@@ -2470,6 +1977,8 @@ function CT.createSavedSetButtons(table)
         end
       end)
     end
+
+    b:Show()
   end
 
   if CT.buttons[1] then
@@ -2709,45 +2218,23 @@ function CT:dragMainButton()
 end
 
 function CT:expandedMenu()
+  print("Expand called", self.name)
   local f = CT.base.expander
   f.icon:SetTexture(self.iconTexture or CT.player.specIcon)
   SetPortraitToTexture(f.icon, f.icon:GetTexture())
 
   f.titleText:SetText(self.name)
 
-  addExpanderText(self)
+  addExpanderText(self, self.lineTable)
 
   local buttonName = self.name
 
-  if CT.current then
-    CT.hideLineGraphs()
-    CT.showLineGraph(nil, self.name)
+  if CT.displayed then
+    local uptimeGraphs = CT.displayed.uptimeGraphs
+    local graphs = CT.displayed.graphs
 
-    local uptimeGraphs = CT.current.uptimeGraphs
-    -- local graphs = CT.current.graphs
-
-    -- local foundGraph
-    -- for index, v in ipairs(uptimeGraphs.categories) do
-    --   for i = 1, #v do
-    --     if v[i].name == buttonName then
-    --       foundGraph = true
-    --       CT.toggleUptimeGraph(v[i], true)
-    --     end
-    --   end
-    -- end
-    --
-    -- if not foundGraph then
-    --   for index, v in ipairs(uptimeGraphs.categories) do
-    --     for i = 1, #v do
-    --       if v[i].name == "Activity" then
-    --         CT.toggleUptimeGraph(v[i], true)
-    --       end
-    --     end
-    --   end
-    -- end
-
-    for i = 1, #CT.current.power do
-      local power = CT.current.power[i]
+    for i = 1, #CT.displayed.power do
+      local power = CT.displayed.power[i]
 
       if power.costFrames then
         if self.powerNum and self.powerNum == i then
@@ -2768,7 +2255,506 @@ function CT:expandedMenu()
   end
 
   f.last = self
-  -- CT.forceUpdate = true
+  CT.forceUpdate = true
+end
+
+function CT.createBaseFrame() -- Create Base Frame
+  local f = CT.base
+  if not f then
+    CT.base = baseFrame
+    f = CT.base
+    f:SetPoint("CENTER")
+    f:SetSize(350, 556)
+
+    local backdrop = {
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+    tileSize = 32,
+    edgeSize = 16,}
+
+    f:SetBackdrop(backdrop)
+    f:SetBackdropColor(0.15, 0.15, 0.15, 1)
+    f:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.7)
+
+    f:EnableMouse(true)
+    f:EnableKeyboard(true)
+    f:SetResizable(true)
+    f:SetUserPlaced(true)
+
+    f:SetScript("OnMouseDown", function(self, button)
+      if button == "LeftButton" and not self.isMoving then
+        self:StartMoving()
+        self.isMoving = true
+        -- self:SetUserPlaced(true)
+      end
+    end)
+
+    f:SetScript("OnMouseUp", function(self, button)
+      if button == "LeftButton" and self.isMoving then
+        self:StopMovingOrSizing()
+        self.isMoving = false
+        CT:updateButtonList()
+      end
+    end)
+
+    f:SetScript("OnEnter", function(self)
+      if lastMouseoverButton then
+        lastMouseoverButton.dragger:SetAlpha(0)
+        lastMouseoverButton.upArrow:SetAlpha(0)
+        lastMouseoverButton.downArrow:SetAlpha(0)
+        lastMouseoverButton:UnlockHighlight()
+      end
+    end)
+  end
+
+  local close = f.closeButton
+
+  if not close then -- Close button
+    f.closeButton = CreateFrame("Button", nil, f)
+    close = f.closeButton
+    f.closeButton:SetSize(40, 40)
+    f.closeButton:SetPoint("TOPRIGHT", -10, -10)
+    f.closeButton:SetNormalTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
+    f.closeButton:SetHighlightTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
+
+    f.closeButton.BG = f.closeButton:CreateTexture(nil, "BORDER")
+    f.closeButton.BG:SetAllPoints()
+    f.closeButton.BG:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
+    f.closeButton.BG:SetVertexColor(0, 0, 0, 0.3)
+
+    f.closeButton:SetScript("OnClick", function()
+      CT.base:Hide()
+    end)
+
+    f.closeButton:SetScript("OnEnter", function()
+      f.closeButton.info = "Closes Combat Tracker, but it will still be recording CT.current.\n\nType /ct in chat to open it again. Type /ct help to see a full list of chat commands."
+
+      CT.createInfoTooltip(f.closeButton, "Close", nil, nil, nil, nil)
+    end)
+
+    f.closeButton:SetScript("OnLeave", function()
+      CT.createInfoTooltip()
+    end)
+  end
+
+  local dragger = f.dragger
+  if not dragger then -- Main size dragger
+    f:SetMaxResize(350, 700)
+    f:SetMinResize(350, 556)
+
+    f.dragger = CreateFrame("Button", nil, f)
+    dragger = f.dragger
+
+    f.dragger:SetSize(20, 20)
+    f.dragger:SetPoint("BOTTOMRIGHT", -1, 2)
+    f.dragger:SetNormalTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Up.png")
+    f.dragger:SetPushedTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Down.png")
+    f.dragger:SetHighlightTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Highlight.png")
+
+    -- NOTE: Need to get resolution properly
+    f.dragger:SetScript("OnMouseDown", function(self)
+      CT.base:StartSizing()
+
+      -- local UIScale = UIParent:GetEffectiveScale()
+      -- local startX, startY = GetCursorPosition()
+      -- local startX = startX / UIScale
+      -- local startY = startY / UIScale
+      --
+      -- local resolutionX = 1920
+      -- local resolutionY = 1080
+      --
+      -- local startLeft, startBottom, startWidth, startHeight = CT.base:GetRect()
+      -- local startScale = CT.base:GetScale()
+      -- -- GetEffectiveScale()
+      --
+      -- self.ticker = C_Timer.NewTicker(0.001, function(ticker)
+      -- local mouseX, mouseY = GetCursorPosition()
+      -- local mouseX = (mouseX / UIScale)
+      -- local mouseY = (mouseY / UIScale)
+      --
+        -- if (mouseX > startX) or (mouseY < startY) then -- Increasing Scale
+        --   local valX = (mouseX - startX) / resolutionX
+        --   local valY = (startY - mouseY) / resolutionY
+        --
+        --   local maxVal = max(valX, valY)
+        --   local newScale = startScale + maxVal
+        --
+        --   CT.base:SetScale(newScale)
+        -- else -- Decreasing Scale
+        --   local valX = (mouseX - startX) / resolutionX
+        --   local valY = (startY - mouseY) / resolutionY
+        --
+        --   local minVal = min(valX, valY)
+        --   local newScale = startScale + minVal
+        --
+        --   CT.base:SetScale(newScale)
+        -- end
+      -- end)
+    end)
+
+    f.dragger:SetScript("OnMouseUp", function(self)
+      CT.base:StopMovingOrSizing()
+
+      -- self.ticker:Cancel()
+    end)
+  end
+
+  local scrollFrame = CT.scrollFrame
+  if not scrollFrame then -- Scroll Frame, Main Content Frame, and Scroll Bar
+    CT.scrollFrame = CreateFrame("ScrollFrame", "CT_ScrollFrame", CT.base)
+    scrollFrame = CT.scrollFrame
+
+    CT.scrollFrame:SetPoint("TOPLEFT", 25, -88)
+    CT.scrollFrame:SetPoint("BOTTOMRIGHT", -25, 100)
+
+    CT.scrollBar = CreateFrame("Slider", "CT_ScrollBar", CT.scrollFrame, "UIPanelScrollBarTemplate")
+    CT.scrollBar:SetPoint("TOPRIGHT", CT.scrollFrame, 20, 0)
+    CT.scrollBar:SetPoint("BOTTOMRIGHT", CT.scrollFrame, 20, 0)
+    CT.scrollBar.background = CT.scrollBar:CreateTexture("CT_ScrollBarBackground", "BACKGROUND")
+    CT.scrollBar.background:SetTexture("Interface\\addons\\CombatTracker\\Media\\ScrollBG.tga")
+    CT.scrollBar.background:SetAllPoints()
+    CT.scrollBar.thumbTexture = CT.scrollBar:CreateTexture("CT_ScrollBarThumbTexture")
+    CT.scrollBar.thumbTexture:SetTexture("Interface\\addons\\CombatTracker\\Media\\ThumbSlider.tga")
+    CT.scrollBar.thumbTexture:SetSize(10, 32)
+    CT.scrollBar:SetThumbTexture(CT.scrollBar.thumbTexture)
+
+    CT.scrollBar.AG = CT.scrollBar:CreateAnimationGroup("ScrollHider")
+    CT.scrollBar.AG.A = CT.scrollBar.AG:CreateAnimation("Alpha")
+    CT.scrollBar.AG.A:SetChange(-1)
+    CT.scrollBar.AG.A:SetDuration(1)
+    CT.scrollBar.AG.A:SetStartDelay(1)
+    CT.scrollBar.AG.A:SetSmoothing("OUT")
+    local c1, c2 = CT.scrollBar:GetChildren()
+      c1:Hide()
+      c2:Hide()
+    CT.scrollBar:SetAlpha(0)
+    CT.scrollBar:SetValueStep(46)
+    CT.scrollBar.scrollStep = 1
+    CT.scrollBar:SetWidth(16)
+    CT.scrollBar:SetScript("OnValueChanged", function(self, value)
+      CT.scrollFrame:SetVerticalScroll(value)
+    end)
+
+    CT.scrollBar.AG:SetScript("OnFinished", function(self, requested)
+      CT.scrollBar:SetAlpha(0)
+    end)
+
+    CT.contentFrame = CreateFrame("Frame", "CT_MainContent", CT.base)
+    CT.contentFrame:SetSize(CT.scrollFrame:GetWidth(), CT.scrollFrame:GetHeight())
+    CT.scrollFrame:SetScrollChild(CT.contentFrame)
+    CT.contentFrame:SetPoint("TOPLEFT", CT.base, 25, -88)
+    CT.contentFrame:SetPoint("BOTTOMRIGHT", CT.base, -25, 100)
+
+    CT.scrollBar:SetScript("OnEnter", function(self, value)
+      CT.scrollBar:SetAlpha(1)
+    end)
+
+    CT.scrollBar:SetScript("OnLeave", function(self, value)
+      CT.scrollBar.AG:Stop()
+      CT.scrollBar.AG:Play()
+    end)
+
+    CT.scrollBar:SetScript("OnMouseWheel", function(self, value)
+      local cur_val = CT.scrollBar:GetValue()
+      local min_val, max_val = CT.scrollBar:GetMinMaxValues()
+
+      if value < 0 and cur_val < max_val then
+        cur_val = min(max_val, cur_val + 46)
+        CT.scrollBar:SetValue(cur_val)
+      elseif value > 0 and cur_val > min_val then
+        cur_val = max(min_val, cur_val - 46)
+        CT.scrollBar:SetValue(cur_val)
+      end
+    end)
+
+    CT.scrollFrame:SetScript("OnMouseWheel", function(self, value)
+      CT.scrollBar:SetAlpha(1)
+
+      local cur_val = CT.scrollBar:GetValue()
+      local min_val, max_val = CT.scrollBar:GetMinMaxValues()
+
+      if value < 0 and cur_val < max_val then
+        cur_val = min(max_val, cur_val + 46)
+        CT.scrollBar:SetValue(cur_val)
+      elseif value > 0 and cur_val > min_val then
+        cur_val = max(min_val, cur_val - 46)
+        CT.scrollBar:SetValue(cur_val)
+      end
+
+      CT.scrollBar.AG:Stop()
+      CT.scrollBar.AG:Play()
+    end)
+  end
+
+  do -- Top, bottom, left, and right textures and gradients
+    f.top = CreateFrame("Frame", nil, f)
+    f.top:SetPoint("TOPLEFT", f, 5, -5)
+    f.top:SetPoint("TOPRIGHT", f, -5, -5)
+    f.top:SetPoint("BOTTOM", CT.scrollFrame, "TOP", 0, 15)
+    f.top.texture = f.top:CreateTexture(nil, "BACKGROUND")
+    f.top.texture:SetTexture(0.1, 0.1, 0.1, 1)
+    f.top.texture:SetAllPoints()
+
+    f.bottom = CreateFrame("Frame", nil, f)
+    f.bottom:SetPoint("BOTTOMLEFT", f, 5, 5)
+    f.bottom:SetPoint("BOTTOMRIGHT", f, -5, 5)
+    f.bottom:SetPoint("TOP", CT.scrollFrame, "BOTTOM", 0, -15)
+    f.bottom.texture = f.bottom:CreateTexture(nil, "BACKGROUND")
+    f.bottom.texture:SetTexture(0.1, 0.1, 0.1, 1)
+    f.bottom.texture:SetAllPoints()
+
+    do -- Left Texture and Gradient
+      f.left = CreateFrame("Frame", nil, f)
+      f.left:SetPoint("TOPLEFT", f.top, "BOTTOMLEFT", 0, 0)
+      f.left:SetPoint("BOTTOMLEFT", f.bottom, "TOPLEFT", 0, 0)
+      f.left:SetPoint("RIGHT", CT.scrollFrame, "LEFT", -15, 0)
+      f.left.texture = f.left:CreateTexture(nil, "BACKGROUND")
+      f.left.texture:SetTexture(0.1, 0.1, 0.1, 1)
+      f.left.texture:SetAllPoints()
+      f.left.gradient = f.left:CreateTexture(nil, "ARTWORK")
+      f.left.gradient:SetWidth(10)
+      f.left.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+      f.left.gradient:SetGradientAlpha("HORIZONTAL", 0.1, 0.1, 0.1, 1, 0.1, 0.1, 0.1, 0)
+      f.left.gradient:SetPoint("TOPLEFT", f.left, "TOPRIGHT", 0, 0)
+      f.left.gradient:SetPoint("BOTTOMLEFT", f.left, "BOTTOMRIGHT", 0, 0)
+    end
+
+    do -- Right Texture and Gradient
+      f.right = CreateFrame("Frame", nil, f)
+      f.right:SetPoint("TOPRIGHT", f.top, "BOTTOMRIGHT", 0, 0)
+      f.right:SetPoint("BOTTOMRIGHT", f.bottom, "TOPRIGHT", 0, 0)
+      f.right:SetPoint("LEFT", CT.scrollFrame, "RIGHT", 15, 0)
+      f.right.texture = f.right:CreateTexture(nil, "BACKGROUND")
+      f.right.texture:SetTexture(0.1, 0.1, 0.1, 1)
+      f.right.texture:SetAllPoints()
+      f.right.gradient = f.right:CreateTexture(nil, "ARTWORK")
+      f.right.gradient:SetWidth(10)
+      f.right.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+      f.right.gradient:SetGradientAlpha("HORIZONTAL", 0.1, 0.1, 0.1, 0, 0.1, 0.1, 0.1, 1)
+      f.right.gradient:SetPoint("TOPRIGHT", f.right, "TOPLEFT", 0, 0)
+      f.right.gradient:SetPoint("BOTTOMRIGHT", f.right, "BOTTOMLEFT", 0, 0)
+    end
+
+    do -- Top and Bottom Gradients
+      f.top.gradient = f.top:CreateTexture(nil, "BACKGROUND")
+      f.top.gradient:SetHeight(10)
+      f.top.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+      f.top.gradient:SetGradientAlpha("VERTICAL", 0.1, 0.1, 0.1, 0, 0.1, 0.1, 0.1, 1)
+      f.top.gradient:SetPoint("TOPLEFT", f.left, "TOPRIGHT", 0, 0)
+      f.top.gradient:SetPoint("TOPRIGHT", f.right, "TOPLEFT", 0, 0)
+
+      f.bottom.gradient = f.bottom:CreateTexture(nil, "BACKGROUND")
+      f.bottom.gradient:SetHeight(10)
+      f.bottom.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
+      f.bottom.gradient:SetGradientAlpha("VERTICAL", 0.1, 0.1, 0.1, 1, 0.1, 0.1, 0.1, 0)
+      f.bottom.gradient:SetPoint("BOTTOMLEFT", f.left, "BOTTOMRIGHT", 0, 0)
+      f.bottom.gradient:SetPoint("BOTTOMRIGHT", f.right, "BOTTOMLEFT", 0, 0)
+    end
+
+    do -- Popup button
+      local width = f:GetWidth()
+
+      f.bottomExpander = CreateFrame("Button", "CT_Base_Expander_Button", f)
+      local expander = f.bottomExpander
+
+      do -- Basic textures and stuff
+        local button = expander
+
+        button.background = button:CreateTexture(nil, "BACKGROUND")
+        button.background:SetPoint("TOPLEFT", button, 4.5, -4)
+        button.background:SetPoint("BOTTOMRIGHT", button, -4, 3)
+        button.background:SetTexture(0.07, 0.07, 0.07, 1.0)
+
+        button.normal = button:CreateTexture(nil, "BACKGROUND")
+        button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+        button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+        button.normal:SetAllPoints(button)
+        button:SetNormalTexture(button.normal)
+
+        button.highlight = button:CreateTexture(nil, "BACKGROUND")
+        button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+        button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+        button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
+        button.highlight:SetAllPoints(button)
+        button:SetHighlightTexture(button.highlight)
+
+        button.pushed = button:CreateTexture(nil, "BACKGROUND")
+        button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+        button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
+        button.pushed:SetAllPoints(button)
+        button:SetPushedTexture(button.pushed)
+      end
+
+      expander:SetSize(width - 40, 15)
+      expander:SetPoint("BOTTOM", f, 0, 7)
+
+      expander:SetScript("OnClick", function(self, button)
+        if not self.popup then
+          self.popup = CreateFrame("Frame", nil, self)
+          self.popup:SetSize(width - 10, 120)
+          self.popup:SetPoint("BOTTOM", self, 0, 0)
+          self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
+          self.popup.bg:SetAllPoints()
+          self.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
+          self.popup:Hide()
+
+          self.popup:SetScript("OnMouseUp", function(popup)
+            popup:Hide()
+          end)
+
+          self.popup:SetScript("OnShow", function()
+            self.popup.exitTime = GetTime() + 0.5
+
+            if not self.popup.ticker then
+              self.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
+                if not MouseIsOver(self.popup) and not MouseIsOver(self) then
+                  if GetTime() > self.popup.exitTime then
+                    self.popup:Hide()
+                    self.popup.ticker:Cancel()
+                    self.popup.ticker = nil
+                  end
+                else
+                  self.popup.exitTime = GetTime() + 0.5
+                end
+              end)
+            end
+          end)
+        end
+
+        if self.popup:IsShown() then
+          self.popup:Hide()
+        else
+          local popup = createMenuButtons(self.popup)
+
+          if not popup[1].func then
+            popup[1].title:SetText("Load Saved Fight")
+
+            local count = 0
+            popup[1].func = function(self, button)
+              count = count + 1
+
+              if count == 1 then
+                local _, specName = GetSpecializationInfo(GetSpecialization())
+
+                CT.createSavedSetButtons(CombatTrackerCharDB[specName].sets)
+                popup[1].title:SetText("Return")
+              else
+                CT.createSpecDataButtons()
+                popup[1].title:SetText("Load Saved Fight")
+
+                count = 0
+              end
+            end
+          end
+
+          if not popup[2].func then
+            if not profile then
+              popup[2].title:SetText("Expand Frame")
+            else
+              popup[2].title:SetText("Profile Code")
+            end
+
+            popup[2].func = function(popup, button)
+              if not profile then
+                CT:expanderFrame()
+              else
+                profileCode()
+              end
+            end
+          end
+
+          if not popup[3].func then
+            popup[3].title:SetText("Reset Data")
+
+            popup[3].func = function(popup, button)
+              CT.resetData(button)
+            end
+          end
+
+          if not popup[4].func then
+            popup[4].title:SetText("Options")
+
+            popup[4].func = function(popup, button)
+              print("Sorry, nothing here. It's on my to-do list, I promise.")
+            end
+          end
+
+          self.popup:Show()
+        end
+      end)
+    end
+  end
+
+  do -- Combat Tracker Title Text
+    f.top.title = f.top:CreateFontString(nil, "ARTWORK")
+    f.top.title:SetPoint("LEFT", f.top, 15, 0)
+    f.top.title:SetFont("Fonts\\FRIZQT__.TTF", 30)
+    f.top.title:SetTextColor(0.8, 0.8, 0, 1)
+    f.top.title:SetShadowOffset(3, -3)
+    f.top.title:SetText("Combat \n  Tracker")
+  end
+
+  -- do -- Previous Fights button
+  --   f.prevFights = CreateFrame("Button", nil, f)
+  --   local b = CT.createSmallButton(f.prevFights)
+  --   b:SetFrameStrata("TOOLTIP")
+  --   b.title:SetText("Load Fight")
+  --   b:SetPoint("LEFT", f.top.title, "TOPRIGHT", 0, -10)
+  --
+  --   b:SetScript("OnEnter", function()
+  --     b.info = "Load a previous fight."
+  --
+  --     CT.createInfoTooltip(b, "Uptime Graphs", nil, nil, nil, nil)
+  --   end)
+  --
+  --   b:SetScript("OnLeave", function()
+  --     CT.createInfoTooltip()
+  --   end)
+  --
+  --   b:SetScript("OnClick", function(self, click)
+  --     local m = self.dropDownMenu
+  --
+  --     if not m then
+  --       self.dropDownMenu = CreateFrame("Frame", nil, self)
+  --       m = self.dropDownMenu
+  --       m:SetSize(150, 20)
+  --       m:SetPoint("TOPLEFT", self, "TOPRIGHT", 0, 0)
+  --       m.bg = m:CreateTexture(nil, "BACKGROUND")
+  --       m.bg:SetAllPoints()
+  --       m.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
+  --       m:Hide()
+  --
+  --       m:SetScript("OnShow", function()
+  --         m.exitTime = GetTime() + 1
+  --
+  --         if not m.ticker then
+  --           m.ticker = C_Timer.NewTicker(0.1, function(ticker)
+  --             if not MouseIsOver(m) and not MouseIsOver(self) then
+  --               if GetTime() > m.exitTime then
+  --                 m:Hide()
+  --                 m.ticker:Cancel()
+  --                 m.ticker = nil
+  --               end
+  --             else
+  --               m.exitTime = GetTime() + 1
+  --             end
+  --           end)
+  --         end
+  --       end)
+  --     end
+  --
+  --     if m:IsShown() then
+  --       m:Hide()
+  --     else
+  --       local _, specName = GetSpecializationInfo(GetSpecialization())
+  --
+  --       CT.createSetButtons(m, CombatTrackerCharDB[specName].sets)
+  --       m:Show()
+  --     end
+  --   end)
+  -- end
+
+  tinsert(UISpecialFrames, CT.base:GetName())
 end
 --------------------------------------------------------------------------------
 -- Utility Functions
@@ -2905,17 +2891,22 @@ function SlashCmdList.CombatTracker(msg, editbox)
   local command, rest = msg:match("^(%S*)%s*(.-)$"):lower()
 
   if command == "toggle" or command == "" then
-    if CT.base:IsVisible() then
-      CT.base:Hide()
-      -- CT:Disable()
-    else
+    if CT.base then -- It's already created
+      if not CT.base:IsVisible() then
+        CT.base:Show()
+      else
+        CT.base:Hide()
+      end
+    else -- Create it and then make sure it's shown
+      CT:OnEnable("load")
       CT.base:Show()
-      -- CT:Enable()
     end
   elseif command == "show" then
+    if not CT.base then CT:OnEnable("load") end
+
     CT.base:Show()
   elseif command == "hide" then
-    CT.base:Hide()
+    if CT.base then CT.base:Hide() end
   elseif command == "reset" then
     CT.base:ClearAllPoints()
     CT.base:SetPoint("CENTER", "UIParent", 0, 0)

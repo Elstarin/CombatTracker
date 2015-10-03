@@ -103,8 +103,6 @@ end
 -- Running the Cooldown
 --------------------------------------------------------------------------------
 local function finishCooldown(spell)
-  local uptimeGraphs = CT.current.uptimeGraphs
-
   if not spell.ticker then return end
 
   local spellID = spell.ID
@@ -157,25 +155,23 @@ local function finishCooldown(spell)
   spell.finishedTime = GetTime()
   spell.charges = false
 
-  if uptimeGraphs.cooldowns[spellID] and not uptimeGraphs.cooldowns[spellID].ignore then
-    local self = uptimeGraphs.cooldowns[spellID]
-    self.data[#self.data + 1] = spell.finishedTime - CT.combatStart
-    self:refresh()
-  elseif uptimeGraphs.cooldowns[spellID] and uptimeGraphs.cooldowns[spellID].ignore then
-    uptimeGraphs.cooldowns[spellID].ignore = false
-  end
+  do -- Start the hidden line
+    local setGraph = data.uptimeGraphs.cooldowns[spellID]
 
-  -- if uptimeGraphs.cooldowns[spellID] and not uptimeGraphs.cooldowns[spellID].ignore then
-  --   local self = uptimeGraphs.cooldowns[spellID]
-  --   self.data[#self.data + 1] = spell.finishedTime - CT.combatStart
-  --   self:refresh()
-  -- elseif uptimeGraphs.cooldowns[spellID].ignore then
-  --   uptimeGraphs.cooldowns[spellID].ignore = false
-  -- end
+    if setGraph then
+      local dstGUID = data.playerGUID
+      local dstName = data.playerName
+
+      local data = setGraph[dstGUID].data
+      data[#data + 1] = spell.finishedTime - CT.combatStart
+
+      setGraph:refresh()
+      print("Starting graph line")
+    end
+  end
 end
 
 local function runCooldown(spell, spellID, spellName)
-  local uptimeGraphs = CT.current.uptimeGraphs
   spell.baseCD = (GetSpellBaseCooldown(spellID) or 0) * 0.001
 
   -- The baseCD == 1 check is because of eternal flame, which gives a 1 second base CD but has no real CD
@@ -208,15 +204,25 @@ local function runCooldown(spell, spellID, spellName)
       end
     end
 
-    do -- Create and/or begin uptime graph
-      if not uptimeGraphs.cooldowns[spellID] then
-        CT.addCooldownGraph(spellID, spellName)
+    do -- Handles creating and refreshing of uptime graph
+      local setGraph = data.uptimeGraphs.cooldowns[spellID]
+
+      if not setGraph then
+        setGraph = data.addCooldown(spellID, spellName, CT.colors.yellow)
       end
 
-      if uptimeGraphs.cooldowns[spellID] then
-        local self = uptimeGraphs.cooldowns[spellID]
-        self.data[#self.data + 1] = spell.start - CT.combatStart
-        self:refresh()
+      if setGraph then -- Don't merge above, always needs to be checked
+        local dstGUID = data.playerGUID
+        local dstName = data.playerName
+
+        if not setGraph[dstGUID] then
+          setGraph.addNewLine(dstGUID, dstName)
+        end
+
+        local data = setGraph[dstGUID].data
+        data[#data + 1] = spell.start - CT.combatStart
+
+        setGraph:refresh()
       end
     end
 
@@ -235,32 +241,6 @@ local function runCooldown(spell, spellID, spellName)
 
       spell.endCD = spell.start + spell.duration
     end)
-
-    if not spell.cooldownHandler then
-      local spell = spell
-      spell.finishCooldown = finishCooldown
-
-      function spell.cooldownHandler(ticker) -- Dedicated handler to avoid creating throwaway functions
-        local cTime = GetTime()
-        if not spell.endCD then
-          spell.start, spell.duration = GetSpellCooldown(spell.ID)
-          spell.endCD = spell.start + spell.duration
-        end
-        spell.remaining = spell.endCD - cTime
-        spell.CD = spell.duration - spell.remaining
-
-        -- local oneTick = currentTime - CT.currentTime -- TODO: Add this into the system for breaking early/delaying
-
-        if spell.reset or (spell.remaining <= CT.settings.spellCooldownThrottle) then -- CD should be done, calculate the true CD and stop the ticker
-          finishCooldown(spell)
-
-          if spell.queued then
-            spell.queued = false
-            runCooldown(spell, spell.ID, spell.name)
-          end
-        end
-      end
-    end
 
     spell.ticker = C_Timer.NewTicker(0.001, spell.cooldownHandler)
   else
@@ -390,6 +370,93 @@ local function addSpell(spellID, spellName, school)
     spell.powerCost = {}
     spell.icon = GetSpellTexture(spell.name)
     data.spells[#data.spells + 1] = spell
+
+    spell.cooldownHandler = function(ticker)
+      local cTime = GetTime()
+
+      if not spell.endCD then
+        spell.start, spell.duration = GetSpellCooldown(spellID)
+        spell.endCD = spell.start + spell.duration
+      end
+
+      spell.remaining = spell.endCD - cTime
+      spell.CD = spell.duration - spell.remaining
+
+      -- local oneTick = currentTime - CT.currentTime -- TODO: Add this into the system for breaking early/delaying
+
+      if spell.reset or (spell.remaining <= CT.settings.spellCooldownThrottle) then -- CD should be done, calculate the true CD and stop the ticker
+        -- finishCooldown(spell)
+        spell.stopCooldown()
+
+        if spell.queued then
+          spell.queued = false
+          runCooldown(spell, spellID, spellName)
+        end
+      end
+    end
+
+    spell.stopCooldown = function() -- Finish the cooldown
+      -- if not spell.ticker then return end
+
+      -- if spell.ticker then spell.ticker:Cancel() end
+
+      local baseCD = spell.baseCD
+      local duration = spell.duration
+
+      local cooldown
+
+      if baseCD == duration then
+        cooldown = baseCD
+      elseif baseCD > duration then
+        local hasteCD = baseCD / (1 + (GetHaste() / 100))
+        local hasteRounded = round(hasteCD, 3)
+
+        if hasteRounded == duration then
+          cooldown = hasteCD
+        else
+          cooldown = duration
+        end
+      end
+
+      if spell.reset then
+        spell.reset = false
+      else -- Adjusts the throttle, making it more or less likely to delay a tick
+        data.timeOffset = (data.timeOffset or 0) + spell.remaining
+
+        if data.timeOffset > 0 then
+          CT.settings.spellCooldownThrottle = CT.settings.spellCooldownThrottle - (data.timeOffset / 100)
+        elseif data.timeOffset < 0 then
+          CT.settings.spellCooldownThrottle = CT.settings.spellCooldownThrottle - (data.timeOffset / 100)
+        end
+      end
+
+      spell.totalCD = (spell.totalCD or 0) + (cooldown or 0)
+
+      -- spell.ticker:Cancel()
+      if spell.ticker then spell.ticker:Cancel() end
+      spell.ticker = false
+      spell.onCD = false
+      spell.CD = 0
+      spell.start = 0
+      spell.duration = 0
+      spell.finishedTime = GetTime()
+      spell.charges = false
+
+      do -- Start the hidden gaph line
+        local setGraph = data.uptimeGraphs.cooldowns[spellID]
+
+        if setGraph then
+          local dstGUID = data.playerGUID
+          local dstName = data.playerName
+
+          local data = setGraph[dstGUID].data
+          local num = #data
+          data[num + 1] = spell.finishedTime - CT.combatStart
+
+          setGraph:refresh()
+        end
+      end
+    end
   end
 
   if school and not spell.schoolColor then
@@ -428,18 +495,6 @@ local function addAura(spellID, spellName, auraType, consolidated, count)
     aura.name = spellName
     aura.type = auraType
 
-    if not CT.uptimeBlacklist[spellID] and not consolidated and data.stanceID ~= spellID then
-      if auraType == "BUFF" then
-        if not uptimeGraphs.buffs[spellID] then
-          CT.addAuraGraph(spellID, spellName, "Buff", count)
-        end
-      elseif auraType == "DEBUFF" then
-        if not uptimeGraphs.debuffs[spellID] then
-          CT.addAuraGraph(spellID, spellName, "Debuff", count)
-        end
-      end
-    end
-
     if CT.spells.defensives[spellID] then
       aura.defensive = {}
       local type, percent = CT.getDefensiveBuff(spellName)
@@ -467,7 +522,7 @@ local function findUnitID(GUID, name)
   -- It's only really wasteful if it keeps going to the "boss" part, but that's only
   -- when the player is using macros that specifically cast at boss 1 - 5
 
-  if data.GUID == GUID then
+  if data.playerGUID == GUID then
     return "player"
   elseif data.units.target == GUID then
     return "target"
@@ -893,7 +948,7 @@ local function castSent(unit, spellName, rank, dstName, lineID)
 end
 
 local function castStart(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
-  if srcGUID ~= data.GUID then return end
+  if srcGUID ~= data.playerGUID then return end
 
   local spell = data.spells[spellID]
   if not spell then
@@ -918,13 +973,44 @@ local function castStart(time, event, _, srcGUID, srcName, _, _, dstGUID, dstNam
   data.currentCastName = name
   spell.remaining = 0
 
-  local uptimeGraphs = CT.current.uptimeGraphs
-  if uptimeGraphs.cooldowns["Activity"] then
-    local self = uptimeGraphs.cooldowns["Activity"]
-    local num = #self.data + 1
-    self.data[num] = spell.castStart - CT.combatStart
-    self.spellName[num] = spellName
-    self:refresh()
+  -- local uptimeGraphs = CT.current.uptimeGraphs
+  -- if uptimeGraphs.cooldowns["Activity"] then
+  --   local self = uptimeGraphs.cooldowns["Activity"]
+  --   local num = #self.data + 1
+  --   self.data[num] = spell.castStart - CT.combatStart
+  --   self.spellName[num] = spellName
+  --   self:refresh()
+  -- end
+
+  do -- Handles creating and refreshing of uptime graph
+    local setGraph = data.uptimeGraphs.misc["Activity"]
+
+    if not setGraph then
+      local flags = {
+        ["spellName"] = false,
+        ["color"] = false,
+      }
+      setGraph = data.addMisc("Activity", CT.colors.orange, flags)
+      flags = nil
+    end
+
+    if setGraph then -- Don't merge with above, always needs to be checked
+      local GUID = data.playerGUID
+
+      if not setGraph[GUID] then
+        setGraph.addNewLine(GUID, data.playerName)
+      end
+
+      local data = setGraph[GUID].data
+      local num = #data + 1
+      data[num] = spell.castStart - CT.combatStart
+
+      local flags = setGraph.flags
+      flags.spellName[num] = spellName
+      flags.color[num] = CT.colors.blue
+
+      setGraph:refresh()
+    end
   end
 end
 
@@ -956,17 +1042,36 @@ local function castStop(unitID, spellName, rank, lineID, spellID)
   data.activity.timeCasting = (data.activity.timeCasting or 0) + finalCastDuration
   data.activity.total = (data.activity.total or 0) + finalCastDuration
 
-  if data.moving then
-    data.brokenBy.moving = (data.brokenBy.moving or 0) + 1
-    spell.brokenByMoving = (spell.brokenByMoving or 0) + 1
+  if data.moving then -- TODO: Fix
+    -- data.brokenBy.moving = (data.brokenBy.moving or 0) + 1
+    -- spell.brokenByMoving = (spell.brokenByMoving or 0) + 1
   end
 
-  local uptimeGraphs = CT.current.uptimeGraphs
-  if uptimeGraphs.cooldowns["Activity"] then
-    local self = uptimeGraphs.cooldowns["Activity"]
-    local num = #self.data + 1
-    self.data[num] = GetTime() - CT.combatStart
-    self:refresh()
+  do -- Handles creating and refreshing of uptime graph
+    local setGraph = data.uptimeGraphs.misc["Activity"]
+
+    if setGraph then
+      local GUID = data.playerGUID
+
+      if not setGraph[GUID] then
+        setGraph.addNewLine(GUID, data.playerName)
+      end
+
+      local data = setGraph[GUID].data
+      local num = #data + 1
+      data[num] = GetTime() - CT.combatStart
+
+      local flags = setGraph.flags
+
+      if not spell.castSuccess then
+        flags.color[num - 1] = CT.colors.red -- Cast failed, so make it red
+        if setGraph[GUID].lines[num - 1] then
+          setGraph[GUID].lines[num - 1]:SetVertexColor(1.00, 0.00, 0.00, 1.0)
+        end
+      end
+
+      setGraph:refresh()
+    end
   end
 
   spell.castSuccess = false
@@ -984,8 +1089,9 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
     spell = addSpell(spellID, spellName)
   end
 
-  -- Check if the cast spell causes any others to reset their CDs
-  if CT.resetCasts[spellID] then
+  if spell.ticker then CT:Print(spellName, "still has a ticker!") end
+
+  if CT.resetCasts[spellID] then -- Check if the cast spell causes any others to reset their CDs
     for i = 1, #CT.resetCasts[spellID] do
       local ID = CT.resetCasts[spellID][i]
       if not data.spells[ID] then data.spells[ID] = {} end
@@ -1023,12 +1129,34 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
       data.GCD = GCD
       data.GCDStopTime = startGCD + GCD
 
-      if uptimeGraphs.cooldowns["Activity"] then
-        local self = uptimeGraphs.cooldowns["Activity"]
-        local num = #self.data + 1
-        self.data[num] = startGCD - CT.combatStart
-        self.spellName[num] = spellName
-        self:refresh()
+      do -- Handles creating and refreshing of uptime graph
+        local setGraph = data.uptimeGraphs.misc["Activity"]
+
+        if not setGraph then
+          local flags = {
+            ["spellName"] = false,
+            ["color"] = false,
+          }
+          setGraph = data.addMisc("Activity", CT.colors.orange, flags)
+          flags = nil
+        end
+
+        if setGraph then -- Don't merge with above, always needs to be checked
+          local GUID = data.playerGUID
+
+          if not setGraph[GUID] then
+            setGraph.addNewLine(GUID, data.playerName)
+          end
+
+          local data = setGraph[GUID].data
+          local num = #data + 1
+          data[num] = startGCD - CT.combatStart
+
+          local flags = setGraph.flags
+          flags.spellName[num] = spellName
+
+          setGraph:refresh()
+        end
       end
 
       if data.timerGCD then
@@ -1044,11 +1172,21 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
         data.timerGCD = false
         data.activity.total = (data.activity.total or 0) + GCD
 
-        if uptimeGraphs.cooldowns["Activity"] then
-          local self = uptimeGraphs.cooldowns["Activity"]
-          local num = #self.data + 1
-          self.data[num] = (startGCD + GCD) - CT.combatStart
-          self:refresh()
+        do -- Handles creating and refreshing of uptime graph
+          local setGraph = data.uptimeGraphs.misc["Activity"]
+
+          if setGraph then
+            local GUID = data.playerGUID
+
+            if not setGraph[GUID] then
+              setGraph.addNewLine(GUID, data.playerName)
+            end
+
+            local data = setGraph[GUID].data
+            data[#data + 1] = (startGCD + GCD) - CT.combatStart
+
+            setGraph:refresh()
+          end
         end
 
         data.GCD = false
@@ -1131,7 +1269,7 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
 end
 
 local function castInterrupt(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, extraID, extraName, school2)
-  if srcGUID ~= data.GUID then return end
+  if srcGUID ~= data.playerGUID then return end
 
   -- CT:Print("INTERRUPTED")
   --
@@ -1142,7 +1280,7 @@ local function castInterrupt(time, event, _, srcGUID, srcName, _, _, dstGUID, ds
 end
 
 local function castSuccess(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
-  if srcGUID ~= data.GUID then return end
+  if srcGUID ~= data.playerGUID then return end
 end
 
 combatevents["UNIT_SPELLCAST_SENT"] = castSent
@@ -1254,7 +1392,7 @@ local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
 
     local setGraph = data.uptimeGraphs[type][spellID]
 
-    if not setGraph and spellName == "Illuminated Healing" then -- NOTE: Testing only for second check
+    if not setGraph then
       setGraph = data.addAura(spellID, spellName, type, count, color)
     end
 
@@ -1270,43 +1408,43 @@ local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
     end
   end
 
-  if BreakingThisOnPurpose and uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then -- Uptime graph
-    local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
-    local num = #self.data + 1
-    self.data[num] = timer
-    self.unitName[num] = dstName
-
-    local targetData = self.targetData[dstGUID]
-    if not targetData then
-      self.targetData[dstGUID] = {}
-      self.targetData[#self.targetData + 1] = self.targetData[dstGUID]
-      targetData = self.targetData[dstGUID]
-      targetData.data = {}
-      targetData.lines = {}
-      targetData.data[1] = 0
-      targetData.name = dstName
-      targetData.spellName = spellName
-      targetData.spellID = spellID
-      targetData.endNum = 1
-      targetData.group = self.group
-      targetData.checkButton = self.checkButton
-      targetData.shown = self.shown
-
-      if self.shown then
-        CT.toggleUptimeGraph(self, true)
-      end
-    end
-
-    targetData.data[#targetData.data + 1] = timer
-
-    if (amount or 0) > 1 then
-      if self.stacks then
-        self.stacks[num] = count
-      end
-    end
-
-    self:refresh(nil, nil, true)
-  end
+  -- if BreakingThisOnPurpose and uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then -- Uptime graph
+  --   local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
+  --   local num = #self.data + 1
+  --   self.data[num] = timer
+  --   self.unitName[num] = dstName
+  --
+  --   local targetData = self.targetData[dstGUID]
+  --   if not targetData then
+  --     self.targetData[dstGUID] = {}
+  --     self.targetData[#self.targetData + 1] = self.targetData[dstGUID]
+  --     targetData = self.targetData[dstGUID]
+  --     targetData.data = {}
+  --     targetData.lines = {}
+  --     targetData.data[1] = 0
+  --     targetData.name = dstName
+  --     targetData.spellName = spellName
+  --     targetData.spellID = spellID
+  --     targetData.endNum = 1
+  --     targetData.group = self.group
+  --     targetData.checkButton = self.checkButton
+  --     targetData.shown = self.shown
+  --
+  --     if self.shown then
+  --       CT.toggleUptimeGraph(self, true)
+  --     end
+  --   end
+  --
+  --   targetData.data[#targetData.data + 1] = timer
+  --
+  --   if (amount or 0) > 1 then
+  --     if self.stacks then
+  --       self.stacks[num] = count
+  --     end
+  --   end
+  --
+  --   self:refresh(nil, nil, true)
+  -- end
 
   if CT.resetAuras[spellID] then -- Check for reset CDs
     for i = 1, #CT.resetAuras[spellID] do
@@ -1322,7 +1460,7 @@ local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
 end
 
 local function auraAppliedDose(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
-  if dstGUID ~= data.GUID then return end
+  if dstGUID ~= data.playerGUID then return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
   local aura = data.auras[spellID]
@@ -1353,8 +1491,7 @@ local function auraAppliedDose(time, _, _, srcGUID, srcName, _, _, dstGUID, dstN
 end
 
 local function auraRefresh(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, dstName, dstFlags, _, spellID, spellName, school, auraType, amount)
-  if (srcName ~= data.name) and (dstName ~= data.name) then return end
-  local uptimeGraphs = CT.current.uptimeGraphs
+  if (srcName ~= data.playerName) and (dstName ~= data.playerName) then return end
 
   local aura = data.auras[spellID]
   if not aura then
@@ -1394,9 +1531,36 @@ local function auraRefresh(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
     end
   end
 
-  if (count or 0) > 1 then -- TODO: This passed with hunter's TotH, when it refreshed at 3 stacks I think
-    CT:Print("WRONG! Refresh can have stacks", spellName, count)
+  do -- Handles creating and refreshing of uptime graph
+    local type
+    if auraType == "BUFF" then
+      type = "buffs"
+    elseif auraType == "DEBUFF" then
+      type = "debuffs"
+    end
+
+    local setGraph = data.uptimeGraphs[type][spellID]
+
+    if not setGraph then
+      setGraph = data.addAura(spellID, spellName, type, count, color)
+    end
+
+    if setGraph then -- Don't merge with above, always needs to be checked
+      if not setGraph[dstGUID] then
+        setGraph.addNewLine(dstGUID, dstName)
+      end
+
+      local data = setGraph[dstGUID].data
+      data[#data + 1] = timer
+      data[#data + 1] = timer + 0.00000001
+
+      setGraph:refresh()
+    end
   end
+
+  -- if (count or 0) > 1 then -- TODO: This passed with hunter's TotH, when it refreshed at 3 stacks I think
+  --   CT:Print("WRONG! Refresh can have stacks", spellName, count)
+  -- end
 
   if CT.spells.defensives[spellID] then
     aura.defensive[aura.totalCount] = {}
@@ -1413,7 +1577,7 @@ end
 
 local function auraRemoved(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
   if (srcName ~= data.playerName) and (dstName ~= data.playerName) then return end
-  -- if not ((dstGUID == data.GUID) or (srcGUID == data.GUID)) then return end
+  -- if not ((dstGUID == data.playerGUID) or (srcGUID == data.playerGUID)) then return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
   local timer = GetTime() - CT.combatStart
@@ -1480,7 +1644,7 @@ local function auraRemoved(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName,
 end
 
 local function auraRemovedDose(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
-  if dstGUID ~= data.GUID then return end
+  if dstGUID ~= data.playerGUID then return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
   -- local aura = data.auras[spellID]
@@ -1522,7 +1686,7 @@ combatevents["SPELL_AURA_REMOVED_DOSE"] = auraRemovedDose
 -- Unit Power, Unit Health, and Resources
 --------------------------------------------------------------------------------
 local function energize(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, amount, powerType)
-  if srcGUID ~= data.GUID then return end
+  if srcGUID ~= data.playerGUID then return end
 
   local spellID = data.currentCastSpellID or spellID
   local power = data.power[powerType]
@@ -1559,7 +1723,6 @@ local function energize(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName
   -- spellGained.average = spellGained.total / spellGained.casts
 end
 
-local tempOldTime = GetTime()
 local function unitPowerFrequent(unit, powerType)
   if unit ~= "player" then return end
   if not data then print("Blocking unit power update.") return end
@@ -1569,8 +1732,6 @@ local function unitPowerFrequent(unit, powerType)
   local currentTime = GetTime()
   local currentPower = UnitPower(unit, powerTypeIndex)
   local change = currentPower - power.accuratePower
-
-  print(currentTime - tempOldTime)
 
   power.accuratePower = currentPower
   power.change = change
@@ -1603,9 +1764,18 @@ local function unitPowerFrequent(unit, powerType)
     power.skip = true
   end
 
+  -- do -- Update graph
+  --   local setGraph = CT.current.graphs[CT.powerTypesFormatted[powerTypeIndex]]
+  --
+  --   if setGraph then
+  --     local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
+  --
+  --     setGraph:update(timer)
+  --   end
+  -- end
+
   power.currentPower = currentPower
   power.oldPower = power.currentPower
-  tempOldTime = currentTime
 end
 
 local function unitPowerFrequentOLD(unit, powerType)
@@ -2081,7 +2251,7 @@ function CT.iterateCooldowns()
           local start, duration, enable = GetSpellCooldown(spellID)
 
           if duration > 0 then
-            castSucceeded(nil, nil, nil, data.GUID, data.name, _, _, data.GUID, data.name, _, _, spellID, spellName, nil)
+            castSucceeded(nil, nil, nil, data.playerGUID, data.name, _, _, data.playerGUID, data.name, _, _, spellID, spellName, nil)
           end
         end
       end
@@ -2095,19 +2265,19 @@ function CT.iterateAuras()
   local graphs = CT.current.graphs
 
   for i = 1, 40 do -- Buffs
-    local name, rank, icon, count, dispelType, duration, expires, caster, stealable, consolidated, spellID, canApply, bossDebuff, v1, v2, v3 = UnitBuff("player", i)
+    local spellName, rank, icon, count, dispelType, duration, expires, caster, stealable, consolidated, spellID, canApply, bossDebuff, v1, v2, v3 = UnitBuff("player", i)
 
-    if not name then break end
+    if not spellName then break end
 
     local aura = data.auras[spellID]
     if not aura then
-      aura = addAura(spellID, name, "BUFF", consolidated, count)
+      aura = addAura(spellID, spellName, "BUFF", consolidated, count)
     end
 
     aura.totalCount = (aura.totalCount or 0) + 1
     aura.appliedCount = (aura.appliedCount or 0) + 1
     aura.source[aura.totalCount] = "Unknown"
-    aura.destination[aura.totalCount] = data.GUID
+    aura.destination[aura.totalCount] = data.playerGUID
     aura.totalAmount = (aura.totalAmount or 0) + ((amount or 0) - (aura.currentAmount or 0))
     aura.currentAmount = v1 and v2 and v3 -- Dunno exactly how this works
     aura.currentStacks = 1
@@ -2125,27 +2295,43 @@ function CT.iterateAuras()
 
     tinsert(CT.activeAuras, aura)
 
-    if uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then
-      local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
-      self.data[#self.data + 1] = 0
-      self:refresh()
+    if not CT.uptimeBlacklist[spellID] then -- Handles creating and refreshing of uptime graph
+      local setGraph = data.uptimeGraphs["buffs"][spellID]
+
+      if not setGraph then
+        setGraph = data.addAura(spellID, spellName, "buffs", count, CT.colors.blue)
+      end
+
+      if setGraph then -- Don't merge with above, always needs to be checked
+        local dstGUID = data.playerGUID
+        local dstName = data.playerName
+
+        if not setGraph[dstGUID] then
+          setGraph.addNewLine(dstGUID, dstName)
+        end
+
+        local data = setGraph[dstGUID].data
+        data[#data + 1] = 0.000000001
+
+        setGraph:refresh()
+      end
     end
   end
 
   for i = 1, 40 do -- Debuffs
-    local name, rank, icon, count, dispelType, duration, expires, caster, stealable, consolidated, spellID, canApply, bossDebuff, v1, v2, v3 = UnitDebuff("player", i)
+    local spellName, rank, icon, count, dispelType, duration, expires, caster, stealable, consolidated, spellID, canApply, bossDebuff, v1, v2, v3 = UnitDebuff("player", i)
 
-    if not name then break end
+    if not spellName then break end
 
     local aura = data.auras[spellID]
     if not aura then
-      aura = addAura(spellID, name, "DEBUFF", consolidated, count)
+      aura = addAura(spellID, spellName, "DEBUFF", consolidated, count)
     end
 
     aura.totalCount = (aura.totalCount or 0) + 1
     aura.appliedCount = (aura.appliedCount or 0) + 1
     aura.source[aura.totalCount] = "Unknown"
-    aura.destination[aura.totalCount] = data.GUID
+    aura.destination[aura.totalCount] = data.playerGUID
     aura.totalAmount = (aura.totalAmount or 0) + ((amount or 0) - (aura.currentAmount or 0))
     aura.currentAmount = v1 and v2 and v3 -- Dunno exactly how this works
     aura.currentStacks = 1
@@ -2163,10 +2349,26 @@ function CT.iterateAuras()
 
     tinsert(CT.activeAuras, aura)
 
-    if uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then
-      local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
-      self.data[#self.data + 1] = 0
-      self:refresh()
+    if not CT.uptimeBlacklist[spellID] then -- Handles creating and refreshing of uptime graph
+      local setGraph = data.uptimeGraphs["debuffs"][spellID]
+
+      if not setGraph then
+        setGraph = data.addAura(spellID, spellName, "debuffs", count, CT.colors.blue)
+      end
+
+      if setGraph then -- Don't merge with above, always needs to be checked
+        local dstGUID = data.playerGUID
+        local dstName = data.playerName
+
+        if not setGraph[dstGUID] then
+          setGraph.addNewLine(dstGUID, dstName)
+        end
+
+        local data = setGraph[dstGUID].data
+        data[#data + 1] = 0.000000001
+
+        setGraph:refresh()
+      end
     end
   end
 end
@@ -2615,7 +2817,7 @@ end
 -- end
 
 -- local function castSuccess(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
---   if srcGUID ~= data.GUID then return end
+--   if srcGUID ~= data.playerGUID then return end
 --
 --   local spell = data.spells[spellID]
 --   if not spell or not spell.schoolColor then

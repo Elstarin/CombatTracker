@@ -225,6 +225,8 @@ end
 -- General Graph Functions
 --------------------------------------------------------------------------------
 function CT.addLineGraph(name, valueTable, color, YMin, YMax)
+  if true then print("Blocking add line graph. Name:", name .. ".") return end
+
   local graphs = CT.current.graphs
 
   if not graphs[name] then -- Create the graph in the current set
@@ -375,29 +377,6 @@ function CT.addCooldownGraph(spellID, spellName, color)
   end
 end
 
-local function createGraphTooltip()
-  if not CT.graphTooltip then
-    CT.graphTooltip = CreateFrame("GameTooltip", "CT.graphTooltip", CT.base, "GameTooltipTemplate")
-    local tip = CT.graphTooltip
-    tip:SetSize(40, 40)
-    tip:SetOwner(CT.base, "ANCHOR_CURSOR", 0, 0)
-    tip:SetAnchorType("ANCHOR_CURSOR", 0, 0)
-
-    local backdrop = {
-      bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-      edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-      tile = true,
-      tileSize = 8,
-      edgeSize = 8,
-      -- insets = {left = 11, right = 12, top = 12, bottom = 11}
-    }
-
-    tip:SetBackdrop(backdrop)
-    tip:SetBackdropColor(0.1, 0.1, 0.1, 1.0)
-    tip:SetBackdropBorderColor(0.25, 0.25, 0.25, 0.4)
-  end
-end
-
 local function nearestValue(table, number)
   local smallestSoFar, smallestIndex
   for k, v in pairs(table) do
@@ -409,74 +388,105 @@ local function nearestValue(table, number)
   return smallestIndex, table[smallestIndex]
 end
 
-function CT.finalizeGraphLength()
-  if true then print("Blocking finalize graph length function.") return end
-  if not CT.tracking then return end
+function CT.finalizeGraphLength(graphType)
+  if not CT.displayed then return end
 
-  local graphs = CT.current.graphs
-  local uptimeGraphs = CT.current.uptimeGraphs
-  local timer = (CT.combatStop or GetTime()) - CT.combatStart
+  if CT.tracking then CT:Print("Called finalize while still tracking. That's probably pointless.") end
 
-  for i = 1, #graphs do -- Finalize line graphs
-    local self = graphs[i]
+  local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
 
-    if CT.combatStop then
-      self.XMax = timer
+  if not graphType or (graphType and (graphType == "line" or graphType == "normal")) then
+    print("Finalizing line graphs", graphType)
+    local graphs = CT.displayed.graphs
+    for i = 1, #CT.graphList do -- Finalize line graphs
+      local setGraph = graphs[CT.graphList[i]]
+      local dbGraph = setGraph.__index
+
+      dbGraph.XMax = timer
+
+      if setGraph.frame then
+        setGraph:refresh(true)
+      end
     end
 
-    if self.graphFrame and CT.base.expander.shown then
-      self:refresh(true)
-    end
+    if graphType then return end
   end
 
-  for i, v in ipairs(uptimeGraphs.categories) do -- Finalize uptime graphs
-    for i = 1, #v do
-      local self = v[i]
+  if not graphType or (graphType and graphType == "uptime") then
+    print("Finalizing uptime graphs", graphType)
+    local uptimeGraphs = CT.displayed.uptimeGraphs
+    for i = 1, #CT.uptimeCategories do -- Finalize uptime graphs
+      local category = CT.uptimeCategories[i]
 
-      if CT.combatStop then
-        self.XMax = timer
-      end
+      for index, setGraph in ipairs(uptimeGraphs[category]) do -- Run every graph in this category
+        for i = 1, #setGraph do -- Run every line for this graph
+          local graph = setGraph[i]
+          local dbGraph = setGraph.__index
 
-      if self.graphFrame and CT.base.expander.shown then
-        self:refresh(true)
-      end
+          dbGraph.XMax = timer
 
-      if self.graphFrame and (#self.lines % 2) == 0 then
-        self.ignore = true
-        local width = self.graphFrame:GetWidth() * (timer - self.data[#self.data]) / self.XMax
-        if width < 1 then width = 1 end
+          if setGraph.frame and setGraph.shown then
+            setGraph:refresh(true)
 
-        self.lines[#self.lines]:SetWidth(width)
+            if graph.lastLine then
+              local width = setGraph.frame.bg:GetWidth() * (timer - graph.data[#graph.data]) / graph.XMax
+              if width < 1 then width = 1 end
+
+              graph.lastLine:SetWidth(width)
+            end
+          end
+        end
       end
     end
   end
 end
 
-local function handleGraphData(set, db, graph, data, name, timer, value)
+local function handleGraphData(set, db, graph, data, name, timer, value, prev)
   if (value == infinity) or (value == -infinity) then value = 0 end
 
   local num = #data + 1
+
+  -- if prev or graph.prev then
+  --   local prevDataY = data[-(num - 1)]
+  --
+  --   if prevDataY then
+  --     print(prev, prevDataY)
+  --
+  --     data[num] = timer -- X coords
+  --     data[-num] = prevDataY -- Y coords
+  --
+  --     timer = timer + 0.00000001 -- Just making sure they don't match
+  --     num = #data + 1
+  --   end
+  --
+  --   graph.prev = false
+  -- end
+
   data[num] = timer -- X coords
   data[-num] = value -- Y coords
-
-  local refresh
 
   if (num % set.graphs.splitAmount) == 0 then
     graph.splitCount = graph.splitCount + 1
   end
 
-  if value >= graph.YMax and CT.base.expander.shown then
-    db.graphs[name].YMax = graph.YMax + max(value - graph.YMax, 5)
-    refresh = true
-  end
+  if CT.base then -- These updates should only need to happen if it's actually visible
+    if graph.frame and graph.frame.zoomed then return end -- Refreshing when zoomed makes it look weird, but we still need to let it create data points if it's active
 
-  if timer > graph.XMax and CT.base.expander and CT.base.expander.shown and graph.frame and not graph.frame.zoomed then
-    db.graphs[name].XMax = graph.XMax + max(timer - graph.XMax, graph.startX * graph.splitCount)
-    refresh = true
-  end
+    local refresh
 
-  if graph.shown then
-    graph:refresh(refresh)
+    if value >= graph.YMax and CT.base.expander.shown then
+      db.graphs[name].YMax = graph.YMax + max(value - graph.YMax, 5)
+      refresh = true
+    end
+
+    if timer > graph.XMax and CT.base.expander and CT.base.expander.shown and graph.frame and not graph.frame.zoomed then
+      db.graphs[name].XMax = graph.XMax + max(timer - graph.XMax, graph.startX * graph.splitCount)
+      refresh = true
+    end
+
+    if graph.shown then
+      graph:refresh(refresh)
+    end
   end
 end
 
@@ -591,6 +601,10 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
       local value = ((set.power[name].accuratePower or 0) / (set.power[name].maxPower or 0)) * 100
 
       handleGraphData(set, db, graph, graph.data, name, timer, value)
+
+      -- if value == 100 then
+      --   graph.prev = true
+      -- end
     end
 
     local color = CT.colors.mana
@@ -708,9 +722,8 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
   elseif name == "Holy Power" then
     local function func(graph, timer)
       local value = ((set.power[2].accuratePower or 0) / (set.power[2].maxPower or 0)) * 100
-      if (value == infinity) or (value == -infinity) then value = 0 end
 
-      handleGraphData(set, db, graph, graph.data, name, timer, value)
+      handleGraphData(set, db, graph, graph.data, name, timer, value, "prev")
     end
 
     local color = CT.colors.holyPower
@@ -1017,49 +1030,58 @@ end
 function CT:toggleUptimeGraph(command)
   if not CT.uptimeGraphFrame then CT:Print("Tried to toggle an uptime graph before uptime graph frame was loaded.", self.name) return end
 
-  local frame = CT.uptimeGraphFrame
-  local found = nil
-  local dbGraph = getmetatable(self)
+  local frame = self.frame or CT.uptimeGraphFrame
 
-  if not command then -- Don't bother running through if a show or hide command was sent
-    for i = 1, #frame.displayed do
-      if frame.displayed[i] == self then -- Graph is currently displayed
-        found = i
-        break
+  if frame.displayed then -- First remove the displayed graph
+    frame:SetHeight(frame.defaultHeight)
+    local self = frame.displayed
+    local dbGraph = getmetatable(self)
+
+    frame.displayed = nil
+    self.frame = nil
+    dbGraph.shown = false
+
+    if self.checkButton then
+      self.checkButton:SetChecked(false)
+    end
+
+    for index = 1, #self do
+      local self = self[index] -- One full graph line
+
+      if self.nameText then
+        self.nameText:Hide()
+      end
+
+      for i = 1, #self.lines do -- Hide each line
+        self.lines[i]:Hide()
       end
     end
   end
 
-  if found or (command and command == "hide") then -- Hide graph
-    print("Hiding:", self.name .. ".")
+  if command ~= "hide" then -- Show graph
+    -- print("Showing:", self.name .. ".")
 
-    tremove(frame.displayed, found) -- Remove it from list
-    self.frame = nil
-    -- dbGraph.shown = false
+    local dbGraph = getmetatable(self)
 
-    self:refresh(true) -- Create/update lines
-
-    for index = 1, #self do
-      local lines = self[index].lines -- One full graph line
-
-      for i = 1, #lines do -- Hide each line
-        lines[i]:Hide()
-      end
-    end
-  elseif not found or (command and command == "show") then -- Show graph
-    print("Showing:", self.name .. ".")
-
-    tinsert(frame.displayed, self) -- Add it to list
+    frame.displayed = self
     self.frame = frame
-    -- dbGraph.shown = true
+    dbGraph.shown = true
 
     self:refresh(true) -- Create/update lines
 
-    for index = 1, #self do
-      local lines = self[index].lines -- One full graph line
+    if self.checkButton then
+      self.checkButton:SetChecked(true)
+    end
 
-      for i = 1, #lines do -- Show each line
-        lines[i]:Show()
+    for index = 1, #self do
+      local self = self[index] -- One full graph line
+
+      if self.nameText then
+        self.nameText:Show()
+      end
+
+      for i = 1, #self.lines do -- Show each line
+        self.lines[i]:Show()
       end
     end
   end
@@ -1095,14 +1117,17 @@ function CT:updateUptimeAnchors()
 end
 
 function CT:refreshUptimeGraph(reset)
+  if not self.shown then return end
+  if not self.frame then return end
   if not CT.uptimeGraphFrame then CT:Print("Tried to refresh uptime graph before CT.uptimeGraphFrame was created.") return end
-  if not CT.uptimeGraphFrame.displayed[1] then CT:Print("Tried to refresh uptime graph without any displayed.") return end
   if self[1] and not self[1].lines then CT:Print("Tried to refresh uptime graph without any line table.") return end
+  if not self.shown then CT:Print("Tried to refresh uptime graph while self (" .. (self.name or "UNKNOWN") .. ") was not shown.") return end
+  -- if not CT.uptimeGraphFrame.displayed[1] then CT:Print("Tried to refresh uptime graph without any displayed.") return end
 
   local frame = CT.uptimeGraphFrame
   local frameWidth, frameHeight = frame.bg:GetSize()
   local numLines = #self
-  -- local setGraph = self
+  local setGraph = self
   -- local dbGraph = getmetatable(self)
 
   for index = 1, numLines do
@@ -1122,28 +1147,33 @@ function CT:refreshUptimeGraph(reset)
       local line = lines[i]
 
       if not line then
-        lines[i] = frame.anchor:CreateTexture("Uptime_Line_" .. i, "ARTWORK")
+        lines[i] = frame.anchor:CreateTexture("CT_Uptime_Line_" .. i, "ARTWORK")
         line = lines[i]
 
+        line:SetSize(1, 5)
         line:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-        line.startX = data[i]
         self.lastLine = line
 
         if (i % 2) == 0 then -- NOTE: Maybe reverse this to avoid the requirement of an instant refresh?
-          line:SetVertexColor(c1, c2, c3, c4)
-          -- line.visible = true
+          if setGraph.flags and setGraph.flags.color and setGraph.flags.color[i] then
+            line:SetVertexColor(unpack(setGraph.flags.color[i]))
+          else
+            line:SetVertexColor(c1, c2, c3, c4)
+          end
         else
           -- line:SetVertexColor(0.5, 0.5, 0.5, 1)
           line:SetVertexColor(0, 0, 0, 0)
-          -- line.visible = false
         end
       end
 
-      line:SetPoint("TOPLEFT", frame.bg, frameWidth * data[i] / self.XMax, self.Y - 10)
-      line:SetSize(1, 5)
+      if data[i - 1] and data[i - 1] > data[i] then
+        data[i] = data[i - 1]
+      end
+
+      line:SetPoint("TOPLEFT", frame.bg, (frameWidth * data[i]) / self.XMax, self.Y - 10)
 
       if lines[i - 1] then
-        lines[i - 1]:SetPoint("RIGHT", line, "LEFT")
+        lines[i - 1]:SetPoint("RIGHT", line, "LEFT", 0, 0)
       end
 
       self.endNum = i + 1
@@ -1275,7 +1305,7 @@ end
 
 local function addUptimeGraphDropDownButtons(parent)
   local texture, text
-  local uptimeGraphs = CT.current.uptimeGraphs
+  local uptimeGraphs = CT.displayed.uptimeGraphs
 
   for i = 1, #CT.uptimeCategories do -- Run through each type of uptime graph (ex: "buffs")
     local category = CT.uptimeCategories[i]
@@ -1370,19 +1400,20 @@ local function addUptimeGraphDropDownButtons(parent)
         b:SetScript("OnClick", function(button)
           if button:GetChecked() then
             self:toggle("show")
+            parent:Hide() -- Selected a new uptime graph, so hide the popup
           else
             self:toggle("hide")
           end
         end)
       end
 
-      if self.shown then
+      if self.frame and self.shown then
         texture[i]:SetChecked(true)
       else
         texture[i]:SetChecked(false)
       end
 
-      if self[1].color then
+      if self[1] and self[1].color then
         texture[i].title:SetTextColor(self[1].color[1], self[1].color[2], self[1].color[3], self[1].color[4])
       end
     end
@@ -1393,6 +1424,66 @@ local function addUptimeGraphDropDownButtons(parent)
   end
 
   parent:SetHeight(parent.height or 0)
+end
+
+function CT.loadDefaultUptimeGraph()
+  local set = CT.displayed
+  local db = CT.displayedDB
+
+  if CT.current and CT.displayed and CT.current ~= CT.displayed then -- If there is an active set that is not displayed, try to mimic its graph for easy comparisons
+    for i = 1, #CT.uptimeCategories do
+      local category = CT.uptimeCategories[i]
+
+      for graphName, setGraph in pairs(CT.current.uptimeGraphs[CT.uptimeCategories[i]]) do
+        if setGraph.shown then
+          return setGraph:toggle("show")
+        end
+      end
+    end
+  end
+
+  if set and CT.base and CT.base.expander and CT.base.expander.currentButton then -- Didn't find any to mimic, try to match name
+    local name = CT.base.expander.currentButton.name
+    local spellID = CT.base.expander.currentButton.spellID or select(7, GetSpellInfo(name))
+
+    if name or spellID then -- A button is currently selected, so see if there's a graph with that name/spellID
+      for i = 1, #CT.uptimeCategories do
+        local category = CT.uptimeCategories[i]
+
+        if set.uptimeGraphs[category][spellID] then
+          return set.uptimeGraphs[category][spellID]:toggle("show")
+        elseif set.uptimeGraphs[category][name] then
+          return set.uptimeGraphs[category][name]:toggle("show")
+        end
+      end
+    end
+  end
+
+  if db and set and db.uptimeGraphs then -- Couldn't match the name, so check if any in the db are marked as shown
+    for i = 1, #CT.uptimeCategories do
+      local category = CT.uptimeCategories[i]
+
+      for graphName, dbGraph in pairs(db.uptimeGraphs[category]) do
+        if dbGraph.shown then
+          return set.uptimeGraphs[category][graphName]:toggle("show")
+        end
+      end
+    end
+  end
+
+  if set then -- Still nothing, so try to load Activity as default
+    local name = "Activity"
+
+    for i = 1, #CT.uptimeCategories do
+      local category = CT.uptimeCategories[i]
+
+      if set.uptimeGraphs[category][name] then
+        return set.uptimeGraphs[category][name]:toggle("show")
+      end
+    end
+  end
+
+  return CT:Print("Failed to find any uptime graph to load.")
 end
 
 function CT:buildUptimeGraph(relativeFrame)
@@ -1413,49 +1504,49 @@ function CT:buildUptimeGraph(relativeFrame)
     graphFrame.bg:SetAllPoints()
 
     CT.uptimeGraphFrame = graphFrame
-    CT.uptimeGraphFrame.displayed = {}
+    -- CT.uptimeGraphFrame.displayed = {}
   end
 
-  do -- Create the dropdown menu button
-    graphFrame.button = CreateFrame("Button", nil, graphFrame)
-    button = graphFrame.button
-    button:SetSize(40, 20)
-    -- button:SetPoint("TOPRIGHT", graphFrame, -3, -3)
-    button:SetPoint("TOPRIGHT", graphFrame, "BOTTOMRIGHT", 0, 0)
-
-    button.normal = button:CreateTexture(nil, "BACKGROUND")
-    button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-    button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-    button.normal:SetAllPoints(button)
-    button:SetNormalTexture(button.normal)
-
-    button.highlight = button:CreateTexture(nil, "BACKGROUND")
-    button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-    button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-    button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-    button.highlight:SetAllPoints(button)
-    button:SetHighlightTexture(button.highlight)
-
-    button.disabled = button:CreateTexture(nil, "BACKGROUND")
-    button.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-    button.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-    button.disabled:SetAllPoints(button)
-    button:SetDisabledTexture(button.disabled)
-
-    button.pushed = button:CreateTexture(nil, "BACKGROUND")
-    button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-    button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-    button.pushed:SetAllPoints(button)
-    button:SetPushedTexture(button.pushed)
-
-    button.title = button:CreateFontString(nil, "ARTWORK")
-    button.title:SetPoint("CENTER", 0, 0)
-    button.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-    button.title:SetTextColor(0.93, 0.86, 0.01, 1.0)
-    button.title:SetText("Select")
-
-    button:Hide()
-  end
+  -- do -- Create the dropdown menu button
+  --   graphFrame.button = CreateFrame("Button", nil, graphFrame)
+  --   button = graphFrame.button
+  --   button:SetSize(40, 20)
+  --   -- button:SetPoint("TOPRIGHT", graphFrame, -3, -3)
+  --   button:SetPoint("TOPRIGHT", graphFrame, "BOTTOMRIGHT", 0, 0)
+  --
+  --   button.normal = button:CreateTexture(nil, "BACKGROUND")
+  --   button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+  --   button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+  --   button.normal:SetAllPoints(button)
+  --   button:SetNormalTexture(button.normal)
+  --
+  --   button.highlight = button:CreateTexture(nil, "BACKGROUND")
+  --   button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+  --   button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+  --   button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
+  --   button.highlight:SetAllPoints(button)
+  --   button:SetHighlightTexture(button.highlight)
+  --
+  --   button.disabled = button:CreateTexture(nil, "BACKGROUND")
+  --   button.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
+  --   button.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
+  --   button.disabled:SetAllPoints(button)
+  --   button:SetDisabledTexture(button.disabled)
+  --
+  --   button.pushed = button:CreateTexture(nil, "BACKGROUND")
+  --   button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+  --   button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
+  --   button.pushed:SetAllPoints(button)
+  --   button:SetPushedTexture(button.pushed)
+  --
+  --   button.title = button:CreateFontString(nil, "ARTWORK")
+  --   button.title:SetPoint("CENTER", 0, 0)
+  --   button.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
+  --   button.title:SetTextColor(0.93, 0.86, 0.01, 1.0)
+  --   button.title:SetText("Select")
+  --
+  --   button:Hide()
+  -- end
 
   do -- Create Graph Borders
     graphFrame.border = {}
@@ -1519,8 +1610,8 @@ function CT:buildUptimeGraph(relativeFrame)
 
     mouseOver:SetPoint("LEFT", UIParent, mouseX, 0)
 
-    local setGraph = graphFrame.displayed[1]
-    if not setGraph then print("No setGraph") return end
+    local setGraph = graphFrame.displayed
+    if not setGraph then return end
 
     local graph = setGraph[1]
     local data = graph.data
@@ -1569,81 +1660,69 @@ function CT:buildUptimeGraph(relativeFrame)
   end)
 
   graphFrame:SetScript("OnEnter", function(self)
+    CT.mouseFrameBorder(self.bg)
     mouseOver:Show()
-    CT.createInfoTooltip(mouseOver, self.displayed[1].name)
-
-    button:Show()
-
-    self.exitTime = GetTime() + 0.5
-
-    if not self.ticker then
-      self.ticker = C_Timer.NewTicker(0.1, function(ticker)
-        if not MouseIsOver(self) and not MouseIsOver(button) then
-          if GetTime() > self.exitTime then
-            if (not button.popup) or (not button.popup:IsShown()) then -- Don't hide if popup is shown
-              button:Hide()
-              self.ticker:Cancel()
-              self.ticker = nil
-            end
-          end
-        else
-          self.exitTime = GetTime() + 0.5
-        end
-      end)
-    end
+    CT.createInfoTooltip(mouseOver, (self.displayed and self.displayed.name) or "Uptime Graph")
   end)
 
-  graphFrame:SetScript("OnLeave", function()
+  graphFrame:SetScript("OnLeave", function(self)
+    CT.mouseFrameBorder()
     mouseOver:Hide()
     highlightLine:Hide()
-    -- CT.graphTooltip:Hide()
     CT.createInfoTooltip()
   end)
 
-  button:SetScript("OnEnter", function(self)
-    button.info = "Select an uptime graph from the list."
+  graphFrame:SetScript("OnMouseUp", function(self, button)
+    if button == "LeftButton" then
+      if self.popup and self.popup:IsShown() then
+        self.popup:Hide()
+      end
+    elseif button == "RightButton" then
+      if not self.popup then
+        self.popup = CreateFrame("Frame", nil, self)
+        self.popup:SetFrameStrata("HIGH")
+        self.popup:SetSize(150, 20)
+        self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
+        self.popup.bg:SetAllPoints()
+        self.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
+        self.popup:Hide()
 
-    CT.createInfoTooltip(button, "Uptime Graphs", nil, nil, nil, nil)
-  end)
+        self.popup:SetScript("OnEnter", function() -- This is just so it doesn't pass the OnEnter to the lower frame. TODO: Better way?
 
-  button:SetScript("OnLeave", function(self)
-    CT.createInfoTooltip()
-  end)
+        end)
 
-  button:SetScript("OnClick", function(self, click)
-    if not self.popup then
-      self.popup = CreateFrame("Frame", nil, self)
-      self.popup:SetSize(150, 20)
-      self.popup:SetPoint("TOPLEFT", self, "TOPRIGHT", 0, 0)
-      self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
-      self.popup.bg:SetAllPoints()
-      self.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
-      self.popup:Hide()
+        self.popup:SetScript("OnShow", function()
+          self.popup.exitTime = GetTime() + 1
 
-      self.popup:SetScript("OnShow", function()
-        self.popup.exitTime = GetTime() + 1
-
-        if not self.popup.ticker then
-          self.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
-            if not MouseIsOver(self.popup) and not MouseIsOver(self) then
-              if GetTime() > self.popup.exitTime then
-                self.popup:Hide()
-                self.popup.ticker:Cancel()
-                self.popup.ticker = nil
+          if not self.popup.ticker then
+            self.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
+              if not MouseIsOver(self.popup) and not MouseIsOver(self) then
+                if GetTime() > self.popup.exitTime then
+                  ticker:Cancel()
+                  self.popup:Hide()
+                  self.popup.ticker = nil
+                end
+              else
+                self.popup.exitTime = GetTime() + 1
               end
-            else
-              self.popup.exitTime = GetTime() + 1
-            end
-          end)
-        end
-      end)
-    end
+            end)
+          end
+        end)
+      end
 
-    if self.popup:IsShown() then
-      self.popup:Hide()
-    else
-      addUptimeGraphDropDownButtons(self.popup)
-      self.popup:Show()
+      if self.popup:IsShown() then
+        self.popup:Hide()
+      else
+        addUptimeGraphDropDownButtons(self.popup)
+
+        local mouseX, mouseY = GetCursorPosition()
+        local mouseX = (mouseX / UIScale)
+        local mouseY = (mouseY / UIScale)
+
+        self.popup:SetPoint("BOTTOMLEFT", UIParent, mouseX + 10, mouseY - (self.popup:GetHeight()))
+
+        self.popup:Show()
+      end
     end
   end)
 
@@ -1857,66 +1936,66 @@ function CT:refreshNormalGraph(reset)
     local stopX = graphWidth * (self.data[i] - minX) / (maxX - minX)
     local stopY = graphHeight * (self.data[-i] - minY) / (maxY - minY)
 
-    if startX == stopX then return end -- Line took another data point without progressing, not sure how this happens, but it breaks it.
+    if startX ~= stopX then -- If they match, this can break
+      local w = 32 -- self.lineHeight
+      local dx, dy = stopX - startX, stopY - startY
+      local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
 
-    local w = 32 -- self.lineHeight
-    local dx, dy = stopX - startX, stopY - startY
-    local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
-
-    -- Normalize direction if necessary
-    if (dx < 0) then
-      dx, dy = -dx, -dy
-    end
-
-    -- Calculate actual length of line
-    local l = sqrt((dx * dx) + (dy * dy))
-
-    -- Sin and Cosine of rotation, and combination (for later)
-    local s, c = -dy / l, dx / l
-    local sc = s * c
-
-    -- Calculate bounding box size and texture coordinates
-    local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy
-    if (dy >= 0) then
-      Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
-      Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
-      BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
-      BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
-      TRy = BRx
-    else
-      Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
-      Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
-      BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
-      BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
-      TRx = TLy
-    end
-
-    if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
-    if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
-    if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
-    if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
-    if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
-    if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
-    if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
-    if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
-
-    local line = self.lines[i]
-    if not line then
-      self.lines[i] = self.frame.anchor:CreateTexture("_Line_" .. i, "ARTWORK")
-      line = self.lines[i]
-      line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
-      self.lastLine = line
-
-      if self.color then
-        line:SetVertexColor(self.color[1], self.color[2], self.color[3], self.color[4])
-      else
-        line:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+      -- Normalize direction if necessary
+      if (dx < 0) then
+        dx, dy = -dx, -dy
       end
-    end
 
-    line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
-    line:SetPoint("TOPRIGHT", self.frame.anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
-    line:SetPoint("BOTTOMLEFT", self.frame.anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
+      -- Calculate actual length of line
+      local l = sqrt((dx * dx) + (dy * dy))
+
+      -- Sin and Cosine of rotation, and combination (for later)
+      local s, c = -dy / l, dx / l
+      local sc = s * c
+
+      -- Calculate bounding box size and texture coordinates
+      local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy
+      if (dy >= 0) then
+        Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
+        Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
+        BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
+        BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
+        TRy = BRx
+      else
+        Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
+        Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
+        BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
+        BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
+        TRx = TLy
+      end
+
+      if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
+      if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
+      if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
+      if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
+      if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
+      if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
+      if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
+      if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
+
+      local line = self.lines[i]
+      if not line then
+        self.lines[i] = self.frame.anchor:CreateTexture("_Line_" .. i, "ARTWORK")
+        line = self.lines[i]
+        line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
+        self.lastLine = line
+
+        if self.color then
+          line:SetVertexColor(self.color[1], self.color[2], self.color[3], self.color[4])
+        else
+          line:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+        end
+      end
+
+      line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
+      line:SetPoint("TOPRIGHT", self.frame.anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
+      line:SetPoint("BOTTOMLEFT", self.frame.anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
+    end
 
     self.endNum = i
   end
@@ -2066,33 +2145,59 @@ function CT:refreshNormalGraphBACKUP(reset)
 end
 
 function CT.loadDefaultGraphs()
-  if CT.displayedDB then -- Show the default graphs
-    local set = CT.displayed
-    local db = CT.displayedDB
+  local set = CT.displayed
+  local db = CT.displayedDB
+  local success
 
-    if db.graphs.defaults then
-      for name in pairs(db.graphs.defaults) do
-        set.graphs[name]:toggle()
+  if CT.current and CT.displayed and CT.current ~= CT.displayed then -- If there is an active set that is not displayed, try to mimic its graphs for easy comparisons
+    for graphName, setGraph in pairs(CT.current.graphs) do
+      if setGraph.shown then
+        setGraph:toggle("show")
+        success = true
       end
-    else
-      local default
+    end
 
-      if set.role == "HEALER" then
-        default = "Healing"
-      elseif set.role == "DAMAGER" then
-        default = "Damage"
-      elseif set.role == "TANK" then
-        default = "Damage"
+    if success then return end -- Found at least one
+  end
+
+  if db and set and db.graphs then -- Didn't find any to mimic, so check if the set has any set to shown
+    for graphName, dbGraph in pairs(db.graphs) do
+      if dbGraph.shown then
+        set.graphs[graphName]:toggle("show")
+        success = true
       end
+    end
 
-      default = "Holy Power" -- NOTE: Testing only
+    if success then return end -- Found at least one
+  end
 
-      db.graphs.defaults = {}
-      db.graphs.defaults[default] = true
+  if set and CT.base and CT.base.expander and CT.base.expander.currentButton then -- Didn't find that were previously shown in the displayed set, try to match name
+    local name = CT.base.expander.currentButton.name
 
-      set.graphs[default]:toggle("show")
+    if name and set.graphs[name] then -- A button is currently selected, so see if there's a graph with that name
+      return set.graphs[name]:toggle("show")
     end
   end
+
+  if set and set.role then -- Still nothing, so load defaults based on spec
+    local name
+
+    if set.role == "HEALER" then
+      name = "Healing"
+    elseif set.role == "DAMAGER" then
+      name = "Damage"
+    elseif set.role == "TANK" then
+      name = "Damage"
+    end
+
+    name = "Holy Power" -- NOTE: Testing only
+
+    if name and set.graphs[name] then
+      return set.graphs[name]:toggle("show")
+    end
+  end
+
+  return CT:Print("Failed to find any graph to load.")
 end
 
 local function hideAllGraphs(self)
@@ -2102,16 +2207,32 @@ local function hideAllGraphs(self)
 end
 
 local function addGraphDropDownButtons(parent)
+  if not parent then return end
+
+  local text
+  local graphs = CT.displayed.graphs
+
+  if not parent.title then
+    parent.title = parent:CreateFontString(nil, "OVERLAY")
+    parent.title:SetPoint("TOP", 0, -1)
+    parent.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
+    parent.title:SetTextColor(1, 1, 1, 1)
+    parent.title:SetText("Line Graphs:")
+
+    parent.height = (parent.height or 0) + 25
+  end
+
   for i, name in ipairs(CT.graphList) do
-    local self = CT.displayed.graphs[name]
+    local self = graphs[name]
 
-    if not parent[i] then
-      parent[i] = CreateFrame("CheckButton", nil, parent)
-      local b = parent[i]
-      b:SetSize(parent:GetWidth() - 20, 20)
+    local b = parent[i]
+
+    if not b then
+      parent[i] = CreateFrame("CheckButton", "CT_GraphFrame_Popup_Menu_Button_" .. i, parent)
+      b = parent[i]
+      b:SetSize(parent:GetWidth() - 5, 20)
       b:SetPoint("TOP", 0, i * -20)
-
-      parent.height = (parent.height or 0) + 20
+      parent.height = (parent.height or 0) + b:GetHeight()
 
       do -- Set Textures and Text
         b.normal = b:CreateTexture(nil, "BACKGROUND")
@@ -2148,17 +2269,9 @@ local function addGraphDropDownButtons(parent)
         b.title = b:CreateFontString(nil, "ARTWORK")
         b.title:SetPoint("CENTER", 0, 0)
         b.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-        if self.color then
-          b.title:SetTextColor(self.color[1], self.color[2], self.color[3], self.color[4])
-        else
-          b.title:SetTextColor(0.93, 0.86, 0.01, 1.0)
-        end
-        b.title:SetText(self.name)
       end
 
       b:SetScript("OnClick", function(button)
-        local text = CT.base.expander.graphFrame.titleText
-
         if button:GetChecked() then -- Show graph
           self:toggle("show")
         else -- Hide graph
@@ -2173,6 +2286,14 @@ local function addGraphDropDownButtons(parent)
       parent[i]:SetChecked(false)
     end
 
+    if self.color then
+      b.title:SetTextColor(self.color[1], self.color[2], self.color[3], self.color[4])
+    else
+      b.title:SetTextColor(0.93, 0.86, 0.01, 1.0)
+    end
+
+    b.title:SetText(self.name)
+
     if self.hideButton and parent[i]:IsShown() then
       parent[i]:Hide()
       parent.height = parent.height - 20
@@ -2182,17 +2303,13 @@ local function addGraphDropDownButtons(parent)
     end
   end
 
-  parent:SetHeight(25 + parent.height)
+  parent:SetHeight(parent.height or 0)
 end
 
 function CT:buildGraph()
   local graph, mouseOver, dot, dragOverlay, slider, button
   local graphHeight = 100
   local graphWidth = 200
-
-  if not CT.graphTooltip then
-    createGraphTooltip()
-  end
 
   local graphFrame = self.graphFrame
 
@@ -2212,46 +2329,6 @@ function CT:buildGraph()
 
     graphFrame.displayed = {} -- Holds every currently displayed graph
     graphFrame.hideAllGraphs = hideAllGraphs
-  end
-
-  do -- Create the dropdown menu button
-    graphFrame.button = CreateFrame("Button", nil, graphFrame)
-    button = graphFrame.button
-    button:SetSize(40, 20)
-    button:SetPoint("TOPRIGHT", graphFrame, "BOTTOMRIGHT", 0, 0)
-
-    button.normal = button:CreateTexture(nil, "BACKGROUND")
-    button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-    button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-    button.normal:SetAllPoints(button)
-    button:SetNormalTexture(button.normal)
-
-    button.highlight = button:CreateTexture(nil, "BACKGROUND")
-    button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-    button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-    button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-    button.highlight:SetAllPoints(button)
-    button:SetHighlightTexture(button.highlight)
-
-    button.disabled = button:CreateTexture(nil, "BACKGROUND")
-    button.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-    button.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-    button.disabled:SetAllPoints(button)
-    button:SetDisabledTexture(button.disabled)
-
-    button.pushed = button:CreateTexture(nil, "BACKGROUND")
-    button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-    button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-    button.pushed:SetAllPoints(button)
-    button:SetPushedTexture(button.pushed)
-
-    button.title = button:CreateFontString(nil, "ARTWORK")
-    button.title:SetPoint("CENTER", 0, 0)
-    button.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-    button.title:SetTextColor(0.93, 0.86, 0.01, 1.0)
-    button.title:SetText("Select")
-
-    button:Hide()
   end
 
   do -- Create Graph Borders
@@ -2395,85 +2472,77 @@ function CT:buildGraph()
         text = text .. table.concat(graph.displayText)
       end
 
-      CT.graphTooltip:SetText(text, 1, 1, 1, 1)
-      CT.graphTooltip:SetAlpha(1)
       mouseOver.info = text
     elseif not num then
       mouseOver.info = ""
-      CT.graphTooltip:SetAlpha(0)
     end
   end)
 
   graphFrame:SetScript("OnEnter", function(self)
+    CT.mouseFrameBorder(self.bg)
+
     mouseOver:Show()
     CT.createInfoTooltip(mouseOver, "Graph")
-
-    button:Show()
-
-    self.exitTime = GetTime() + 0.5
-
-    if not self.ticker then
-      self.ticker = C_Timer.NewTicker(0.1, function(ticker)
-        if not MouseIsOver(self) and not MouseIsOver(button) then
-          if GetTime() > self.exitTime then
-            if not button.popup or not button.popup:IsShown() then -- Don't hide if popup is shown
-              button:Hide()
-              self.ticker:Cancel()
-              self.ticker = nil
-            end
-          end
-        else
-          self.exitTime = GetTime() + 0.5
-        end
-      end)
-    end
   end)
 
   graphFrame:SetScript("OnLeave", function(graphFrame)
+    CT.mouseFrameBorder()
     mouseOver:Hide()
     CT.createInfoTooltip()
   end)
 
-  graphFrame:SetScript("OnMouseDown", function(graphFrame, button)
-    if not CT.current then return end
+  graphFrame:SetScript("OnMouseDown", function(self, button)
+    if not CT.displayed then return end
+
+    local graphFrame = self
 
     if button == "LeftButton" and not graphFrame.zoomed then
-      local mouseOverLeft = mouseOver:GetLeft() - graphFrame:GetLeft()
+      if self.popup and self.popup:IsShown() then
+        -- Don't hide it here, wait for the OnMouseUp to be consistent, just stop it from drawing the overlay
+      else
+        local mouseOverLeft = mouseOver:GetLeft() - graphFrame:GetLeft()
 
-      graphFrame.dragOverlay:Show()
-      graphFrame.dragOverlay:SetPoint("LEFT", mouseOverLeft, 0)
-      graphFrame.dragOverlay:SetPoint("RIGHT", mouseOver, 0, 0)
+        graphFrame.dragOverlay:Show()
+        graphFrame.dragOverlay:SetPoint("LEFT", mouseOverLeft, 0)
+        graphFrame.dragOverlay:SetPoint("RIGHT", mouseOver, 0, 0)
 
-      graphFrame.mouseOverLeft = mouseOverLeft
+        graphFrame.mouseOverLeft = mouseOverLeft
+      end
     end
   end)
 
-  graphFrame:SetScript("OnMouseUp", function(graphFrame, button)
-    if not CT.current then return end
+  graphFrame:SetScript("OnMouseUp", function(self, button)
+    if not CT.displayed then return end
 
-    local graphs = CT.current.graphs
+    local graphFrame = self
+
+    local graphs = CT.displayed.graphs
 
     if button == "LeftButton" then
       if not graphFrame.zoomed then
-        local mouseOverRight = mouseOver:GetRight()
-        local graphWidth = graphFrame:GetWidth()
-        local graphLeft = graphFrame:GetLeft()
+        if self.popup and self.popup:IsShown() then
+          self.popup:Hide()
+        else
+          local mouseOverRight = mouseOver:GetRight()
+          local graphWidth = graphFrame:GetWidth()
+          local graphLeft = graphFrame:GetLeft()
 
-        graphFrame.zoomed = true
-        graphFrame.dragOverlay:Hide()
-        graphFrame.slider:Show()
+          graphFrame.zoomed = true
+          graphFrame.dragOverlay:Hide()
+          graphFrame.slider:Show()
 
-        for i, graph in ipairs(graphFrame.displayed) do
-          local dbGraph = CT.currentDB.graphs[graph.name]
+          for i, graph in ipairs(graphFrame.displayed) do
+            local dbGraph = CT.displayedDB.graphs[graph.name]
 
-          dbGraph.XMin = (graphFrame.mouseOverLeft / graphWidth) * graph.XMax
-          dbGraph.XMax = ((mouseOverRight - graphLeft) / graphWidth) * graph.XMax
-          graph:refresh(true)
+            dbGraph.XMin = (graphFrame.mouseOverLeft / graphWidth) * graph.XMax
+            dbGraph.XMax = ((mouseOverRight - graphLeft) / graphWidth) * graph.XMax
+            graph:refresh(true)
+          end
         end
       end
     elseif button == "RightButton" then -- Remove the zoom
       if graphFrame.zoomed then
-        local timer = (CT.combatStop or GetTime()) - CT.combatStart
+        local timer = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
 
         graphFrame.zoomed = false
         graphFrame.dragOverlay:Hide()
@@ -2482,7 +2551,7 @@ function CT:buildGraph()
         slider:SetValue(0)
 
         for i, graph in ipairs(graphFrame.displayed) do
-          local dbGraph = CT.currentDB.graphs[graph.name]
+          local dbGraph = CT.displayedDB.graphs[graph.name]
 
           dbGraph.XMin = 0
 
@@ -2497,58 +2566,57 @@ function CT:buildGraph()
 
           graph:refresh(true)
         end
+      else -- Graph is not zoomed in
+        if not self.popup then
+          self.popup = CreateFrame("Frame", nil, self)
+          self.popup:SetFrameStrata("HIGH")
+          self.popup:SetSize(150, 20)
+          self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
+          self.popup.bg:SetAllPoints()
+          self.popup.bg:SetTexture(0.1, 0.1, 0.1, 1.0)
+          self.popup:Hide()
+
+          self.popup:SetScript("OnEnter", function() -- This is just so it doesn't pass the OnEnter to the lower frame. TODO: Find better way?
+
+          end)
+
+          self.popup:SetScript("OnShow", function()
+            self.popup.exitTime = GetTime() + 1
+
+            if not self.popup.ticker then
+              self.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
+                if not MouseIsOver(self.popup) and not MouseIsOver(self) then
+                  if GetTime() > self.popup.exitTime then
+                    ticker:Cancel()
+                    self.popup:Hide()
+                    self.popup.ticker = nil
+                  end
+                else
+                  self.popup.exitTime = GetTime() + 1
+                end
+              end)
+            end
+          end)
+        end
+
+        if self.popup:IsShown() then
+          self.popup:Hide()
+        else
+          addGraphDropDownButtons(self.popup)
+
+          local mouseX, mouseY = GetCursorPosition()
+          local mouseX = (mouseX / UIScale)
+          local mouseY = (mouseY / UIScale)
+
+          self.popup:SetPoint("BOTTOMLEFT", UIParent, mouseX + 10, mouseY - self.popup:GetHeight())
+
+          self.popup:Show()
+        end
       end
     end
   end)
 
-  button:SetScript("OnEnter", function(self)
-    self.info = "Select a normal graph from the list."
-
-    CT.createInfoTooltip(self, "Normal Graphs", nil, nil, nil, nil)
-  end)
-
-  button:SetScript("OnLeave", function(self)
-    CT.createInfoTooltip()
-  end)
-
-  button:SetScript("OnClick", function(self, click)
-    if not self.popup then
-      self.popup = CreateFrame("Frame", nil, self)
-      self.popup:SetSize(150, 20)
-      self.popup:SetPoint("TOPLEFT", self, "TOPRIGHT", 0, 0)
-      self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
-      self.popup.bg:SetAllPoints()
-      self.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
-      self.popup:Hide()
-
-      self.popup:SetScript("OnShow", function()
-        self.popup.exitTime = GetTime() + 1
-
-        if not self.popup.ticker then
-          self.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
-            if not MouseIsOver(self.popup) and not MouseIsOver(self) then
-              if GetTime() > self.popup.exitTime then
-                self.popup:Hide()
-                self.popup.ticker:Cancel()
-                self.popup.ticker = nil
-              end
-            else
-              self.popup.exitTime = GetTime() + 1
-            end
-          end)
-        end
-      end)
-    end
-
-    if self.popup:IsShown() then
-      self.popup:Hide()
-    else
-      addGraphDropDownButtons(self.popup)
-      self.popup:Show()
-    end
-  end)
-
-  CT.loadDefaultGraphs()
+  -- CT.loadDefaultGraphs()
 
   self.graphCreated = true
   return graphFrame
