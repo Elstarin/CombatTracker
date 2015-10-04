@@ -7,7 +7,7 @@ local buttonClickNum = 7
 
 local function saveDataSet(db)
   if db then -- Save current DB
-    CT:Print("Saving data set:", db.setName .. ".")
+    -- CT:Print("Saving data set:", db.setName .. ".")
     if not db.stop then
       db.stop = GetTime()
     end
@@ -114,7 +114,6 @@ function CT.startTracking(message)
   if CT.tracking then return end
   CT:Print(message or "Starting tracking, but no start message was sent.")
 
-  -- CT.resetData()
   local set, db = CT.buildNewSet()
 
   if db.stop then
@@ -132,7 +131,12 @@ function CT.startTracking(message)
 
   CT.iterateAuras()
   CT.iterateCooldowns()
-  if CT.graphFrame then CT.loadDefaultGraphs() end
+
+  -- CT.loadDefaultGraphs()
+  -- CT.loadDefaultUptimeGraph()
+
+  -- CT:toggleUptimeGraph("clear")
+  -- if CT.graphFrame then CT.loadDefaultGraphs() end
 end
 
 function CT.stopTracking()
@@ -686,8 +690,8 @@ function CT.buildNewSet()
     CT.displayedDB = db
   end
 
-  CT.displayed = set -- NOTE: Testing only
-  CT.displayedDB = db -- NOTE: Testing only
+  CT.loadDefaultGraphs()
+  CT.loadDefaultUptimeGraph()
 
   return set, db
 end
@@ -773,4 +777,13 @@ function CT.loadSavedSet(db)
   end
 
   return set, db
+end
+
+function CT.loadActiveSet()
+  if not CT.current then return end
+
+  CT.displayed = CT.current
+  CT.displayedDB = CT.currentDB
+
+  
 end

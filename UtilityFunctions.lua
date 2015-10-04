@@ -334,3 +334,81 @@ function CT.mouseFrameBorder(parent, size, color)
 
   return border
 end
+
+function CT.confirmDialogue(parent)
+  local confirm = CT.buttons.confirm
+
+  if not confirm then
+    CT.buttons.confirm = CreateFrame("Frame", "CT_Button_Confirmation_Dialogue", CT.base)
+    confirm = CT.buttons.confirm
+
+    local width, height = parent:GetSize()
+    confirm:SetFrameStrata("HIGH")
+    confirm:SetSize(width, height)
+    confirm:EnableMouse(true)
+
+    confirm.shader = confirm:CreateTexture(nil, "ARTWORK")
+    confirm.shader:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    confirm.shader:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+    confirm.shader:SetVertexColor(0, 0, 0, 1)
+    confirm.shader:SetAllPoints()
+
+    confirm.bg = confirm:CreateTexture(nil, "ARTWORK")
+    confirm.bg:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+    confirm.bg:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+    confirm.bg:SetVertexColor(0, 0, 0, 1)
+    confirm.bg:SetAllPoints()
+
+    confirm.accept = CreateFrame("Button", "CT_Button_Confirmation_Dialogue_Accept", confirm)
+    confirm.accept:SetPoint("CENTER", confirm.bg, width / 6, 0)
+    confirm.accept:SetSize(height - 5, height - 5)
+    confirm.accept.texture = confirm.accept:CreateTexture(nil, "ARTWORK")
+    confirm.accept.texture:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+    confirm.accept.texture:SetAllPoints()
+
+    confirm.accept.pushed = confirm.accept:CreateTexture(nil, "OVERLAY")
+    confirm.accept.pushed:SetTexture("Interface\\RaidFrame\\ReadyCheck-Ready")
+    confirm.accept.pushed:SetVertexColor(0.5, 0.5, 0.5, 0.7)
+    confirm.accept.pushed:SetAllPoints()
+    confirm.accept:SetPushedTexture(confirm.accept.pushed)
+
+    confirm.decline = CreateFrame("Button", "CT_Button_Confirmation_Dialogue_Decline", confirm)
+    confirm.decline:SetPoint("LEFT", confirm.accept, "RIGHT", 0, 0)
+    confirm.decline:SetSize(height - 5, height - 5)
+
+    confirm.decline.texture = confirm.decline:CreateTexture(nil, "ARTWORK")
+    confirm.decline.texture:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+    confirm.decline.texture:SetAllPoints()
+
+    confirm.decline.pushed = confirm.decline:CreateTexture(nil, "OVERLAY")
+    confirm.decline.pushed:SetTexture("Interface\\RaidFrame\\ReadyCheck-NotReady")
+    confirm.decline.pushed:SetVertexColor(0.5, 0.5, 0.5, 0.7)
+    confirm.decline.pushed:SetAllPoints()
+    confirm.decline:SetPushedTexture(confirm.decline.pushed)
+
+    confirm.accept:SetScript("OnClick", function(self, click)
+      if self[click] then
+        self[click]()
+        confirm:Hide()
+      end
+    end)
+
+    confirm.decline:SetScript("OnClick", function(self, click)
+      if self[click] then
+        self[click]()
+        confirm:Hide()
+      end
+    end)
+
+    confirm.text = confirm:CreateFontString(nil, "OVERLAY")
+    confirm.text:SetPoint("RIGHT", confirm.accept, "LEFT", -10, 0)
+    confirm.text:SetFont("Fonts\\FRIZQT__.TTF", 18)
+    confirm.text:SetTextColor(1, 1, 0, 1)
+    confirm.text:SetText("Delete this set?")
+  end
+
+  confirm:Show()
+  confirm:SetAllPoints(parent)
+
+  return confirm.accept, confirm.decline
+end

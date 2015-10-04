@@ -1279,11 +1279,11 @@ local function createMenuButtons(popup)
       b:SetPushedTexture(b.pushed)
 
       b.title = b:CreateFontString(nil, "ARTWORK")
-      b.title:SetPoint("CENTER", 0, 0)
+      b.title:SetPoint("TOPLEFT", 0, 0)
+      b.title:SetPoint("BOTTOMRIGHT", 0, 0)
       b.title:SetFont("Fonts\\FRIZQT__.TTF", 15)
       b.title:SetTextColor(0.8, 0.8, 0, 1)
       b.title:SetShadowOffset(3, -3)
-      b.title:SetText("Reset Data")
 
       b:SetScript("OnClick", function(self, button)
         b.func()
@@ -1333,8 +1333,6 @@ function CT:expanderFrame(command)
     end)
 
     f:SetScript("OnShow", function(self)
-      -- print("Expander showing")
-
       if CT.displayed then
         if not self.graphFrame.displayed[1] then -- No regular graph is loaded
           -- print("No regular graph, loading default.")
@@ -1540,7 +1538,6 @@ function CT:expanderFrame(command)
   if f.shown then
     if self and self.name then
       f.currentButton = self
-      print("Expanding", self.name)
 
       f.icon:SetTexture(self.iconTexture or CT.player.specIcon)
       SetPortraitToTexture(f.icon, f.icon:GetTexture())
@@ -1796,7 +1793,7 @@ function CT.createSpecDataButtons() -- Create the default main buttons
     local b = CT.buttons[i]
 
     if not b then
-      CT.buttons[i] = CreateFrame("Button", "CT_Main_Button_" .. i, CT.contentFrame)
+      CT.buttons[i] = CreateFrame("CheckButton", "CT_Main_Button_" .. i, CT.contentFrame)
       b = CT.buttons[i]
 
       b.text = {}
@@ -1811,10 +1808,32 @@ function CT.createSpecDataButtons() -- Create the default main buttons
         b:SetScript("OnClick", function(self, click)
           if GetTime() > lastClickTime then
 
+            if not self.checked then
+              self.checked = self:CreateTexture(nil, "BACKGROUND")
+              self.checked:SetTexture("Interface\\PetBattles\\PetJournal")
+              self.checked:SetTexCoord(0.49804688, 0.90625000, 0.17480469, 0.21972656) -- Blue highlight border
+              self.checked:SetBlendMode("ADD")
+              self.checked:SetPoint("TOPLEFT", 2, -2)
+              self.checked:SetPoint("BOTTOMRIGHT", -2, 2)
+              self:SetCheckedTexture(self.checked)
+
+              self.checked:SetVertexColor(0.3, 0.5, 0.8, 0.8) -- Blue: Dark and more subtle blue
+            end
+
             if click == "LeftButton" then
               if not self.expand then self.expand = CT.expanderFrame end
 
-              self:expand("show")
+              if self:GetChecked() then
+                self:expand("show")
+              else
+                self:expand("hide")
+              end
+
+              for i = 1, #CT.buttons do
+                if CT.buttons[i] ~= self and CT.buttons[i]:GetChecked() then
+                  CT.buttons[i]:SetChecked(false)
+                end
+              end
             elseif click == "RightButton" then
               if true then CT:Print("Blocking right click, it isn't set up properly and will error.") return end
 
@@ -1927,7 +1946,7 @@ function CT.createSavedSetButtons(table)
     local b = CT.setButtons[i]
 
     if not b then
-      CT.setButtons[i] = CreateFrame("Button", "CT_Saved_Set_Button_" .. i, CT.contentFrame)
+      CT.setButtons[i] = CreateFrame("CheckButton", "CT_Saved_Set_Button_" .. i, CT.contentFrame)
       b = CT.setButtons[i]
 
       b.name = table.setName
@@ -1937,6 +1956,66 @@ function CT.createSavedSetButtons(table)
       b.expandedDown = false
 
       createButtonFrame(b)
+
+      do -- Button Scripts
+        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+        b:SetScript("OnClick", function(self, click)
+          PlaySound("igMainMenuOptionCheckBoxOn")
+
+          if not self.checked then
+            self.checked = self:CreateTexture(nil, "BACKGROUND")
+            self.checked:SetTexture("Interface\\PetBattles\\PetJournal")
+            self.checked:SetTexCoord(0.49804688, 0.90625000, 0.17480469, 0.21972656) -- Blue highlight border
+            self.checked:SetBlendMode("ADD")
+            self.checked:SetPoint("TOPLEFT", 2, -2)
+            self.checked:SetPoint("BOTTOMRIGHT", -2, 2)
+            self:SetCheckedTexture(self.checked)
+
+            self.checked:SetVertexColor(0.3, 0.5, 0.8, 0.8) -- Blue: Dark and more subtle blue
+          end
+
+          if click == "LeftButton" then
+            if self:GetChecked() then
+              local set, db = CT.loadSavedSet(table[i])
+            else
+              if CT.current and CT.currentDB then -- Change displayed set to current
+                CT.displayed = CT.current
+                CT.displayedDB = CT.currentDB
+              end
+            end
+
+            CT.base.bottomExpander.popup[1]:Click() -- Toggles it back to normal buttons
+            CT.forceUpdate = true
+          elseif click == "RightButton" then
+            -- if self:GetChecked() then self:SetChecked(false) end -- Don't let right click set it to checked
+
+            local accept, decline = CT.confirmDialogue(self) -- Shows the dialogue frame
+
+            accept.LeftButton = function()
+              local t = tremove(table, i) -- Remove saved variable set
+              t = nil
+
+              if not InCombatLockdown() then
+                collectgarbage("collect")
+              end
+
+              CT.createSavedSetButtons(table) -- Refresh list
+            end
+
+            decline.LeftButton = function()
+
+            end
+
+            for i = 1, #table do
+              if CT.displayedDB and CT.displayedDB == table[i] then
+                CT.setButtons[i]:SetChecked(true)
+              else
+                CT.setButtons[i]:SetChecked(false)
+              end
+            end
+          end
+        end)
+      end
     elseif b then
       b:Hide()
     end
@@ -1948,34 +2027,21 @@ function CT.createSavedSetButtons(table)
     b.title:SetJustifyH("LEFT")
     b.title:SetFormattedText("%s. %s%s|r (%s%s|r)", i, "|cFFFFFF00", text, "|cFF00CCFF", time)
 
-    do -- Button Scripts
-      b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-      b:SetScript("OnClick", function(button, click)
-        PlaySound("igMainMenuOptionCheckBoxOn")
+    if CT.displayedDB and CT.displayedDB == table[i] then
+      if not b.checked then
+        b.checked = b:CreateTexture(nil, "BACKGROUND")
+        b.checked:SetTexture("Interface\\PetBattles\\PetJournal")
+        b.checked:SetTexCoord(0.49804688, 0.90625000, 0.17480469, 0.21972656) -- Blue highlight border
+        b.checked:SetBlendMode("ADD")
+        b.checked:SetPoint("TOPLEFT", 2, -2)
+        b.checked:SetPoint("BOTTOMRIGHT", -2, 2)
+        b.checked:SetVertexColor(0.3, 0.5, 0.8, 0.8) -- Blue: Dark and more subtle blue
+        b:SetCheckedTexture(b.checked)
+      end
 
-        if click == "LeftButton" then
-          local set, db = CT.loadSavedSet(table[i])
-
-          -- CT.createSpecDataButtons()
-          -- CT.base.bottomExpander.popup[1].title:SetText("Load Saved Fight")
-          CT.base.bottomExpander.popup[1]:Click()
-
-          CT.forceUpdate = true
-        else
-          local t = tremove(table, i) -- Remove saved variables
-          t = nil
-
-          if not InCombatLockdown() then
-            collectgarbage("collect")
-          end
-
-          CT.createSavedSetButtons(table) -- Refresh list
-        end
-
-        if not InCombatLockdown() then
-          collectgarbage("collect")
-        end
-      end)
+      b:SetChecked(true)
+    elseif b.checked then
+      b:SetChecked(false)
     end
 
     b:Show()
@@ -2058,7 +2124,7 @@ function CT.setButtonAnchors(table)
     local button = table[i]
     if i == 1 then
       button:ClearAllPoints()
-      button:SetPoint("TOPLEFT")
+      button:SetPoint("TOPLEFT", 0, 0)
       button:SetPoint("TOPRIGHT")
     else
       local prevButtonExpander = table[i - 1].expander
@@ -2285,7 +2351,6 @@ function CT.createBaseFrame() -- Create Base Frame
       if button == "LeftButton" and not self.isMoving then
         self:StartMoving()
         self.isMoving = true
-        -- self:SetUserPlaced(true)
       end
     end)
 
@@ -2308,7 +2373,6 @@ function CT.createBaseFrame() -- Create Base Frame
   end
 
   local close = f.closeButton
-
   if not close then -- Close button
     f.closeButton = CreateFrame("Button", nil, f)
     close = f.closeButton
@@ -2326,10 +2390,10 @@ function CT.createBaseFrame() -- Create Base Frame
       CT.base:Hide()
     end)
 
-    f.closeButton:SetScript("OnEnter", function()
-      f.closeButton.info = "Closes Combat Tracker, but it will still be recording CT.current.\n\nType /ct in chat to open it again. Type /ct help to see a full list of chat commands."
+    f.closeButton:SetScript("OnEnter", function(self)
+      self.info = "Closes Combat Tracker, but it will still be recording CT.current.\n\nType /ct in chat to open it again. Type /ct help to see a full list of chat commands."
 
-      CT.createInfoTooltip(f.closeButton, "Close", nil, nil, nil, nil)
+      CT.createInfoTooltip(self, "Close", nil, nil, nil, nil)
     end)
 
     f.closeButton:SetScript("OnLeave", function()
@@ -2486,273 +2550,181 @@ function CT.createBaseFrame() -- Create Base Frame
     end)
   end
 
-  do -- Top, bottom, left, and right textures and gradients
-    f.top = CreateFrame("Frame", nil, f)
-    f.top:SetPoint("TOPLEFT", f, 5, -5)
-    f.top:SetPoint("TOPRIGHT", f, -5, -5)
-    f.top:SetPoint("BOTTOM", CT.scrollFrame, "TOP", 0, 15)
-    f.top.texture = f.top:CreateTexture(nil, "BACKGROUND")
-    f.top.texture:SetTexture(0.1, 0.1, 0.1, 1)
-    f.top.texture:SetAllPoints()
+  do -- Popup button
+    local width = f:GetWidth()
 
-    f.bottom = CreateFrame("Frame", nil, f)
-    f.bottom:SetPoint("BOTTOMLEFT", f, 5, 5)
-    f.bottom:SetPoint("BOTTOMRIGHT", f, -5, 5)
-    f.bottom:SetPoint("TOP", CT.scrollFrame, "BOTTOM", 0, -15)
-    f.bottom.texture = f.bottom:CreateTexture(nil, "BACKGROUND")
-    f.bottom.texture:SetTexture(0.1, 0.1, 0.1, 1)
-    f.bottom.texture:SetAllPoints()
+    f.bottomExpander = CreateFrame("Button", "CT_Base_Expander_Button", f)
+    local expander = f.bottomExpander
 
-    do -- Left Texture and Gradient
-      f.left = CreateFrame("Frame", nil, f)
-      f.left:SetPoint("TOPLEFT", f.top, "BOTTOMLEFT", 0, 0)
-      f.left:SetPoint("BOTTOMLEFT", f.bottom, "TOPLEFT", 0, 0)
-      f.left:SetPoint("RIGHT", CT.scrollFrame, "LEFT", -15, 0)
-      f.left.texture = f.left:CreateTexture(nil, "BACKGROUND")
-      f.left.texture:SetTexture(0.1, 0.1, 0.1, 1)
-      f.left.texture:SetAllPoints()
-      f.left.gradient = f.left:CreateTexture(nil, "ARTWORK")
-      f.left.gradient:SetWidth(10)
-      f.left.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-      f.left.gradient:SetGradientAlpha("HORIZONTAL", 0.1, 0.1, 0.1, 1, 0.1, 0.1, 0.1, 0)
-      f.left.gradient:SetPoint("TOPLEFT", f.left, "TOPRIGHT", 0, 0)
-      f.left.gradient:SetPoint("BOTTOMLEFT", f.left, "BOTTOMRIGHT", 0, 0)
+    do -- Basic textures and stuff
+      local button = expander
+
+      button.background = button:CreateTexture(nil, "BACKGROUND")
+      button.background:SetPoint("TOPLEFT", button, 4.5, -4)
+      button.background:SetPoint("BOTTOMRIGHT", button, -4, 3)
+      button.background:SetTexture(0.07, 0.07, 0.07, 1.0)
+
+      button.upArrow = button:CreateTexture(nil, "ARTWORK")
+      button.upArrow:SetTexture("Interface/BUTTONS/Arrow-Up-Up.png") -- "Interface/BUTTONS/Arrow-Up-Down.png"
+      button.upArrow:SetSize(16, 16)
+      button.upArrow:SetPoint("CENTER", 0, 0)
+
+      button.normal = button:CreateTexture(nil, "BACKGROUND")
+      button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+      button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+      button.normal:SetAllPoints(button)
+      button:SetNormalTexture(button.normal)
+
+      button.highlight = button:CreateTexture(nil, "BACKGROUND")
+      button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+      button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+      button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
+      button.highlight:SetAllPoints(button)
+      button:SetHighlightTexture(button.highlight)
+
+      button.pushed = button:CreateTexture(nil, "BACKGROUND")
+      button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+      button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
+      button.pushed:SetAllPoints(button)
+      button:SetPushedTexture(button.pushed)
     end
 
-    do -- Right Texture and Gradient
-      f.right = CreateFrame("Frame", nil, f)
-      f.right:SetPoint("TOPRIGHT", f.top, "BOTTOMRIGHT", 0, 0)
-      f.right:SetPoint("BOTTOMRIGHT", f.bottom, "TOPRIGHT", 0, 0)
-      f.right:SetPoint("LEFT", CT.scrollFrame, "RIGHT", 15, 0)
-      f.right.texture = f.right:CreateTexture(nil, "BACKGROUND")
-      f.right.texture:SetTexture(0.1, 0.1, 0.1, 1)
-      f.right.texture:SetAllPoints()
-      f.right.gradient = f.right:CreateTexture(nil, "ARTWORK")
-      f.right.gradient:SetWidth(10)
-      f.right.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-      f.right.gradient:SetGradientAlpha("HORIZONTAL", 0.1, 0.1, 0.1, 0, 0.1, 0.1, 0.1, 1)
-      f.right.gradient:SetPoint("TOPRIGHT", f.right, "TOPLEFT", 0, 0)
-      f.right.gradient:SetPoint("BOTTOMRIGHT", f.right, "BOTTOMLEFT", 0, 0)
-    end
+    expander:SetSize(width - 40, 15)
+    expander:SetPoint("BOTTOM", f, 0, 7)
 
-    do -- Top and Bottom Gradients
-      f.top.gradient = f.top:CreateTexture(nil, "BACKGROUND")
-      f.top.gradient:SetHeight(10)
-      f.top.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-      f.top.gradient:SetGradientAlpha("VERTICAL", 0.1, 0.1, 0.1, 0, 0.1, 0.1, 0.1, 1)
-      f.top.gradient:SetPoint("TOPLEFT", f.left, "TOPRIGHT", 0, 0)
-      f.top.gradient:SetPoint("TOPRIGHT", f.right, "TOPLEFT", 0, 0)
+    expander:SetScript("OnClick", function(self, button)
+      if not self.popup then
+        self.popup = CreateFrame("Frame", nil, self)
+        self.popup:SetSize(width - 10, 120)
+        self.popup:SetPoint("BOTTOM", self, 0, 0)
+        self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
+        self.popup.bg:SetAllPoints()
+        self.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
+        self.popup:Hide()
 
-      f.bottom.gradient = f.bottom:CreateTexture(nil, "BACKGROUND")
-      f.bottom.gradient:SetHeight(10)
-      f.bottom.gradient:SetTexture("Interface\\ChatFrame\\ChatFrameBackground")
-      f.bottom.gradient:SetGradientAlpha("VERTICAL", 0.1, 0.1, 0.1, 1, 0.1, 0.1, 0.1, 0)
-      f.bottom.gradient:SetPoint("BOTTOMLEFT", f.left, "BOTTOMRIGHT", 0, 0)
-      f.bottom.gradient:SetPoint("BOTTOMRIGHT", f.right, "BOTTOMLEFT", 0, 0)
-    end
+        self.popup:SetScript("OnMouseUp", function(popup)
+          popup:Hide()
+        end)
 
-    do -- Popup button
-      local width = f:GetWidth()
+        self.popup:SetScript("OnShow", function(popup)
+          self.popup.exitTime = GetTime() + 0.5
 
-      f.bottomExpander = CreateFrame("Button", "CT_Base_Expander_Button", f)
-      local expander = f.bottomExpander
-
-      do -- Basic textures and stuff
-        local button = expander
-
-        button.background = button:CreateTexture(nil, "BACKGROUND")
-        button.background:SetPoint("TOPLEFT", button, 4.5, -4)
-        button.background:SetPoint("BOTTOMRIGHT", button, -4, 3)
-        button.background:SetTexture(0.07, 0.07, 0.07, 1.0)
-
-        button.normal = button:CreateTexture(nil, "BACKGROUND")
-        button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-        button.normal:SetAllPoints(button)
-        button:SetNormalTexture(button.normal)
-
-        button.highlight = button:CreateTexture(nil, "BACKGROUND")
-        button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-        button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-        button.highlight:SetAllPoints(button)
-        button:SetHighlightTexture(button.highlight)
-
-        button.pushed = button:CreateTexture(nil, "BACKGROUND")
-        button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-        button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-        button.pushed:SetAllPoints(button)
-        button:SetPushedTexture(button.pushed)
+          if not self.popup.ticker then
+            self.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
+              if not MouseIsOver(self.popup) and not MouseIsOver(self) then
+                if GetTime() > self.popup.exitTime then
+                  self.popup:Hide()
+                  self.popup.ticker:Cancel()
+                  self.popup.ticker = nil
+                end
+              else
+                self.popup.exitTime = GetTime() + 0.5
+              end
+            end)
+          end
+        end)
       end
 
-      expander:SetSize(width - 40, 15)
-      expander:SetPoint("BOTTOM", f, 0, 7)
+      local animation = self.animation
+      if not animation then
+        self.animation = self:CreateAnimationGroup()
 
-      expander:SetScript("OnClick", function(self, button)
-        if not self.popup then
-          self.popup = CreateFrame("Frame", nil, self)
-          self.popup:SetSize(width - 10, 120)
-          self.popup:SetPoint("BOTTOM", self, 0, 0)
-          self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
-          self.popup.bg:SetAllPoints()
-          self.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
-          self.popup:Hide()
+        local a = self.animation:CreateAnimation("Scale")
+        a:SetDuration(0.05)
+        -- self.a.scale:SetSmoothing("OUT")
+        a:SetOrigin("BOTTOM", 0, 0)
+        -- self.a.scale:SetScale(0.3, 0.3)
+        a:SetFromScale(1, 0)
+        a:SetToScale(1, 1)
+        -- self.popup.animation.scale:SetScale(xFactor, yFactor)
 
-          self.popup:SetScript("OnMouseUp", function(popup)
-            popup:Hide()
-          end)
+        local b = self.animation:CreateAnimation("Alpha")
+        b:SetDuration(0.05)
+        b:SetFromAlpha(0)
+        b:SetToAlpha(1)
+      end
 
-          self.popup:SetScript("OnShow", function()
-            self.popup.exitTime = GetTime() + 0.5
+      self.animation:Play()
 
-            if not self.popup.ticker then
-              self.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
-                if not MouseIsOver(self.popup) and not MouseIsOver(self) then
-                  if GetTime() > self.popup.exitTime then
-                    self.popup:Hide()
-                    self.popup.ticker:Cancel()
-                    self.popup.ticker = nil
-                  end
-                else
-                  self.popup.exitTime = GetTime() + 0.5
-                end
-              end)
-            end
-          end)
-        end
+      if self.popup:IsShown() then
+        self.popup:Hide()
+      else
+        local popup = createMenuButtons(self.popup)
 
-        if self.popup:IsShown() then
-          self.popup:Hide()
-        else
-          local popup = createMenuButtons(self.popup)
+        if not popup[1].func then
+          popup[1].title:SetText("Load Saved Fight")
 
-          if not popup[1].func then
-            popup[1].title:SetText("Load Saved Fight")
+          local count = 0
+          popup[1].func = function(self, button)
+            count = count + 1
 
-            local count = 0
-            popup[1].func = function(self, button)
-              count = count + 1
+            if count == 1 then
+              local _, specName = GetSpecializationInfo(GetSpecialization())
 
-              if count == 1 then
-                local _, specName = GetSpecializationInfo(GetSpecialization())
-
-                CT.createSavedSetButtons(CombatTrackerCharDB[specName].sets)
-                popup[1].title:SetText("Return")
-              else
-                CT.createSpecDataButtons()
-                popup[1].title:SetText("Load Saved Fight")
-
-                count = 0
-              end
-            end
-          end
-
-          if not popup[2].func then
-            if not profile then
-              popup[2].title:SetText("Expand Frame")
+              CT.createSavedSetButtons(CombatTrackerCharDB[specName].sets)
+              popup[1].title:SetText("Return")
             else
-              popup[2].title:SetText("Profile Code")
-            end
+              CT.createSpecDataButtons()
+              popup[1].title:SetText("Load Saved Fight")
 
-            popup[2].func = function(popup, button)
-              if not profile then
-                CT:expanderFrame()
-              else
-                profileCode()
-              end
+              count = 0
             end
           end
-
-          if not popup[3].func then
-            popup[3].title:SetText("Reset Data")
-
-            popup[3].func = function(popup, button)
-              CT.resetData(button)
-            end
-          end
-
-          if not popup[4].func then
-            popup[4].title:SetText("Options")
-
-            popup[4].func = function(popup, button)
-              print("Sorry, nothing here. It's on my to-do list, I promise.")
-            end
-          end
-
-          self.popup:Show()
         end
-      end)
-    end
+
+        if not popup[2].func then
+          if not profile then
+            popup[2].title:SetText("Expand Frame")
+          else
+            popup[2].title:SetText("Profile Code")
+          end
+
+          popup[2].func = function(popup, button)
+            if not profile then
+              CT:expanderFrame()
+            else
+              profileCode()
+            end
+          end
+        end
+
+        if not popup[3].func then
+          popup[3].title:SetText("Reset Data")
+
+          popup[3].func = function(popup, button)
+            CT.resetData(button)
+          end
+        end
+
+        if not popup[4].func then
+          popup[4].title:SetText("Options\n(but not really)")
+
+          popup[4].func = function(f, button)
+            popup[4].title:SetText("Umm, you don't need options, everything is perfect the way it is.")
+
+            C_Timer.After(5, function()
+              popup[4].title:SetText("(But seriously, they're on my to-do list. I promise.)")
+
+              C_Timer.After(5, function()
+                popup[4].title:SetText("Options\n(but not really)")
+              end)
+            end)
+          end
+        end
+
+        self.popup:Show()
+      end
+    end)
   end
 
   do -- Combat Tracker Title Text
-    f.top.title = f.top:CreateFontString(nil, "ARTWORK")
-    f.top.title:SetPoint("LEFT", f.top, 15, 0)
-    f.top.title:SetFont("Fonts\\FRIZQT__.TTF", 30)
-    f.top.title:SetTextColor(0.8, 0.8, 0, 1)
-    f.top.title:SetShadowOffset(3, -3)
-    f.top.title:SetText("Combat \n  Tracker")
+    f.title = f:CreateFontString(nil, "ARTWORK")
+    f.title:SetPoint("TOPLEFT", f, 15, -10)
+    f.title:SetFont("Fonts\\FRIZQT__.TTF", 30)
+    f.title:SetTextColor(0.8, 0.8, 0, 1)
+    f.title:SetShadowOffset(3, -3)
+    f.title:SetText("Combat \n  Tracker")
   end
-
-  -- do -- Previous Fights button
-  --   f.prevFights = CreateFrame("Button", nil, f)
-  --   local b = CT.createSmallButton(f.prevFights)
-  --   b:SetFrameStrata("TOOLTIP")
-  --   b.title:SetText("Load Fight")
-  --   b:SetPoint("LEFT", f.top.title, "TOPRIGHT", 0, -10)
-  --
-  --   b:SetScript("OnEnter", function()
-  --     b.info = "Load a previous fight."
-  --
-  --     CT.createInfoTooltip(b, "Uptime Graphs", nil, nil, nil, nil)
-  --   end)
-  --
-  --   b:SetScript("OnLeave", function()
-  --     CT.createInfoTooltip()
-  --   end)
-  --
-  --   b:SetScript("OnClick", function(self, click)
-  --     local m = self.dropDownMenu
-  --
-  --     if not m then
-  --       self.dropDownMenu = CreateFrame("Frame", nil, self)
-  --       m = self.dropDownMenu
-  --       m:SetSize(150, 20)
-  --       m:SetPoint("TOPLEFT", self, "TOPRIGHT", 0, 0)
-  --       m.bg = m:CreateTexture(nil, "BACKGROUND")
-  --       m.bg:SetAllPoints()
-  --       m.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
-  --       m:Hide()
-  --
-  --       m:SetScript("OnShow", function()
-  --         m.exitTime = GetTime() + 1
-  --
-  --         if not m.ticker then
-  --           m.ticker = C_Timer.NewTicker(0.1, function(ticker)
-  --             if not MouseIsOver(m) and not MouseIsOver(self) then
-  --               if GetTime() > m.exitTime then
-  --                 m:Hide()
-  --                 m.ticker:Cancel()
-  --                 m.ticker = nil
-  --               end
-  --             else
-  --               m.exitTime = GetTime() + 1
-  --             end
-  --           end)
-  --         end
-  --       end)
-  --     end
-  --
-  --     if m:IsShown() then
-  --       m:Hide()
-  --     else
-  --       local _, specName = GetSpecializationInfo(GetSpecialization())
-  --
-  --       CT.createSetButtons(m, CombatTrackerCharDB[specName].sets)
-  --       m:Show()
-  --     end
-  --   end)
-  -- end
 
   tinsert(UISpecialFrames, CT.base:GetName())
 end

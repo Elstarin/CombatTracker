@@ -1,3 +1,12 @@
+-- Coords and coloring options for the main button highlight border
+
+-- self.checked:SetTexCoord(0.49804688, 0.90625000, 0.22167969, 0.26660156) -- Yellow highlight border
+-- self.checked:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+-- self.checked:SetTexCoord(0.00195313, 0.63867188, 0.70703125, 0.76757813) -- Top/Bottom blue lines
+-- self.checked:SetVertexColor(0.0, 0.7, 0.3, 1) -- Yellow: Another green
+-- self.checked:SetVertexColor(0.0, 0.5, 1, 1) -- Yellow: Decent green
+-- self.checked:SetVertexColor(1, 0, 0, 1) -- Yellow: Red
+
 --[[     Handy list of all events that should be handled here. Try to keep it updated
 
 --"RANGE_DAMAGE", -- normal
