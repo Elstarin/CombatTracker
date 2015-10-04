@@ -3,6 +3,7 @@ if not CombatTracker then return end
 -- Locals
 --------------------------------------------------------------------------------
 local CT = CombatTracker
+local debug = CT.debug
 
 --------------------------------------------------------------------------------
 -- DropDown Menu Types

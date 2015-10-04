@@ -9,6 +9,7 @@ local round = CT.round
 local formatTimer = CT.formatTimer
 local colorText = CT.colorText
 local colors = CT.colors
+local debug = CT.debug
 
 local SetTexCoord, SetPoint, SetTexture, SetVertexColor =
         SetTexCoord, SetPoint, SetTexture, SetVertexColor
@@ -78,7 +79,7 @@ function CT.mainUpdate.graphUpdate(time, timer)
 
         else
           value = 0
-          CT:Print("No graph update category for:", self.name)
+          debug("No graph update category for:", self.name)
         end
 
         if (value == infinity) or (value == -infinity) then value = 0 end
@@ -88,7 +89,10 @@ function CT.mainUpdate.graphUpdate(time, timer)
         self.data[num + 2] = value
 
         if (num % graphs.splitAmount) == 0 then
-          if not self.splitCount then CT:Print("Missing split count for:", self.name) end
+          if not self.splitCount then
+            debug("Missing split count for:", self.name)
+          end
+
           self.splitCount = self.splitCount + 1
         end
 
@@ -130,7 +134,7 @@ function CT.mainUpdate.uptimeGraphsUpdate(time, timer)
           if dbGraph then
             dbGraph.XMax = self.XMax + max(timer - self.XMax, self.startX)
           else
-            print("No dbGraph for", setGraph.name .. "!") -- Happened once, no idea how or why...
+            debug("No dbGraph for", setGraph.name .. "!") -- Happened once, no idea how or why...
           end
 
           if setGraph.frame then
@@ -164,8 +168,6 @@ end
 
 function CT.finalizeGraphLength(graphType)
   if not CT.displayed then return end
-
-  if CT.tracking then CT:Print("Called finalize while still tracking. That's probably pointless.") end
 
   local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
 
@@ -222,7 +224,7 @@ local function handleGraphData(set, db, graph, data, name, timer, value, prev)
   --   local prevDataY = data[-(num - 1)]
   --
   --   if prevDataY then
-  --     print(prev, prevDataY)
+  --     debug(prev, prevDataY)
   --
   --     data[num] = timer -- X coords
   --     data[-num] = prevDataY -- Y coords
@@ -652,7 +654,7 @@ local function setUptimeGraphNameWidth()
 end
 
 function CT:toggleUptimeGraph(command)
-  if not CT.uptimeGraphFrame then CT:Print("Tried to toggle an uptime graph before uptime graph frame was loaded.", self.name) return end
+  if not CT.uptimeGraphFrame then return debug("Tried to toggle an uptime graph before uptime graph frame was loaded.", self.name) end
 
   local frame = self.frame or CT.uptimeGraphFrame
 
@@ -687,7 +689,7 @@ function CT:toggleUptimeGraph(command)
   end
 
   if command ~= "hide" then -- Show graph
-    -- print("Showing:", self.name .. ".")
+    -- debug("Showing:", self.name .. ".")
 
     local dbGraph = getmetatable(self)
 
@@ -718,10 +720,10 @@ end
 function CT:refreshUptimeGraph(reset)
   if not self.shown then return end
   if not self.frame then return end
-  if not CT.uptimeGraphFrame then CT:Print("Tried to refresh uptime graph before CT.uptimeGraphFrame was created.") return end
-  if self[1] and not self[1].lines then CT:Print("Tried to refresh uptime graph without any line table.") return end
-  if not self.shown then CT:Print("Tried to refresh uptime graph while self (" .. (self.name or "UNKNOWN") .. ") was not shown.") return end
-  -- if not CT.uptimeGraphFrame.displayed[1] then CT:Print("Tried to refresh uptime graph without any displayed.") return end
+  if not CT.uptimeGraphFrame then return debug("Tried to refresh uptime graph before CT.uptimeGraphFrame was created.") end
+  if self[1] and not self[1].lines then return debug("Tried to refresh uptime graph without any line table.") end
+  if not self.shown then return debug("Tried to refresh uptime graph while self (" .. (self.name or "UNKNOWN") .. ") was not shown.") end
+  -- if not CT.uptimeGraphFrame.displayed[1] then return debug("Tried to refresh uptime graph without any displayed.") end
 
   local frame = CT.uptimeGraphFrame
   local frameWidth, frameHeight = frame.bg:GetSize()
@@ -808,13 +810,17 @@ function CT:refreshUptimeGraph(reset)
 end
 
 local function addUptimeGraphDropDownButtons(parent)
-  local texture, text
+  local text
+  local count = 0
+  local height = 0
   local uptimeGraphs = CT.displayed.uptimeGraphs
+  if not parent.buttonIndex then parent.buttonIndex = {} end
 
   for i = 1, #CT.uptimeCategories do -- Run through each type of uptime graph (ex: "buffs")
     local category = CT.uptimeCategories[i]
 
-    if not parent[category] and #uptimeGraphs[category] > 0 then
+    local texture = parent[category]
+    if not texture and #uptimeGraphs[category] > 0 then
       parent[category] = parent:CreateTexture(nil, "ARTWORK")
       texture = parent[category]
       texture:SetTexture(0.1, 0.1, 0.1, 1.0)
@@ -845,11 +851,11 @@ local function addUptimeGraphDropDownButtons(parent)
 
       parent.height = (parent.height or 0) + 25
       parent.prevTexture = texture
-    else
-      texture = parent[category]
     end
 
     for i, setGraph in ipairs(uptimeGraphs[category]) do -- Run every graph in that type (ex: "Illuminated Healing")
+      count = count + 1
+
       local self = setGraph
 
       if not texture[i] then
@@ -857,8 +863,10 @@ local function addUptimeGraphDropDownButtons(parent)
         local b = texture[i]
         b:SetSize(parent:GetWidth() - 5, 20)
         b:SetPoint("TOP", texture, 0, i * -20)
-        parent.height = (parent.height or 0) + b:GetHeight()
         texture[i].height = (texture[i].height or 0) + 20
+        parent.height = (parent.height or 0) + b:GetHeight()
+
+        parent.buttonIndex[#parent.buttonIndex + 1] = b
 
         do -- Set Textures and Text
           b.normal = b:CreateTexture(nil, "BACKGROUND")
@@ -922,12 +930,38 @@ local function addUptimeGraphDropDownButtons(parent)
       end
     end
 
-    if texture then
-      texture:SetSize(parent:GetWidth(), (#uptimeGraphs[category] * 20) + 25)
+    local numButtons = #uptimeGraphs[category]
+
+    if texture and numButtons == 0 then
+      for i = 1, #texture do -- Hides all buttons in this category
+        texture[i]:Hide()
+      end
+
+      texture.title:Hide()
+      -- texture:Hide()
+      texture:SetHeight(0.01)
+    elseif texture then
+      for i = 1, #texture do -- Show all buttons in this category
+        texture[i]:Show()
+      end
+
+      texture:SetSize(parent:GetWidth(), (numButtons * 20) + 25)
+      -- texture:Show()
+      texture.title:Show()
+      height = height + (numButtons * 20) + 25
     end
   end
 
-  parent:SetHeight(parent.height or 0)
+  -- debug(#parent.buttonIndex, count)
+  -- if #parent.buttonIndex > count + 1 then -- Should mean there are extra buttons shown
+  --   for i = count + 1, #parent.buttonIndex do
+  --     debug("Hiding", i)
+  --     parent.buttonIndex[i]:Hide()
+  --   end
+  -- end
+
+  -- parent:SetHeight(parent.height or 0)
+  parent:SetHeight(height)
 end
 
 function CT.loadDefaultUptimeGraph()
@@ -987,7 +1021,7 @@ function CT.loadDefaultUptimeGraph()
     end
   end
 
-  return CT:Print("Failed to find any uptime graph to load.")
+  return -- debug("Failed to find any uptime graph to load.")
 end
 
 function CT:buildUptimeGraph(relativeFrame)
@@ -1238,7 +1272,7 @@ end
 -- Normal Graphs
 --------------------------------------------------------------------------------
 function CT:toggleNormalGraph(command)
-  if not CT.graphFrame then CT:Print("Tried to toggle a graph before graph frame was loaded.", self.name) return end
+  if not CT.graphFrame then return debug("Tried to toggle a graph before graph frame was loaded.", self.name) end
 
   local frame = CT.graphFrame
   local found = nil
@@ -1254,7 +1288,7 @@ function CT:toggleNormalGraph(command)
   end
 
   if found or (command and command == "hide") then -- Hide graph
-    -- print("Hiding:", self.name .. ".")
+    -- debug("Hiding:", self.name .. ".")
 
     tremove(frame.displayed, found) -- Remove it from list
     self.frame = nil
@@ -1266,7 +1300,7 @@ function CT:toggleNormalGraph(command)
       end
     end
   elseif not dbGraph.shown and not found or (command and command == "show") then -- Show graph
-    -- print("Showing:", self.name .. ".")
+    -- debug("Showing:", self.name .. ".")
 
     tinsert(frame.displayed, self) -- Add it to list
     self.frame = frame
@@ -1283,7 +1317,7 @@ function CT:toggleNormalGraph(command)
 end
 
 function CT:refreshNormalGraph(reset)
-  if not self.frame then print("Tried to refresh graph without a frame set!") return end
+  if not self.frame then debug("Tried to refresh graph without a frame set!") return end
 
   local graphWidth, graphHeight = self.frame:GetSize()
 
@@ -1410,10 +1444,12 @@ function CT.loadDefaultGraphs()
   local db = CT.displayedDB
   local success
 
+  if CT.graphFrame then CT.graphFrame:hideAllGraphs() end
+
   if CT.current and CT.displayed and CT.current ~= CT.displayed then -- If there is an active set that is not displayed, try to mimic its graphs for easy comparisons
     for index, name in ipairs(CT.graphList) do
       local setGraph = set.graphs[name]
-      
+
       if setGraph and setGraph.shown then
         setGraph:toggle("show")
         success = true
@@ -1460,7 +1496,7 @@ function CT.loadDefaultGraphs()
     end
   end
 
-  return CT:Print("Failed to find any graph to load.")
+  return debug("Failed to find any graph to load.")
 end
 
 local function addGraphDropDownButtons(parent)

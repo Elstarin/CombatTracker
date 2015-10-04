@@ -126,16 +126,37 @@ CT.loadSpellData = false
 local temp = {}
 local combatevents = CT.combatevents
 local lastMouseoverButton
-local buttonClickNum = 5
-local testMode = true
+local buttonClickNum = 7
+local testMode = false
 local trackingOnLogIn = false
-local loadBaseOnLogin = true
+local loadBaseOnLogin = false
+
+do -- Debugging stuff
+  local start = debugprofilestop() / 1000
+  local printFormat = "|cFF9E5A01(|r|cFF00CCFF%.2f|r|cFF9E5A01)|r |cFF00FF00%s|r: %s"
+  local debugMode = false
+  if GetUnitName("player") == "Elstari" and GetRealmName() == "Drak'thul" then
+    debugMode = true
+    -- testMode = true
+    -- trackingOnLogIn = true
+    -- loadBaseOnLogin = true
+  end
+
+  function CT.debug(...)
+    if debugMode then
+      local t = {...}
+      print(printFormat:format((debugprofilestop() / 1000) - start, CombatTracker:GetName(), table.concat(t, " ")))
+    end
+  end
+
+  CT.debug("If you aren't developing this addon and you see this message,",
+    "that means I, being the genius that I am, released it with debug mode enabled.",
+    "\n\nYou can easily fix it by opening the Main.lua document with any text editor,",
+    "and finding the line |cFF00CCFFlocal debugMode = true|r and changing the |cFF00CCFFtrue|r to |cFF00CCFFfalse|r. Sorry!")
+end
+local debug = CT.debug
 
 CT.eventFrame = CreateFrame("Frame")
-
--- local start = debugprofilestop() / 1000
--- print((debugprofilestop() / 1000) - start)
-
 --------------------------------------------------------------------------------
 -- Upvalues
 --------------------------------------------------------------------------------
@@ -392,14 +413,10 @@ local function eventHandler(self, event, ...) -- Dedicated handler to avoid crea
     -- local preGC = collectgarbage("count")
     -- collectgarbage("collect")
     -- local num = (preGC - collectgarbage("count")) / 1000
-    -- print("Collected " .. CT.round(num, 3) .. " MB of garbage")
+    -- debug("Collected " .. CT.round(num, 3) .. " MB of garbage")
 
     if testMode then
       C_Timer.After(1.0, function()
-        if trackingOnLogIn then
-          CT.startTracking("Starting tracking from logging in. (Test Mode)")
-        end
-
         if CT.base then
           if CT.buttons[buttonClickNum] then
             CT.buttons[buttonClickNum]:Click("LeftButton")
@@ -408,6 +425,10 @@ local function eventHandler(self, event, ...) -- Dedicated handler to avoid crea
           end
 
           CT.base:Show()
+        end
+
+        if trackingOnLogIn then
+          CT.startTracking("Starting tracking from logging in. (Test Mode)")
         end
       end)
     end
@@ -456,7 +477,7 @@ local function eventHandler(self, event, ...) -- Dedicated handler to avoid crea
     -- end
   elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
     if IsLoggedIn() then
-      -- CT:Print(event)
+      -- debug(event)
       -- CT.cycleMainButtons()
     end
   elseif event == "PLAYER_REGEN_DISABLED" then -- Start Combat
@@ -472,7 +493,7 @@ local function eventHandler(self, event, ...) -- Dedicated handler to avoid crea
   elseif event == "PLAYER_DEAD" then
     CT.player.alive = false
   elseif event == "UPDATE_SHAPESHIFT_FORMS" then
-    -- print(event)
+    -- debug(event)
     -- local maxNum = GetNumShapeshiftForms()
     -- local stanceNum = GetShapeshiftForm()
     -- local startTime, duration, isActive = GetShapeshiftFormCooldown(stanceNum)
@@ -535,7 +556,7 @@ local function eventHandler(self, event, ...) -- Dedicated handler to avoid crea
     CT.current.pet.active = false
   elseif event == "PET_DISMISS_START" then
   elseif event == "UNIT_COMBAT" then
-    -- print(event, ...)
+    -- debug(event, ...)
   elseif event == "UNIT_PET" then
     local petName = GetUnitName("pet", false)
     if petName then
@@ -560,7 +581,7 @@ local function eventHandler(self, event, ...) -- Dedicated handler to avoid crea
   elseif event == "UNIT_FLAGS" then
     if ... == "player" then
       local inCombat = InCombatLockdown()
-      -- print(GetTime(), inCombat)
+      -- debug(GetTime(), inCombat)
     end
   elseif event == "PLAYER_ENTERING_WORLD" then
     if not CT.current then return end
@@ -769,7 +790,8 @@ end
 
 function CT:OnDisable()
   -- CT.current = nil
-  -- CT:Print("CT Disable")
+  -- debug("CT Disable")
+  -- debug("CT Disable")
 end
 --------------------------------------------------------------------------------
 -- Main Button Functions
@@ -809,7 +831,7 @@ local function profileCode()
 
   local MSper = (MS / loop)
 
-  CT:Print("Time: \nMS:", MS, "\nIn 1 MS:", CT.round(1 / MSper, 1), "\n")
+  debug("Time: \nMS:", MS, "\nIn 1 MS:", CT.round(1 / MSper, 1), "\n")
 
   C_Timer.After(1.0, function()
     local preGC = collectgarbage("count")
@@ -819,7 +841,7 @@ local function profileCode()
     local MB = KB / 1000
     local KBper = KB / loop
 
-    CT:Print("Garbage: \nMB:", CT.round(MB, 3), "\nNeeded for 1 KB:", CT.round(1 / KBper, 5))
+    debug("Garbage: \nMB:", CT.round(MB, 3), "\nNeeded for 1 KB:", CT.round(1 / KBper, 5))
   end)
 
   do
@@ -1140,7 +1162,7 @@ local function findInfoText(s, name, spellID, powerIndex)
 end
 
 local function addExpanderText(self, lines)
-  if not lines then CT:Print("Called expand text without a line table", self and self.name) return end
+  if not lines then return debug("Called expand text without a line table", self and self.name) end
 
   local frameNum = 1
   local dataFrame = CT.base.expander.dataFrames[frameNum]
@@ -1335,14 +1357,14 @@ function CT:expanderFrame(command)
     f:SetScript("OnShow", function(self)
       if CT.displayed then
         if not self.graphFrame.displayed[1] then -- No regular graph is loaded
-          -- print("No regular graph, loading default.")
+          -- debug("No regular graph, loading default.")
 
           CT.loadDefaultGraphs()
           CT.finalizeGraphLength("line")
         end
 
         if not self.uptimeGraph.displayed then -- No uptime graph is loaded
-          -- print("No uptime graph, loading default.")
+          -- debug("No uptime graph, loading default.")
 
           CT.loadDefaultUptimeGraph()
           CT.finalizeGraphLength("uptime")
@@ -1351,7 +1373,7 @@ function CT:expanderFrame(command)
     end)
 
     f:SetScript("OnHide", function(self)
-      -- print("Expander hiding")
+      -- debug("Expander hiding")
     end)
 
     f:Hide()
@@ -1549,7 +1571,7 @@ function CT:expanderFrame(command)
       local buttonName = self.name
 
       if not CT.current and not CT.displayed then
-        print("No current set, so loading last saved set.")
+        debug("No current set, so loading last saved set.")
         CT.loadSavedSet() -- Load the most recent set as default
       end
 
@@ -1825,17 +1847,21 @@ function CT.createSpecDataButtons() -- Create the default main buttons
 
               if self:GetChecked() then
                 self:expand("show")
+                self.expanded = true
               else
                 self:expand("hide")
+                self.expanded = false
               end
 
               for i = 1, #CT.buttons do
                 if CT.buttons[i] ~= self and CT.buttons[i]:GetChecked() then
                   CT.buttons[i]:SetChecked(false)
+                  CT.buttons[i].expanded = false
                 end
               end
             elseif click == "RightButton" then
-              if true then CT:Print("Blocking right click, it isn't set up properly and will error.") return end
+              if CT.base.expander and CT.base.expander.currentButton and CT.base.expander.currentButton ~= self then self:SetChecked(false) end
+              if true then return debug("Blocking right click, it isn't set up properly and will error.") end
 
               if not self.expandedDown and (dropDown.dropHeight or 1) > 0 then -- Expand drop down
                 self:UnlockHighlight()
@@ -1885,7 +1911,7 @@ function CT.createSpecDataButtons() -- Create the default main buttons
               local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
 
               if self.expanded and self.expanderUpdate then
-                button:expanderUpdate(time, timer)
+                self:expanderUpdate(time, timer)
               elseif self.shown and self.update then
                 self:update(time, timer)
               end
@@ -1978,10 +2004,7 @@ function CT.createSavedSetButtons(table)
             if self:GetChecked() then
               local set, db = CT.loadSavedSet(table[i])
             else
-              if CT.current and CT.currentDB then -- Change displayed set to current
-                CT.displayed = CT.current
-                CT.displayedDB = CT.currentDB
-              end
+              CT.loadActiveSet() -- Change displayed set to current
             end
 
             CT.base.bottomExpander.popup[1]:Click() -- Toggles it back to normal buttons
@@ -2284,7 +2307,7 @@ function CT:dragMainButton()
 end
 
 function CT:expandedMenu()
-  print("Expand called", self.name)
+  debug("Expand called", self.name)
   local f = CT.base.expander
   f.icon:SetTexture(self.iconTexture or CT.player.specIcon)
   SetPortraitToTexture(f.icon, f.icon:GetTexture())
@@ -2469,7 +2492,7 @@ function CT.createBaseFrame() -- Create Base Frame
     scrollFrame = CT.scrollFrame
 
     CT.scrollFrame:SetPoint("TOPLEFT", 25, -88)
-    CT.scrollFrame:SetPoint("BOTTOMRIGHT", -25, 100)
+    CT.scrollFrame:SetPoint("BOTTOMRIGHT", -25, 53)
 
     CT.scrollBar = CreateFrame("Slider", "CT_ScrollBar", CT.scrollFrame, "UIPanelScrollBarTemplate")
     CT.scrollBar:SetPoint("TOPRIGHT", CT.scrollFrame, 20, 0)
@@ -2592,9 +2615,14 @@ function CT.createBaseFrame() -- Create Base Frame
     expander:SetSize(width - 40, 15)
     expander:SetPoint("BOTTOM", f, 0, 7)
 
+    expander:SetScript("OnEnter", function(self)
+      self:Click()
+    end)
+
     expander:SetScript("OnClick", function(self, button)
       if not self.popup then
         self.popup = CreateFrame("Frame", nil, self)
+        self.popup:SetFrameStrata("HIGH")
         self.popup:SetSize(width - 10, 120)
         self.popup:SetPoint("BOTTOM", self, 0, 0)
         self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")

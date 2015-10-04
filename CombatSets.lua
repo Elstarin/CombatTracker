@@ -4,10 +4,11 @@ if not CombatTracker then return end
 --------------------------------------------------------------------------------
 local CT = CombatTracker
 local buttonClickNum = 7
+local debug = CT.debug
 
 local function saveDataSet(db)
   if db then -- Save current DB
-    -- CT:Print("Saving data set:", db.setName .. ".")
+    -- debug("Saving data set:", db.setName .. ".")
     if not db.stop then
       db.stop = GetTime()
     end
@@ -110,14 +111,14 @@ function CT.nameCurrentSet()
 end
 
 function CT.startTracking(message)
-  -- if CT.tracking then CT:Print("Already tracking! Message:", message) return end
+  -- if CT.tracking then return debug("Already tracking! Message:", message) end
   if CT.tracking then return end
-  CT:Print(message or "Starting tracking, but no start message was sent.")
+  debug(message or "Starting tracking, but no start message was sent.")
 
   local set, db = CT.buildNewSet()
 
   if db.stop then
-    print("db.stop exists in start tracking.")
+    debug("db.stop exists in start tracking.")
     db.stop = nil
   end
 
@@ -132,15 +133,13 @@ function CT.startTracking(message)
   CT.iterateAuras()
   CT.iterateCooldowns()
 
-  -- CT.loadDefaultGraphs()
-  -- CT.loadDefaultUptimeGraph()
+  CT.loadActiveSet()
 
   -- CT:toggleUptimeGraph("clear")
-  -- if CT.graphFrame then CT.loadDefaultGraphs() end
 end
 
 function CT.stopTracking()
-  CT:Print("Stopping tracking.")
+  debug("Stopping tracking.")
   CT.combatStop = GetTime()
 
   CT.currentDB.stop = GetTime()
@@ -191,7 +190,7 @@ function CT.createSetButtons(menu, table)
               end
             else
               if CT.current then
-                CT:Print("Setting displayed back to current.")
+                debug("Setting displayed back to current.")
                 CT.displayed = CT.current
                 CT.displayedDB = CT.currentDB
                 CT.forceUpdate = true
@@ -376,7 +375,7 @@ local function basicPowerData(set, db)
         elseif powerName == "Burning Embers" then
           power.tColor = "|cFFBF6B02"
         else
-          print("No text color found for " .. powerName .. ".")
+          debug("No text color found for " .. powerName .. ".")
         end
       end
 
@@ -646,6 +645,26 @@ local function basicUptimeGraphData(set, db)
   end
 end
 
+local function registerDefaultGraphs(set, db)
+  local GUID = set.playerGUID
+  local playerName = set.playerName
+
+  do -- Activity uptime
+    local setGraph = set.uptimeGraphs.misc["Activity"]
+
+    if not setGraph then
+      local flags = {
+        ["spellName"] = false,
+        ["color"] = false,
+      }
+      setGraph = set.addMisc("Activity", CT.colors.orange, flags)
+      flags = nil
+
+      setGraph.addNewLine(GUID, playerName)
+    end
+  end
+end
+
 function CT.buildNewSet()
   local set, db = CT.current, CT.currentDB
 
@@ -658,7 +677,7 @@ function CT.buildNewSet()
 
     -- wipeSVars = true
     if wipeSVars then
-      CT:Print("Wiping all saved data sets.")
+      debug("Wiping all saved data sets.")
       CombatTrackerCharDB[specName].sets = {}
     end
 
@@ -681,6 +700,7 @@ function CT.buildNewSet()
   basicPowerData(set, db)
   basicGraphData(set, db)
   basicUptimeGraphData(set, db)
+  registerDefaultGraphs(set, db)
 
   CT.current = set
   CT.currentDB = db
@@ -704,7 +724,7 @@ function CT.loadSavedSet(db)
       db = CombatTrackerCharDB[specName].sets[1]
     end
 
-    if not db then CT:Print("Didn't pass a DB table, and failed to find db[1] to load.") return end
+    if not db then return debug("Didn't pass a DB table, and failed to find db[1] to load.") end
   end
 
   if CT.graphFrame then CT.graphFrame:hideAllGraphs() end
@@ -785,5 +805,10 @@ function CT.loadActiveSet()
   CT.displayed = CT.current
   CT.displayedDB = CT.currentDB
 
-  
+  CT.loadDefaultGraphs()
+  CT.loadDefaultUptimeGraph()
+
+  debug("Loading active set.")
+
+  CT.forceUpdate = true
 end

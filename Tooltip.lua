@@ -3,6 +3,7 @@ if not CombatTracker then return end
 -- Locals
 --------------------------------------------------------------------------------
 local CT = CombatTracker
+local debug = CT.debug
 
 function CT:getParser()
   local parser, LT1, LT2, LT3, RT1, RT2, RT3
@@ -243,5 +244,5 @@ function CT.createInfoTooltip(parent, title, icon, func, textTable)
   --   f:SetHeight(height)
   -- end)
 
-  -- print(width, height, f.info:GetNumLines())
+  -- debug(width, height, f.info:GetNumLines())
 end

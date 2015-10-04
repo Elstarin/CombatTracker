@@ -5,6 +5,7 @@ if not CombatTracker then return end
 local CT = CombatTracker
 local infinity = math.huge
 local colors = CT.colors
+local debug = CT.debug
 
 local red = "|cFFFF0000"
 local darkorange = "|cFFA83000"
@@ -262,7 +263,7 @@ local function createTickerTest(duration, callback, ticks)
 
   local function func()
     count = count + 1
-    -- print("Calling ticker", duration)
+    -- debug("Calling ticker", duration)
     callback(count)
 
     if not (count >= ticks) then

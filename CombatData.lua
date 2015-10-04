@@ -8,6 +8,7 @@ local CT = CombatTracker
 local combatevents = CT.combatevents
 local round = CT.round
 local delayGCD = 0.10
+local debug = CT.debug
 --------------------------------------------------------------------------------
 -- Changing Data
 --------------------------------------------------------------------------------
@@ -110,11 +111,11 @@ local function finishCooldown(spell)
   local duration = spell.duration
 
   if not spell.ID then
-    CT:Print("No spell.ID!", spell.name)
+    debug("No spell.ID!", spell.name)
   end
 
   if not spell then
-    CT:Print("Also no spell table at all!")
+    debug("Also no spell table at all!")
   end
 
   local cooldown
@@ -166,7 +167,7 @@ local function finishCooldown(spell)
       data[#data + 1] = spell.finishedTime - CT.combatStart
 
       setGraph:refresh()
-      print("Starting graph line")
+      debug("Starting graph line")
     end
   end
 end
@@ -178,7 +179,7 @@ local function runCooldown(spell, spellID, spellName)
   -- This may be a problem, be aware of it for other hardcasts faking having CDs
   -- I don't want any hardcasts without real CDs making it in here, may cause issues
   if spell.baseCD == 0 or spell.baseCD == 1 then
-    -- print("Breaking CD early", spellName, baseCD)
+    -- debug("Breaking CD early", spellName, baseCD)
     return
   end
 
@@ -315,7 +316,7 @@ local function updateStats()
   local stats = data.stats
 
   if stats.updated and (GetTime() - stats.updated) >= 0.1 then
-    -- CT:Print("UPDATING STATS")
+    -- debug("UPDATING STATS")
     stats.attackSpeed = UnitAttackSpeed("player")
     stats.attackPower = UnitAttackPower("player")
     stats.primaryStat = UnitStat("player", 1) -- I'll need to setup the index
@@ -347,7 +348,7 @@ local function updateStats()
 
     local base, effectiveArmor, armor, posBuff, negBuff = UnitArmor("player")
     -- for k,v in pairs(stats) do
-    --   print(k,v)
+    --   debug(k,v)
     -- end
   end
 end
@@ -355,7 +356,7 @@ end
 -- General Data Functions
 --------------------------------------------------------------------------------
 local function addSpell(spellID, spellName, school)
-  if not CT.player.loggedIn then print("Blocking", spellName, "from creating spell table.") return end
+  if not CT.player.loggedIn then debug("Blocking", spellName, "from creating spell table.") return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
   local spell = data.spells[spellID]
@@ -902,7 +903,7 @@ local function castSent(unit, spellName, rank, dstName, lineID)
   if unit ~= "player" then return end
 
   -- local _, _, _, _, _, _, spellID = GetSpellInfo(spellName) -- Get spellID
-  -- if not spellID then print("Failed to find spell ID for " .. spellName .. ".") return end
+  -- if not spellID then debug("Failed to find spell ID for " .. spellName .. ".") return end
 
   -- spell.timeSent = GetTime()
 
@@ -972,15 +973,6 @@ local function castStart(time, event, _, srcGUID, srcName, _, _, dstGUID, dstNam
   data.currentCastSpellID = spellID -- Most recently cast spell
   data.currentCastName = name
   spell.remaining = 0
-
-  -- local uptimeGraphs = CT.current.uptimeGraphs
-  -- if uptimeGraphs.cooldowns["Activity"] then
-  --   local self = uptimeGraphs.cooldowns["Activity"]
-  --   local num = #self.data + 1
-  --   self.data[num] = spell.castStart - CT.combatStart
-  --   self.spellName[num] = spellName
-  --   self:refresh()
-  -- end
 
   do -- Handles creating and refreshing of uptime graph
     local setGraph = data.uptimeGraphs.misc["Activity"]
@@ -1089,7 +1081,9 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
     spell = addSpell(spellID, spellName)
   end
 
-  if spell.ticker then CT:Print(spellName, "still has a ticker!") end
+  if spell.ticker then
+    debug(spellName, "still has a ticker!")
+  end
 
   if CT.resetCasts[spellID] then -- Check if the cast spell causes any others to reset their CDs
     for i = 1, #CT.resetCasts[spellID] do
@@ -1161,7 +1155,7 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
 
       if data.timerGCD then
         local percent = delayGCD * 100
-        CT:Print("GCD timer didn't finish! \nDelay was:", percent .. "%", "\nSpell Was:", spellName, "\nIncreasing delay to:", (percent + 2) .. "%")
+        debug("GCD timer didn't finish! \nDelay was:", percent .. "%", "\nSpell Was:", spellName, "\nIncreasing delay to:", (percent + 2) .. "%")
         delayGCD = delayGCD + 0.02
       end
 
@@ -1254,14 +1248,14 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
     if power and power.currentPower then
       spell.resourceTotal = (spell.resourceTotal or 0) + power.currentPower
       spell.resourceAverage = spell.resourceTotal / spell.casts
-      -- print(power.name, "when cast:", spellName, spell.resourceTotal, spell.resourceAverage)
+      -- debug(power.name, "when cast:", spellName, spell.resourceTotal, spell.resourceAverage)
     end
 
     local power = p["Combo Points"] or p["Chi"] or p["Runes"] or p["Soul Shards"] or p["Burning Embers"] or p["Holy Power"] or p["Shadow Orbs"]
     if power and power.currentPower then
       spell.secondaryResourceTotal = (spell.secondaryResourceTotal or 0) + power.currentPower
       spell.secondaryResourceAverage = spell.secondaryResourceTotal / spell.casts
-      -- print(power.name, "when cast:", spellName, spell.secondaryResourceTotal, spell.secondaryResourceAverage)
+      -- debug(power.name, "when cast:", spellName, spell.secondaryResourceTotal, spell.secondaryResourceAverage)
     end
   end
 
@@ -1271,7 +1265,7 @@ end
 local function castInterrupt(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, extraID, extraName, school2)
   if srcGUID ~= data.playerGUID then return end
 
-  -- CT:Print("INTERRUPTED")
+  -- debug("INTERRUPTED")
   --
   -- local spell = data.spells[spellID]
   -- if not spell then
@@ -1499,9 +1493,9 @@ local function auraRefresh(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
   end
 
   -- if not aura.duration then
-  --   print("No aura duration for refresh", spellName, GetTime())
+  --   debug("No aura duration for refresh", spellName, GetTime())
   --   if aura.applied then
-  --     print("Aura was applied though", aura.applied)
+  --     debug("Aura was applied though", aura.applied)
   --   end
   -- end
 
@@ -1559,7 +1553,7 @@ local function auraRefresh(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
   end
 
   -- if (count or 0) > 1 then -- TODO: This passed with hunter's TotH, when it refreshed at 3 stacks I think
-  --   CT:Print("WRONG! Refresh can have stacks", spellName, count)
+  --   debug("WRONG! Refresh can have stacks", spellName, count)
   -- end
 
   if CT.spells.defensives[spellID] then
@@ -1587,7 +1581,7 @@ local function auraRemoved(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName,
     aura = addAura(spellID, spellName, auraType, consolidated, count)
   end
 
-  -- if not aura.duration then print("No duration for removing", spellName, "on", dstName .. ".") return end
+  -- if not aura.duration then debug("No duration for removing", spellName, "on", dstName .. ".") return end
 
   local start = (aura.start or 0)
   local duration = timer - start
@@ -1725,7 +1719,7 @@ end
 
 local function unitPowerFrequent(unit, powerType)
   if unit ~= "player" then return end
-  if not data then print("Blocking unit power update.") return end
+  if not data then debug("Blocking unit power update.") return end
 
   local powerTypeIndex = CT.powerTypes["SPELL_POWER_" .. powerType]
   local power = data.power[powerTypeIndex]
@@ -1793,13 +1787,13 @@ local function unitPowerFrequentOLD(unit, powerType)
   --   local estimate = timeSinceLastUpdate * regen
   --
   --   if (estimate + 1) > change and (estimate - 1) < change then
-  --     -- print(estimate, change)
+  --     -- debug(estimate, change)
   --   end
   -- end
 
   -- C_Timer.After(0.5, function()
   --   if UnitPower(unit, powerTypeIndex) ~= power.accuratePower then
-  --     CT:Print("No match!", UnitPower(unit, powerTypeIndex), power.accuratePower)
+  --     debug("No match!", UnitPower(unit, powerTypeIndex), power.accuratePower)
   --   end
   -- end)
 
@@ -1807,7 +1801,7 @@ local function unitPowerFrequentOLD(unit, powerType)
     if 0 > change then
       power.amountDropped = change
       power.spent = change
-      CT:Print("Drop:", change, currentPower)
+      debug("Drop:", change, currentPower)
     end
   end
 
@@ -1828,7 +1822,7 @@ local function unitPowerFrequentOLD(unit, powerType)
 
   if change >= 0 then
     power.naturalRegen = (power.naturalRegen or 0) + change
-    -- print(power.naturalRegen, power.spent)
+    -- debug(power.naturalRegen, power.spent)
   end
 
   power.oldPowerTime = currentTime
@@ -1898,7 +1892,7 @@ combatevents["PLAYER_STOPPED_MOVING"] = stoppedMoving
 -- Player Target and Focus
 --------------------------------------------------------------------------------
 local function targetChanged()
-  if true then CT:Print("Blocking targetChanged") return end
+  if true then return debug("Blocking targetChanged") end
   if not CT.current then return end
   local uptimeGraphs = CT.current.uptimeGraphs
   local currentTime = GetTime()
@@ -2043,14 +2037,14 @@ function CT.plateShow(plate)
   if r > 0.5 and g < 0.5 then container.combat = true end
 
   CT.plates.numShown = (CT.plates.numShown or 0) + 1
-  -- print(container.name, "is shown.", CT.plates.numShown)
+  -- debug(container.name, "is shown.", CT.plates.numShown)
 end
 
 function CT.plateHide(plate)
   local container = CT.plates[plate.ArtContainer]
 
   CT.plates.numShown = (CT.plates.numShown or 1) - 1
-  -- print(container.name, "is hidden.", CT.plates.numShown)
+  -- debug(container.name, "is hidden.", CT.plates.numShown)
 end
 
 function CT.plateHealthUpdate(health, value)
@@ -2107,8 +2101,8 @@ function CT.plateHealthUpdate(health, value)
     container.executeStart20 = false
   end
 
-  -- print(container.name, "can execute:", "\n45%", container.executeTime45, "\n35%", container.executeTime35, "\n30%", container.executeTime30, "\n20%", container.executeTime20)
-  -- print(container.name, "total time:", "\n45%", CT.plates.execute45, "\n35%", CT.plates.execute35, "\n30%", CT.plates.execute30, "\n20%", CT.plates.execute20)
+  -- debug(container.name, "can execute:", "\n45%", container.executeTime45, "\n35%", container.executeTime35, "\n30%", container.executeTime30, "\n20%", container.executeTime20)
+  -- debug(container.name, "total time:", "\n45%", CT.plates.execute45, "\n35%", CT.plates.execute35, "\n30%", CT.plates.execute30, "\n20%", CT.plates.execute20)
 end
 
 function CT.plateCastBar(castBar, value)
@@ -2116,10 +2110,10 @@ function CT.plateCastBar(castBar, value)
 
   if container.casting then
     local percent = value * 100
-    -- print(container.name, "casting:", percent)
+    -- debug(container.name, "casting:", percent)
 
     if percent == 0 then
-      print("Cast went to 0 while .casting was true", castBar:IsShown())
+      debug("Cast went to 0 while .casting was true", castBar:IsShown())
       container.casting = false
     end
   end
@@ -2129,14 +2123,14 @@ function CT.plateCastBarStart(castBar)
   local container = CT.plates[castBar]
 
   container.casting = true
-  -- print(container.name, "starting a cast.")
+  -- debug(container.name, "starting a cast.")
 end
 
 function CT.plateCastBarStop(castBar)
   local container = CT.plates[castBar]
 
   container.casting = false
-  -- print(container.name, "finished a cast.")
+  -- debug(container.name, "finished a cast.")
 end
 --------------------------------------------------------------------------------
 -- Keybinds
@@ -2152,7 +2146,7 @@ local function keyDown(self, key) -- Fire whenever a key is pressed
     k.action = GetBindingAction(key)
     k.action2 = GetBindingByKey(key)
 
-    -- print(key, k.action, k.action2)
+    -- debug(key, k.action, k.action2)
 
     self.binds[key] = k
   end
@@ -2163,7 +2157,7 @@ local function keyDown(self, key) -- Fire whenever a key is pressed
     -- CT.base:Hide()
   end
 
-	-- print(key)
+	-- debug(key)
 end
 
 local modifiers = {
@@ -2178,17 +2172,17 @@ local modifiers = {
 local function modKeys(key, num) -- NOTE: If the player alt tabs, alt gets added, but the release won't register, causing duplicates
   if num == 1 then -- Add it to active list
     activeMods[#activeMods + 1] = modifiers[key]
-    -- print("Adding", key)
+    -- debug("Adding", key)
   else -- Remove it
     for i = 1, #activeMods do
       if activeMods[i] == modifiers[key] then
-        -- print("Found mod to remove", key, i)
+        -- debug("Found mod to remove", key, i)
         tremove(activeMods, i)
       end
     end
   end
 
-  -- print("Modifier", key, bool)
+  -- debug("Modifier", key, bool)
 end
 
 CT.keys = CreateFrame("Frame")
@@ -2201,7 +2195,7 @@ combatevents["MODIFIER_STATE_CHANGED"] = modKeys
 -- Misc
 --------------------------------------------------------------------------------
 local function spellSummon(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
-  -- print("Summoned", spellName)
+  -- debug("Summoned", spellName)
 end
 
 combatevents["SPELL_SUMMON"] = spellSummon
@@ -2374,7 +2368,7 @@ function CT.iterateAuras()
 end
 
 function CT.getPowerTypes()
-  if true then CT:Print("Blocking old power update.") return end
+  if true then return debug("Blocking old power update.") end
   if not CT.power then CT.power = {} end
 
   for i = 0, #CT.powerTypes do
@@ -2389,7 +2383,7 @@ function CT.getPowerTypes()
 end
 
 function CT.updatePowerTypes()
-  if true then CT:Print("Blocking old power update.") return end
+  if true then return debug("Blocking old power update.") end
   if not CT.current then CT.getPowerTypes() return end -- No active set, get power types to make buttons instead
   if data.power[1] then wipe(data.power) end
 
@@ -2456,7 +2450,7 @@ function CT.updatePowerTypes()
       elseif powerName == "Burning Embers" then
         power.tColor = "|cFFBF6B02"
       else
-        print("No text color found for " .. powerName .. ".")
+        debug("No text color found for " .. powerName .. ".")
       end
 
       data.power[i] = data.power[count]
@@ -2467,7 +2461,8 @@ end
 function CT:wipeSavedVariables()
   for k, v in pairs(CT.setDB) do
     for k, v in pairs(v) do
-      CT:Print(k, v)
+      debug(k, v)
+
       if v.sets then
         wipe(v.sets)
       end
@@ -2481,7 +2476,7 @@ local wipeSVars = false
 
 function CT.resetData(clicked)
   if clicked then
-    CT:Print("Resetting Data.")
+    debug("Resetting Data.")
   end
 
   CT.addNewSet()
@@ -2705,11 +2700,11 @@ end
 -- local src = band(srcFlags, RAID_FLAGS) ~= 0 or (band(srcFlags, PET_FLAGS) ~= 0 and data.groupPets[srcGUID]) or data.group[srcGUID]
 -- local dst = band(dstFlags, RAID_FLAGS) ~= 0 or (band(dstFlags, PET_FLAGS) ~= 0 and data.groupPets[dstGUID]) or data.group[dstGUID]
 --
--- print(src, dst)
+-- debug(src, dst)
 --
 -- for k, v in pairs(filters) do
 --   if CombatLog_Object_IsA(dstFlags, k) then
---     print(k, val, v)
+--     debug(k, val, v)
 --   end
 -- end
 
@@ -2763,7 +2758,7 @@ end
 --     end
 --
 --     if spell.reset then
---       print("Reset", spellName)
+--       debug("Reset", spellName)
 --       spell.reset = false
 --     else -- Adjusts the throttle, making it more or less likely to delay a tick
 --       data.timeOffset = (data.timeOffset or 0) + spell.remaining
@@ -2803,7 +2798,7 @@ end
 -- local returnValue
 -- local function spellCD()
 --   local _, duration = GetSpellCooldown(tempSpellID)
---   print("Delayed:", tempSpellTable.name, duration)
+--   debug("Delayed:", tempSpellTable.name, duration)
 --   returnValue = duration
 -- end
 
@@ -2813,7 +2808,7 @@ end
 --
 -- do
 --   local _, duration = GetSpellCooldown(spellID)
---   print("Instant:", spell.name, duration)
+--   debug("Instant:", spell.name, duration)
 -- end
 
 -- local function castSuccess(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
@@ -2875,7 +2870,7 @@ end
 --       end
 --
 --       if data.timerGCD then
---         CT:Print("GCD timer didn't finish!", spellName)
+--         debug("GCD timer didn't finish!", spellName)
 --       end
 --
 --       data.timerGCD = true
@@ -2905,7 +2900,7 @@ end
 --     local power = data.power["Energy"] or data.power["Focus"]
 --     if power and power.currentPower then
 --       spell.resourceAverage = (spell.resourceAverage or 0) + power.currentPower
---       -- print(power.name, "when cast:", spellName, power.currentPower)
+--       -- debug(power.name, "when cast:", spellName, power.currentPower)
 --     end
 --
 --     data.activity.instantCasts = (data.activity.instantCasts or 0) + 1

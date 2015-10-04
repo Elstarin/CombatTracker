@@ -16,6 +16,7 @@ local colorPercentText2 = CT.colorPercentText2
 local max = math.max
 local YELLOW = "|cFFFFFF00"
 local anchorTable = {"TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT"}
+local debug = CT.debug
 --------------------------------------------------------------------------------
 -- Dropdown Update Functions
 --------------------------------------------------------------------------------
@@ -1077,7 +1078,7 @@ function func:expanderAllCasts(time, timer)
 
       updateAllCastsSpellText(spells)
 
-      for k, v in pairs(CT.base.expander.spellFrames) do
+      for k, v in pairs(CT.base.expander.spellFrames) do -- NOTE: This runs constantly...
         if spells[k] and spells[k].casts then
           v:Show()
         else

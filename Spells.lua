@@ -5,6 +5,7 @@
 if not CombatTracker then print("Not loading spell list") return end
 
 local CT = CombatTracker
+local debug = CT.debug
 local hasteCD = CT.hasteCD
 CT.spells = {}
 

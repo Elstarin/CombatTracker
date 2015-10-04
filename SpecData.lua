@@ -6,6 +6,7 @@ local CT = CombatTracker
 local colors = CT.colors
 local func = CT.updateFunctions
 local addLineGraph = CT.addLineGraph
+local debug = CT.debug
 CT.graphList = {}
 CT.uptimeGraphList = {}
 --------------------------------------------------------------------------------
