@@ -1316,6 +1316,236 @@ function CT:toggleNormalGraph(command)
   end
 end
 
+do -- Coroutine test
+  local frame = CreateFrame("Frame", "TestGraphFrame", UIParent)
+  frame:SetPoint("CENTER")
+  frame:SetSize(1400, 800)
+  local bg = frame:CreateTexture("Background", "BACKGROUND")
+  bg:SetTexture(0.1, 0.1, 0.1, 1)
+  bg:SetAllPoints()
+
+  local create = coroutine.create
+  local yield = coroutine.yield
+  local resume = coroutine.resume
+  local wrap = coroutine.wrap
+  local status = coroutine.status
+
+  local function refreshNormalGraph(self, reset, routine)
+    if reset then
+      self.refresh = wrap(refreshNormalGraph)
+      self.endNum = 2
+
+      return self:refresh(nil, true) -- Call it again, but now as a coroutine
+    end
+
+    local start = GetTime()
+    local graphWidth, graphHeight = self.frame:GetSize()
+
+    local maxX = self.XMax
+    local minX = self.XMin
+    local maxY = self.YMax
+    local minY = self.YMin
+    local num = #self.data
+
+    for i = (self.endNum or 2), num do
+      local startX = graphWidth * (self.data[i - 1] - minX) / (maxX - minX)
+      local startY = graphHeight * (self.data[-(i - 1)] - minY) / (maxY - minY)
+
+      local stopX = graphWidth * (self.data[i] - minX) / (maxX - minX)
+      local stopY = graphHeight * (self.data[-i] - minY) / (maxY - minY)
+
+      if startX ~= stopX then -- If they match, this can break
+        local w = 32
+        local dx, dy = stopX - startX, stopY - startY
+        local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
+
+        if (dx < 0) then -- Normalize direction if necessary
+          dx, dy = -dx, -dy
+        end
+
+        local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
+
+        local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
+        local sc = s * c
+
+        local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
+        if (dy >= 0) then
+          Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
+          Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
+          BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
+          BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
+          TRy = BRx
+        else
+          Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
+          Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
+          BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
+          BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
+          TRx = TLy
+        end
+
+        if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
+        if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
+        if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
+        if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
+        if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
+        if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
+        if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
+        if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
+
+        local line = self.lines[i]
+        if not line then
+          self.lines[i] = self.frame:CreateTexture("Test_Graph_Line_" .. i, "ARTWORK")
+          line = self.lines[i]
+          line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
+
+          if self.color then
+            line:SetVertexColor(self.color[1], self.color[2], self.color[3], self.color[4])
+          else
+            line:SetVertexColor(0, 0, 1.0, 1.0)
+          end
+        end
+
+        line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
+        line:SetPoint("TOPRIGHT", self.frame, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
+        line:SetPoint("BOTTOMLEFT", self.frame, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
+      end
+
+      if self.bars then -- Draw bars if the table is added
+        if not self.triangles then self.triangles = {} end -- Make sure I actually created it...
+
+        if startX > stopX then -- Want startX <= stopX, if not then flip them
+          startX, stopX = stopX, startX
+          startY, stopY = stopY, startY
+        end
+
+        local bar, tri = self.bars[i], self.triangles[i]
+        if not bar then
+          bar = self.frame:CreateTexture(nil, "ARTWORK")
+          bar:SetTexture(1, 1, 1, 1)
+
+          tri = self.frame:CreateTexture(nil, "ARTWORK")
+          tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
+          -- tri:SetTexture("Interface\\Addons\\CombatTracker\\Libs\\LibGraph-2.0\\triangle")
+
+          if self.color then
+            local c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.color[4]
+
+            bar:SetVertexColor(c1, c2, c3, 0.3)
+            tri:SetVertexColor(c1, c2, c3, 0.3)
+          else
+            bar:SetVertexColor(0, 0, 1.0, 0.3)
+            tri:SetVertexColor(0, 0, 1.0, 0.3)
+          end
+
+          self.bars[i] = bar
+          self.triangles[i] = tri
+        end
+
+        local minY, maxY
+        if startY < stopY then
+          tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
+          minY = startY
+          maxY = stopY
+        else
+          tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
+          minY = stopY
+          maxY = startY
+        end
+
+        if 1 > minY then minY = 1 end -- Has to be at least 1 wide
+
+        bar:SetPoint("BOTTOMLEFT", self.frame, "BOTTOMLEFT", startX, 0)
+
+        local width = stopX - startX
+        if width < 1 then width = 1 end
+        bar:SetSize(width, minY)
+
+        if (maxY - minY) >= 1 then
+          tri:SetPoint("BOTTOMLEFT", self.frame, "BOTTOMLEFT", startX, minY)
+          tri:SetSize(width, maxY - minY)
+          tri:Show()
+        else
+          tri:Hide()
+        end
+      end
+
+      if i == num then
+        debug("Done running refresh:", GetTime() - start)
+        self.refresh = refreshNormalGraph
+        self.endNum = i
+      elseif routine and (i % 10) == 0 then
+        C_Timer.After(0.01, self.refresh)
+        yield()
+      end
+    end
+  end
+
+  local graph = {}
+  graph.name = "Test Graph"
+  graph.data = {}
+  graph.lines = {}
+  graph.bars = {}
+  graph.triangles = {}
+  graph.frame = frame
+  graph.XMax = 100
+  graph.XMin = 0
+  graph.YMax = 100
+  graph.YMin = 0
+  graph.endNum = 2
+  graph.refresh = refreshNormalGraph
+  graph.color = {0.0, 0.0, 1.0, 1.0} -- Blue
+  -- graph.color = {1.0, 0.0, 0.0, 1.0} -- Red
+  -- graph.color = {0.0, 1.0, 0.5, 1.0} -- Green
+
+  local function generateData(num, command)
+    local gapX = 100 / num
+    local X = 0
+
+    if command and command == "add" then
+      local dataNum = #graph.data
+
+      for i = dataNum, num + dataNum do
+        local prev = graph.data[-(i + 1)] or random(25, 75)
+
+        X = X + gapX
+        graph.data[i] = X
+        graph.data[-i] = random(prev - 1, prev + 1)
+      end
+
+      print("Total points:", #graph.data)
+    else
+      wipe(graph.data)
+
+      for i = 1, num do
+        local prev = graph.data[-(i + 1)] or random(25, 75)
+
+        X = X + gapX
+        graph.data[i] = X
+        graph.data[-i] = random(prev - 1, prev + 1)
+      end
+    end
+  end
+
+  local counter = 0
+  local function update(self, elapsed)
+    counter = counter + 1
+
+    if counter % 2 == 0 then
+      generateData(100)
+      graph:refresh(true)
+    else
+      graph:refresh()
+    end
+  end
+
+  generateData(100)
+
+  C_Timer.NewTicker(1.0, update)
+  -- C_Timer.NewTicker(10, update2)
+
+  -- frame:SetScript("OnUpdate", update)
+end
+
 function CT:refreshNormalGraph(reset)
   if not self.frame then debug("Tried to refresh graph without a frame set!") return end
 

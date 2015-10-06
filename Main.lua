@@ -132,14 +132,16 @@ local trackingOnLogIn = false
 local loadBaseOnLogin = false
 
 do -- Debugging stuff
+  local match
   local start = debugprofilestop() / 1000
-  local printFormat = "|cFF9E5A01(|r|cFF00CCFF%.2f|r|cFF9E5A01)|r |cFF00FF00%s|r: %s"
+  local printFormat = "|cFF9E5A01(|r|cFF00CCFF%.3f|r|cFF9E5A01)|r |cFF00FF00%s|r: %s"
   local debugMode = false
-  if GetUnitName("player") == "Elstari" and GetRealmName() == "Drak'thul" then
+  if GetUnitName("player") == "Elstari" or GetUnitName("player") == "Elendi" and GetRealmName() == "Drak'thul" then
     debugMode = true
     -- testMode = true
     -- trackingOnLogIn = true
     -- loadBaseOnLogin = true
+    match = true
   end
 
   function CT.debug(...)
@@ -149,10 +151,12 @@ do -- Debugging stuff
     end
   end
 
-  CT.debug("If you aren't developing this addon and you see this message,",
-    "that means I, being the genius that I am, released it with debug mode enabled.",
-    "\n\nYou can easily fix it by opening the Main.lua document with any text editor,",
-    "and finding the line |cFF00CCFFlocal debugMode = true|r and changing the |cFF00CCFFtrue|r to |cFF00CCFFfalse|r. Sorry!")
+  if not match then
+    CT.debug("If you aren't developing this addon and you see this message,",
+      "that means I, being the genius that I am, released it with debug mode enabled.",
+      "\n\nYou can easily fix it by opening the Main.lua document with any text editor,",
+      "and finding the line |cFF00CCFFlocal debugMode = true|r and changing the |cFF00CCFFtrue|r to |cFF00CCFFfalse|r. Sorry!")
+  end
 end
 local debug = CT.debug
 
@@ -391,6 +395,95 @@ CT.mainUpdate:SetScript("OnUpdate", updateHandler)
 --------------------------------------------------------------------------------
 -- Main Event Handler
 --------------------------------------------------------------------------------
+do -- Register events
+  local eventFrame = CT.eventFrame
+
+  local events = {
+    "ADDON_LOADED",
+    "COMBAT_LOG_EVENT_UNFILTERED",
+    -- "COMBAT_RATING_UPDATE",
+    "PLAYER_LOGIN",
+    "PLAYER_LOGOUT",
+    -- "PLAYER_CONTROL_GAINED",
+    -- "PLAYER_CONTROL_LOST",
+    "PLAYER_ALIVE",
+    "PLAYER_DEAD",
+    "PLAYER_TALENT_UPDATE",
+    "PLAYER_REGEN_DISABLED",
+    "PLAYER_REGEN_ENABLED",
+    "ENCOUNTER_START",
+    "ENCOUNTER_END",
+    "PLAYER_TARGET_CHANGED",
+    "PLAYER_FOCUS_CHANGED",
+    "PLAYER_STARTED_MOVING",
+    "PLAYER_STOPPED_MOVING",
+    "PLAYER_DAMAGE_DONE_MODS",
+    "PET_ATTACK_START",
+    "PET_ATTACK_STOP",
+    "PLAYER_TOTEM_UPDATE",
+    "UNIT_SPELLCAST_SENT",
+    "UNIT_SPELLCAST_START",
+    "UNIT_SPELLCAST_STOP",
+    "UNIT_SPELLCAST_FAILED",
+    "UNIT_SPELLCAST_INTERRUPTED",
+    "UNIT_SPELLCAST_SUCCEEDED",
+    "UNIT_SPELLCAST_DELAYED",
+    "UNIT_SPELLCAST_FAILED_QUIET",
+    -- "SPELL_UPDATE_COOLDOWN",
+    -- "SPELL_UPDATE_USABLE",
+    -- "SPELL_UPDATE_CHARGES",
+    "PLAYER_SPECIALIZATION_CHANGED",
+    -- "CURRENT_SPELL_CAST_CHANGED",
+    "UNIT_HEALTH_FREQUENT",
+    -- "UNIT_POWER_FREQUENT",
+    "UNIT_ATTACK_POWER",
+    "SPELL_POWER_CHANGED",
+    "UNIT_RANGED_ATTACK_POWER",
+    "UNIT_DISPLAYPOWER",
+    "WEIGHTED_SPELL_UPDATED",
+    "UNIT_DEFENSE",
+    -- "UNIT_ABSORB_AMOUNT_CHANGED",
+    "UPDATE_SHAPESHIFT_FORMS",
+    "UPDATE_SHAPESHIFT_FORM",
+    "UPDATE_MOUSEOVER_UNIT",
+    "GROUP_ROSTER_UPDATE",
+    "PLAYER_ENTERING_WORLD",
+    "UNIT_AURA",
+    "MODIFIER_STATE_CHANGED",
+  }
+
+  local unitEvents = {
+    "UNIT_HEALTH_FREQUENT",
+    "UNIT_MAXHEALTH",
+    "UNIT_MAXPOWER",
+    "UNIT_POWER_FREQUENT",
+    "UNIT_POWER",
+    "UNIT_MAXPOWER",
+    "UNIT_ATTACK_POWER",
+    "SPELL_POWER_CHANGED",
+    "UNIT_RANGED_ATTACK_POWER",
+    -- "UNIT_DISPLAYPOWER",
+    -- "WEIGHTED_SPELL_UPDATED",
+    "UNIT_PET",
+    "UNIT_DEFENSE",
+    "UNIT_ABSORB_AMOUNT_CHANGED",
+    "UNIT_STATS",
+    "UNIT_SPELL_HASTE",
+    "UNIT_SPELL_CRITICAL",
+    "PET_DISMISS_START",
+    "UNIT_FLAGS",
+    -- "UNIT_COMBAT",
+  }
+
+  for i = 1, #unitEvents do
+    eventFrame:RegisterUnitEvent(unitEvents[i], "player")
+  end
+
+  for i = 1, #events do
+    eventFrame:RegisterEvent(events[i])
+  end
+end
+
 local lastEventTime = GetTime()
 local function eventHandler(self, event, ...) -- Dedicated handler to avoid creating a throw away function every event
   if not CT.tracking then -- Anything that happens out of combat or related to early combat detection
@@ -406,7 +499,13 @@ local function eventHandler(self, event, ...) -- Dedicated handler to avoid crea
     end
   end
 
-  if event == "PLAYER_LOGIN" then
+  if event == "ADDON_LOADED" then
+    local name = ...
+
+    if name == "CombatTracker" then
+
+    end
+  elseif event == "PLAYER_LOGIN" then
     CT.eventFrame:UnregisterEvent(event)
     CT.player.loggedIn = true
 
@@ -682,104 +781,39 @@ function CT:OnInitialize()
   -- self.db.RegisterCallback(self, "OnDatabaseShutdown", "OnDatabaseShutdown")
 
   -- local _, _, _, _, _, id = strsplit("-", destGUID) -- NOTE: Might be handy
-
-  local eventFrame = CT.eventFrame
-
-  do -- Register events
-    local events = {
-      "COMBAT_LOG_EVENT_UNFILTERED",
-      -- "COMBAT_RATING_UPDATE",
-      "PLAYER_LOGIN",
-      "PLAYER_LOGOUT",
-      -- "PLAYER_CONTROL_GAINED",
-      -- "PLAYER_CONTROL_LOST",
-      "PLAYER_ALIVE",
-      "PLAYER_DEAD",
-      "PLAYER_TALENT_UPDATE",
-      "PLAYER_REGEN_DISABLED",
-      "PLAYER_REGEN_ENABLED",
-      "ENCOUNTER_START",
-      "ENCOUNTER_END",
-      "PLAYER_TARGET_CHANGED",
-      "PLAYER_FOCUS_CHANGED",
-      "PLAYER_STARTED_MOVING",
-      "PLAYER_STOPPED_MOVING",
-      "PLAYER_DAMAGE_DONE_MODS",
-      "PET_ATTACK_START",
-      "PET_ATTACK_STOP",
-      "PLAYER_TOTEM_UPDATE",
-      "UNIT_SPELLCAST_SENT",
-      "UNIT_SPELLCAST_START",
-      "UNIT_SPELLCAST_STOP",
-      "UNIT_SPELLCAST_FAILED",
-      "UNIT_SPELLCAST_INTERRUPTED",
-      "UNIT_SPELLCAST_SUCCEEDED",
-      "UNIT_SPELLCAST_DELAYED",
-      "UNIT_SPELLCAST_FAILED_QUIET",
-      -- "SPELL_UPDATE_COOLDOWN",
-      -- "SPELL_UPDATE_USABLE",
-      -- "SPELL_UPDATE_CHARGES",
-      "PLAYER_SPECIALIZATION_CHANGED",
-      -- "CURRENT_SPELL_CAST_CHANGED",
-      "UNIT_HEALTH_FREQUENT",
-      -- "UNIT_POWER_FREQUENT",
-      "UNIT_ATTACK_POWER",
-      "SPELL_POWER_CHANGED",
-      "UNIT_RANGED_ATTACK_POWER",
-      "UNIT_DISPLAYPOWER",
-      "WEIGHTED_SPELL_UPDATED",
-      "UNIT_DEFENSE",
-      -- "UNIT_ABSORB_AMOUNT_CHANGED",
-      "UPDATE_SHAPESHIFT_FORMS",
-      "UPDATE_SHAPESHIFT_FORM",
-      "UPDATE_MOUSEOVER_UNIT",
-      "GROUP_ROSTER_UPDATE",
-      "PLAYER_ENTERING_WORLD",
-      "UNIT_AURA",
-      "MODIFIER_STATE_CHANGED",
-    }
-
-    local unitEvents = {
-      "UNIT_HEALTH_FREQUENT",
-      "UNIT_MAXHEALTH",
-      "UNIT_MAXPOWER",
-      "UNIT_POWER_FREQUENT",
-      "UNIT_POWER",
-      "UNIT_MAXPOWER",
-      "UNIT_ATTACK_POWER",
-      "SPELL_POWER_CHANGED",
-      "UNIT_RANGED_ATTACK_POWER",
-      -- "UNIT_DISPLAYPOWER",
-      -- "WEIGHTED_SPELL_UPDATED",
-      "UNIT_PET",
-      "UNIT_DEFENSE",
-      "UNIT_ABSORB_AMOUNT_CHANGED",
-      "UNIT_STATS",
-      "UNIT_SPELL_HASTE",
-      "UNIT_SPELL_CRITICAL",
-      "PET_DISMISS_START",
-      "UNIT_FLAGS",
-      -- "UNIT_COMBAT",
-    }
-
-    for i = 1, #unitEvents do
-      eventFrame:RegisterUnitEvent(unitEvents[i], "player")
-    end
-
-    for i = 1, #events do
-      eventFrame:RegisterEvent(events[i])
-    end
-  end
 end
 
 function CT:OnEnable(load)
   local _, specName = GetSpecializationInfo(GetSpecialization())
 
-  if not CombatTrackerDB then CombatTrackerDB = {} end
-  if not CombatTrackerCharDB then CombatTrackerCharDB = {} end
+  -- if not CombatTrackerDB then print("Passed 1") CombatTrackerDB = {} end
+  -- if not CombatTrackerCharDB then print("Passed 2") CombatTrackerCharDB = {} end
+  -- debug(CombatTrackerCharDB)
   -- wipe(CombatTrackerCharDB)
-  if not CombatTrackerCharDB[specName] then CombatTrackerCharDB[specName] = {} end
-  if not CombatTrackerCharDB[specName].sets then CombatTrackerCharDB[specName].sets = {} end
+  -- if not CombatTrackerCharDB[specName] then CombatTrackerCharDB[specName] = {} end
+  -- if not CombatTrackerCharDB[specName].sets then CombatTrackerCharDB[specName].sets = {} end
+
+  local _, specName = GetSpecializationInfo(GetSpecialization())
+  debug("Loaded for", specName .. ".")
+
+  local db = CombatTrackerCharDB[specName]
+  if not db then
+    debug("Creating DB for", specName .. ".")
+    CombatTrackerCharDB[specName] = {}
+    CombatTrackerCharDB[specName].sets = {}
+  end
+
+  local maxSets = 19
+
+  for spec, db in pairs(CombatTrackerCharDB) do
+    if db and db.sets and #db.sets >= maxSets then
+      debug("DB for", spec, "has", maxSets, "or more sets.")
+
+      for i = maxSets, #db.sets do
+        tremove(db.sets, i)
+      end
+    end
+  end
 
   if loadBaseOnLogin or load then
     CT.createBaseFrame()
