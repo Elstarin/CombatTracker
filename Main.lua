@@ -138,9 +138,9 @@ do -- Debugging stuff
   local debugMode = false
   if GetUnitName("player") == "Elstari" or GetUnitName("player") == "Elendi" and GetRealmName() == "Drak'thul" then
     debugMode = true
-    -- testMode = true
-    -- trackingOnLogIn = true
-    -- loadBaseOnLogin = true
+    testMode = true
+    trackingOnLogIn = true
+    loadBaseOnLogin = true
     match = true
   end
 
@@ -314,7 +314,7 @@ local function updateHandler(self, elapsed) -- Dedicated handler to avoid creati
         for i = 1, #CT.graphList do
           local graph = graphs[CT.graphList[i]]
 
-          graph:update(timer)
+          if not graph.updating then graph:update(timer) end
         end
 
         graphs.lastUpdate = time + graphs.updateDelay
@@ -658,7 +658,8 @@ local function eventHandler(self, event, ...) -- Dedicated handler to avoid crea
     -- debug(event, ...)
   elseif event == "UNIT_PET" then
     local petName = GetUnitName("pet", false)
-    if petName then
+
+    if petName and CT.current then
       if CT.current.pet then wipe(CT.current.pet) else CT.current.pet = {} end
       if CT.current.pet.damage then wipe(CT.current.pet.damage) else CT.current.pet.damage = {} end
       CT.current.pet.name = petName
@@ -669,13 +670,13 @@ local function eventHandler(self, event, ...) -- Dedicated handler to avoid crea
         CT.addLineGraph("Pet Damage", {"DPS", 100}, colors.lightgrey, -200, 10000) -- Pet Damage
       end
     else
-      if graphs["Total Damage"] then
-        graphs["Total Damage"].hideButton = true
-      end
-
-      if graphs["Pet Damage"] then
-        graphs["Pet Damage"].hideButton = true
-      end
+      -- if graphs["Total Damage"] then
+      --   graphs["Total Damage"].hideButton = true
+      -- end
+      --
+      -- if graphs["Pet Damage"] then
+      --   graphs["Pet Damage"].hideButton = true
+      -- end
     end
   elseif event == "UNIT_FLAGS" then
     if ... == "player" then

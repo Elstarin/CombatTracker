@@ -423,6 +423,9 @@ local function basicGraphData(set, db, role)
     setGraph.splitCount = 1
     setGraph.startX = 10
     setGraph.startY = dbGraph.YMax
+    setGraph.fill = true
+    setGraph.bars = {}
+    setGraph.triangles = {}
     setGraph.toggle = CT.toggleNormalGraph
     setGraph.refresh = CT.refreshNormalGraph
     setGraph.update, setGraph.color = CT.getGraphUpdateFunc(setGraph, set, db, name)

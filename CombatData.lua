@@ -243,6 +243,7 @@ local function runCooldown(spell, spellID, spellName)
       spell.endCD = spell.start + spell.duration
     end)
 
+    if not spell.cooldownHandler then debug("No cooldown handler for", spellName .. ".") end
     spell.ticker = C_Timer.NewTicker(0.001, spell.cooldownHandler)
   else
     spell.queued = true
@@ -1772,6 +1773,21 @@ local function unitPowerFrequent(unit, powerType)
   power.oldPower = power.currentPower
 end
 
+local function unitPower(unit, powerType)
+  local powerTypeIndex = CT.powerTypes["SPELL_POWER_" .. powerType]
+  local power = data.power[powerTypeIndex]
+
+  do -- Update graph
+    local setGraph = CT.current.graphs[CT.powerTypesFormatted[powerTypeIndex]]
+
+    if setGraph then
+      local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
+
+      setGraph:update(timer)
+    end
+  end
+end
+
 local function unitPowerFrequentOLD(unit, powerType)
   if unit ~= "player" then return end
 
@@ -1869,6 +1885,7 @@ end
 
 combatevents["SPELL_ENERGIZE"] = energize
 combatevents["UNIT_POWER_FREQUENT"] = unitPowerFrequent
+-- combatevents["UNIT_POWER"] = unitPower
 combatevents["UNIT_HEALTH_FREQUENT"] = unitHealthFrequent
 combatevents["UNIT_MAXPOWER"] = unitMaxPower
 combatevents["UNIT_MAXHEALTH"] = unitMaxHealth
