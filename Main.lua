@@ -95,7 +95,513 @@ local checks = {
 --------------------------------------------------------------------------------
 -- Locals, Frames, and Tables
 --------------------------------------------------------------------------------
-CombatTracker = LibStub("AceAddon-3.0"):NewAddon("CombatTracker", "AceConsole-3.0")
+local profile = false
+
+if not profile then
+  CombatTracker = LibStub("AceAddon-3.0"):NewAddon("CombatTracker", "AceConsole-3.0")
+else -- profile code in here
+  local infinity = math.huge
+  function round(num, decimals)
+    if (num == infinity) or (num == -infinity) then num = 0 end
+
+    if decimals == 0 then
+      return ("%.0f"):format(num) + 0
+    elseif decimals == 1 then
+      return ("%.1f"):format(num) + 0
+    elseif decimals == 2 then
+      return ("%.2f"):format(num) + 0
+    elseif decimals == 3 then
+      return ("%.3f"):format(num) + 0
+    elseif decimals == 4 then
+      return ("%.4f"):format(num) + 0
+    elseif decimals == 5 then
+      return ("%.5f"):format(num) + 0
+    elseif decimals == 6 then
+      return ("%.6f"):format(num) + 0
+    elseif decimals == 7 then
+      return ("%.7f"):format(num) + 0
+    elseif decimals == 8 then
+      return ("%.8f"):format(num) + 0
+    elseif decimals == 9 then
+      return ("%.9f"):format(num) + 0
+    elseif decimals == 10 then
+      return ("%.10f"):format(num) + 0
+    else -- No decimals
+      return ("%.0f"):format(num) + 0
+    end
+  end
+
+  local function profileCode()
+
+    local f = CreateFrame("Frame")
+    local start = debugprofilestop()
+    local t = {}
+    local func = nil
+    local time = GetTime()
+    -- local timer = time - CT.combatStart
+
+    local function callback()
+
+    end
+
+    local after = C_Timer.After
+    local wrap = coroutine.wrap
+    local yield = coroutine.yield
+
+    -- local texture = f:CreateTexture(nil, "ARTWORK")
+
+    -- local loop = 100 -- 100
+    -- local loop = 1000 -- 1 thousand
+    -- local loop = 10000 -- 10 thousand
+    -- local loop = 100000 -- 100 thousand
+    -- local loop = 500000 -- 500 thousand
+    -- local loop = 1000000 -- 1 million
+    -- local loop = 10000000 -- 10 million
+    -- local loop = 100000000 -- 100 million
+
+    collectgarbage("collect")
+
+    local frame, graph
+
+    do -- Graph stuff
+      frame = CreateFrame("Frame", "TestGraphFrame", UIParent)
+      frame:SetPoint("CENTER")
+      frame:SetSize(1400, 800)
+      frame.bg = frame:CreateTexture("Background", "BACKGROUND")
+      frame.bg:SetTexture(0.1, 0.1, 0.1, 1)
+      frame.bg:SetAllPoints()
+
+      function t:refreshNormalGraph(reset, routine)
+        if self.updating then return debug("Graph update called while still updating, returning") end
+
+        local num = #self.data
+        local graphWidth, graphHeight = self.frame:GetSize()
+
+        if not self.frame.zoomed and num > 1 then -- Make sure graph is in bounds, if it isn't zoomed
+          local startX = graphWidth * (self.data[1] - self.XMin) / (self.XMax - self.XMin)
+          local startY = graphHeight * (self.data[-(num - 1)] - self.YMin) / (self.YMax - self.YMin)
+
+          local stopX = graphWidth * (self.data[num] - self.XMin) / (self.XMax - self.XMin)
+          local stopY = graphHeight * (self.data[-num] - self.YMin) / (self.YMax - self.YMin)
+
+          if 0 > startY then -- Graph is too short, raise it
+            self.YMin = (self.YMin + startY) - 20
+            reset = true
+          end
+
+          if stopX > graphWidth then -- Graph is too long, squish it
+            self.XMax = self.XMax + (self.XMax * 0.333) -- 75%
+            reset = true
+          end
+
+          if stopY > graphHeight then -- Graph is too tall, squish it
+            self.YMax = self.YMax + (self.YMax * 0.12) -- 90%
+            reset = true
+          end
+        end
+
+        if reset then
+          self.endNum = 2
+
+          if self.fill and num > 3000 then -- The cut off for when to stop allowing bars to save textures
+            self.fill = false
+          end
+
+          if num >= 11500 then -- The comparison number is after how many lines do we want to switch to a coroutine (default 500)
+            self.refresh = wrap(t.refreshNormalGraph)
+
+            return self:refresh(nil, true) -- Call it again, but now as a coroutine
+          end
+        end
+
+        if self.fill then -- Make sure the tables exist
+          if not self.bars then self.bars = {} end
+          if not self.triangles then self.triangles = {} end
+        end
+
+        local start = debugprofilestop()
+        local maxX = self.XMax
+        local minX = self.XMin
+        local maxY = self.YMax
+        local minY = self.YMin
+        local data = self.data
+        local lines = self.lines
+        local bars = self.bars
+        local triangles = self.triangles
+        local frame = self.frame.anchor or self.frame
+        local anchor = self.frame.bg or self.frame
+
+        local lastLineTime = debugprofilestop()
+
+        local c1, c2, c3, c4 = 0.0, 0.0, 1.0, 1.0 -- Default to blue
+        if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.color[4] end
+
+        for i = (self.endNum or 2), num do
+          local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX)
+          local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+
+          local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+          local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+
+          if startX ~= stopX then -- If they match, this can break
+            -- NOTE: is it if they match and if the y points are the same? Then it would be drawing a point that doesn't take any space
+            local w = 32
+            local dx, dy = stopX - startX, stopY - startY
+            local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
+
+            if (dx < 0) then -- Normalize direction if necessary
+              dx, dy = -dx, -dy
+            end
+
+            local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
+
+            local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
+            local sc = s * c
+
+            local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
+            if dy >= 0 then
+              Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
+              Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
+              BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
+              BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
+              TRy = BRx
+            else
+              Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
+              Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
+              BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
+              BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
+              TRx = TLy
+            end
+
+            if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
+            if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
+            if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
+            if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
+            if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
+            if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
+            if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
+            if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
+
+            local line = lines[i]
+            if not line then
+              line = frame:CreateTexture("CT_Graph_Line" .. i, "ARTWORK")
+              line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
+              line:SetVertexColor(c1, c2, c3, c4)
+
+              lastLineTime = debugprofilestop()
+
+              self.lastLine = line -- Easy access to most recent
+              lines[i] = line
+            end
+
+            line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
+            line:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
+            line:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
+          end
+
+          if bars then
+            if self.fill then -- and (stopX - startX) > 1 -- Draw bars if fill is true
+              if startX > stopX then -- Want startX <= stopX, if not then flip them
+                startX, stopX = stopX, startX
+                startY, stopY = stopY, startY
+              end
+
+              local minY, maxY
+              if startY < stopY then
+                minY = startY
+                maxY = stopY
+              else
+                minY = stopY
+                maxY = startY
+              end
+
+              local width = stopX - startX
+
+              if width < 1 then width = 1 end
+              if 1 > minY then minY = 1 end -- Has to be at least 1 wide
+
+              local prevHeight = bars.lastBarHeight
+
+              local bar = bars[i]
+              if not bar and (not prevHeight or prevHeight ~= minY) then
+                bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, "ARTWORK")
+                bar:SetTexture(1, 1, 1, 1)
+                bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
+
+                -- bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
+                -- bar:SetSize(width, minY)
+
+                -- print(i, "Creating bar at", debugprofilestop() - lastLineTime)
+
+                bars.lastBar = bar
+                bars.lastBarHeight = minY
+                bars.lastBarWidth = width
+                bars.lastIndex = i
+                bars.prevStartX = startX
+                bars.prevStopX = stopX
+
+                bars[i] = bar
+              end
+
+              if not bar then --  and prevHeight == minY
+                if lines[i] then
+                  if bars[i - 1] then
+                    bars[i - 1]:SetPoint("RIGHT", lines[i], 0, 0)
+                  else
+                    for index = (i - 2), 1, -1 do
+                      if bars[index] then
+                        bars[index]:SetPoint("RIGHT", lines[i], 0, 0)
+                        break
+                      end
+                    end
+                  end
+                end
+              else
+                bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
+                bar:SetSize(width, minY)
+
+                if bars[i - 1] then
+                  bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+                else
+                  for index = (i - 2), 1, -1 do
+                    if bars[index] then
+                      bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+                      break
+                    end
+                  end
+                end
+              end
+
+              do -- Handle triangle stuff
+                local tri = triangles[i]
+                if not tri and (maxY - minY) >= 1 then
+                  tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, "ARTWORK")
+                  tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
+                  tri:SetVertexColor(c1, c2, c3, bars.alpha or triangles.alpha or 0.3)
+
+                  if startY < stopY then
+                    tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
+                  else
+                    tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
+                  end
+
+                  triangles[i] = tri
+                end
+
+                if tri and (maxY - minY) >= 1 then
+                  tri:SetPoint("BOTTOMLEFT", anchor, startX, minY)
+                  tri:SetSize(width, maxY - minY)
+                  tri:Show()
+                  -- print("Showing", i)
+                elseif tri then
+                  -- print("Hiding", i)
+                  tri:Hide()
+                else
+                  -- print("Didn't create one", i)
+                end
+              end
+
+              self.status = "shown"
+            elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
+              print("Hiding graph filling")
+
+              for i = 1, #bars do
+                if bars[i] and triangles[i] then
+                  bars[i]:Hide()
+                  triangles[i]:Hide()
+                end
+              end
+
+              self.status = "hidden"
+            end
+          end
+
+          if i == num then -- Done running the graph update
+            self.refresh = t.refreshNormalGraph
+            self.endNum = i + 1
+            self.updating = false
+
+            if self.frame.zoomed then
+              self.frame.slider:SetMinMaxValues(self.lines[4]:GetLeft() - self.frame:GetLeft(), self.lastLine:GetRight() - self.frame:GetRight())
+              self.frame.slider:SetValue(0)
+            end
+          elseif routine and (i % 250) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
+            after(0.03, self.refresh)
+            self.updating = true
+            yield()
+          end
+        end
+      end
+
+      do -- Graph setup
+        graph = {}
+        graph.name = "Test Graph"
+        graph.data = {}
+        graph.lines = {}
+        graph.bars = {}
+        graph.triangles = {}
+        graph.frame = frame
+        graph.XMax = 100
+        graph.XMin = 0
+        graph.YMax = 100
+        graph.YMin = 0
+        graph.endNum = 2
+        graph.fill = true
+        graph.refresh = t.refreshNormalGraph
+        graph.color = {0.0, 0.0, 1.0, 1.0} -- Blue
+      end
+
+      graph.data[1] = 0
+      graph.data[-1] = random(25, 75)
+
+      local num = 100
+      local gapX = 100 / num
+
+      for i = 2, num do
+        local prev = graph.data[-(i - 1)]
+
+        graph.data[i] = i * gapX
+        graph.data[-i] = random(prev - 3, prev + 3)
+
+        if 0 > graph.data[-i] then
+          graph.data[-i] = 0
+        elseif graph.XMax < graph.data[-i] then
+          graph.data[-i] = graph.XMax
+        end
+      end
+
+      local function generateData(num, command)
+        local gapX = 100 / num
+
+        if command and command == "add" then
+          graph.XMax = graph.XMax + num
+          local dataNum = #graph.data
+
+          for i = dataNum, num + dataNum do
+            local prev = graph.data[-(i - 1)] or random(25, 75)
+
+            graph.data[i] = i * gapX
+            graph.data[-i] = random(prev - 1, prev + 1)
+          end
+        else
+          wipe(graph.data)
+
+          graph.data[1] = 0
+          graph.data[-1] = random(25, 75)
+
+          for i = 2, num do
+            local prev = graph.data[-(i - 1)]
+
+            graph.data[i] = i * gapX
+            graph.data[-i] = random(prev - 3, prev + 3)
+
+            if 0 > graph.data[-i] then
+              graph.data[-i] = 0
+            elseif graph.XMax < graph.data[-i] then
+              graph.data[-i] = graph.XMax
+            end
+          end
+        end
+      end
+    end
+
+    loop = loop or 1
+    for i = 1, loop do
+      local num = i + 100
+      local prev = graph.data[-(num - 1)]
+
+      graph.data[num] = num * 1
+      graph.data[-num] = random(prev - 3, prev + 3)
+
+      if not graph.updating then
+        graph:refresh(false)
+      else
+        print("Failed", i)
+      end
+    end
+
+    local MS = debugprofilestop() - start
+
+    local MSper = (MS / loop)
+
+    print("Time: \nMS:", MS, "\nIn 1 MS:", round(1 / MSper, 1), "\n")
+
+    C_Timer.After(1.0, function()
+      local preGC = collectgarbage("count")
+      collectgarbage("collect")
+      local KB = (preGC-collectgarbage("count"))
+
+      local MB = KB / 1000
+      local KBper = KB / loop
+
+      print("Garbage: \nMB:", round(MB, 3), "\nNeeded for 1 KB:", round(1 / KBper, 5))
+    end)
+  end
+
+  C_Timer.NewTicker(0.01, function(ticker)
+    if IsLoggedIn() then
+      C_Timer.After(0.5, profileCode)
+      ticker:Cancel()
+    end
+  end)
+
+  do
+    --[[Local Time Indexes
+      100m
+        GetTime = 3.2
+        debugprofilestop = 3.7
+        IsSpellOverlayed = 5.8
+        GetFramerate = 6.56, 6.57
+        self.value = 1.844
+        t.value = i = 1.0 something, no garbage
+        t[i] = "value" = 34.5, no garbage
+      10m
+        GetSpellCooldown = 5.4
+        GetSpellCharges = 1.55
+        IsSpellOverlayed = 0.54
+        IsHelpfulSpell = 7.6
+        IsHarmfulSpell = 7.8
+        IsCurrentSpell = 4.0
+        GetFramerate = 0.66
+        SetText = 20.1, 6.9 -- What the text is seems to matter a lot
+        SetPoint = 2.83
+        GetText = 1.556
+        Setting 56 Upvalue Functions = 2.24
+        GetUnitName = 2.714, 0.00027
+        UnitGUID = 1.61, 0.000161
+      1m
+        GetSpellTexture = 5.5
+        GetSpellInfo = 4.0
+        IsUsableSpell = 17.3
+        IsCurrentSpell = 0.36
+        SetPoint = 0.288
+        GetText = 0.146
+        Setting 56 Upvalue Functions = 0.22
+        C_After.Timer = 0.985 with 54.69 MB garbage, 0.055 KB per
+          -- 18.2k of them = 1 MB
+          -- 1,015 = 1 milisecond
+        C_After.NewTicker = 32.6 with 477 MB total, 0.477 KB per
+        CT.round = 1.59 total, 0.0016 per
+        CT.formatTimer = 0.884 total, 0.000884 per
+        UnitAura("player", "Sign of Battle") = 3.16, 0.00000316 per
+        UnitAura("player", count) = 2.321, 0.00232 -- Exact same as using i
+        t = {} = 0.627 total, 0.000627 per, 1.31 MB, 0.0001 KB per
+        t[i] = {} = 1.336 total, 0.00133 per, 94.9 MB total, 0.095 KB per
+        t[i] = {"val" x4} = 3.28 total, 0.00328 per, 212 MB total, 0.212 KB per
+        t[i] = {true, x4} = 3.22 total, 0.00322 per, 212 MB total, 0.212 KB per
+        t[i][1] = "val", x4 = 6.147 total, 0.00614 per, 282.3 MB total, 0.282 KB per
+        local tab = t[i], tab[1] = "val", x4 = 6.02 total, 0.00602 per, 282.5 MB total, 0.283 KB per -- Setting the local doesn't speed it up for 5
+        t[i] = {[1] = "val", x4} = 9.7 total, 0.0097 per, 532.6 MB total, 0.533 KB per
+        t[i] = {["val"] = "val", x4} = 10.3 total, 0.0103 per, 532.6 MB total, 0.533 KB per
+        t[i] = {["val"] = true, x4} = 9.74 total, 0.0097 per, 532.6 MB total, 0.533 KB per
+      1k
+        C_After.NewTicker = 32.6 with 477 MB total, 0.477 KB per
+    ]]
+  end
+
+  return
+end
+
 local CT = CombatTracker
 local baseFrame = CreateFrame("Frame", "CT_Base", UIParent) -- Have to do this early so that the position will be saved
 baseFrame:SetMovable(true)

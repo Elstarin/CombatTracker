@@ -2,7 +2,7 @@
 -- This must have taken a lot of time to put together... Thank you very much for doing all this work!
 
 
-if not CombatTracker then print("Not loading spell list") return end
+if not CombatTracker then return end
 
 local CT = CombatTracker
 local debug = CT.debug

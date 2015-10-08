@@ -1674,7 +1674,7 @@ function CT:refreshNormalGraph(reset, routine)
       self.fill = false
     end
 
-    if num > 500 then -- The comparison number is after how many lines do we want to switch to a coroutine (default 500)
+    if num >= 500 then -- The comparison number is after how many lines do we want to switch to a coroutine (default 500)
       self.refresh = wrap(CT.refreshNormalGraph)
 
       return self:refresh(nil, true) -- Call it again, but now as a coroutine
@@ -1686,7 +1686,7 @@ function CT:refreshNormalGraph(reset, routine)
     if not self.triangles then self.triangles = {} end
   end
 
-  local start = GetTime()
+  local start = debugprofilestop()
   local maxX = self.XMax
   local minX = self.XMin
   local maxY = self.YMax
@@ -1698,10 +1698,12 @@ function CT:refreshNormalGraph(reset, routine)
   local frame = self.frame.anchor or self.frame
   local anchor = self.frame.bg or self.frame
 
+  local lastLineTime = debugprofilestop()
+
   local c1, c2, c3, c4 = 0.0, 0.0, 1.0, 1.0 -- Default to blue
   if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.color[4] end
 
-  for i = self.endNum or 2, num do
+  for i = (self.endNum or 2), num do
     local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX)
     local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
 
@@ -1753,6 +1755,8 @@ function CT:refreshNormalGraph(reset, routine)
         line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
         line:SetVertexColor(c1, c2, c3, c4)
 
+        lastLineTime = debugprofilestop()
+
         self.lastLine = line -- Easy access to most recent
         lines[i] = line
       end
@@ -1794,6 +1798,8 @@ function CT:refreshNormalGraph(reset, routine)
           -- bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
           -- bar:SetSize(width, minY)
 
+          -- print(i, "Creating bar at", debugprofilestop() - lastLineTime)
+
           bars.lastBar = bar
           bars.lastBarHeight = minY
           bars.lastBarWidth = width
@@ -1803,19 +1809,6 @@ function CT:refreshNormalGraph(reset, routine)
 
           bars[i] = bar
         end
-
-        -- if bar then
-        --   bar:ClearAllPoints()
-        --   bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
-        --   bar:SetSize(width, minY)
-        --
-        --   for index = (i - 1), 1, -1 do
-        --     if bars[index] then
-        --       bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-        --       break
-        --     end
-        --   end
-        -- end
 
         if not bar then --  and prevHeight == minY
           if lines[i] then
@@ -1846,26 +1839,12 @@ function CT:refreshNormalGraph(reset, routine)
           end
         end
 
-        -- if bar then
-        --   bar:ClearAllPoints()
-        --   bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
-        --   bar:SetSize(width, minY)
-        -- else -- Grab the last one and stretch it
-        --   for index = (i - 1), 1, -1 do
-        --     if bars[index] then
-        --       debug("Stretching bar", index, "to line", i .. ".")
-        --       bars[index]:SetPoint("RIGHT", lines[i], 0, 0)
-        --       break
-        --     end
-        --   end
-        -- end
-
         do -- Handle triangle stuff
           local tri = triangles[i]
           if not tri and (maxY - minY) >= 1 then
             tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, "ARTWORK")
             tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
-            tri:SetVertexColor(c1, c2, c3, bars.alpha or triangles.alpha or 0.3)
+            tri:SetVertexColor(c1, c2, c3, triangles.alpha or bars.alpha or 0.3)
 
             if startY < stopY then
               tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
@@ -1901,20 +1880,13 @@ function CT:refreshNormalGraph(reset, routine)
         end
 
         self.status = "hidden"
-      elseif bars[i] and triangles[i] then
-        bars[i]:Hide()
-        triangles[i]:Hide()
-
-        if bars[i - 1] then
-          bars[i - 1]:SetWidth(5)
-        end
       end
     end
 
     if i == num then -- Done running the graph update
-      -- debug("Done running refresh:", GetTime() - start)
+      debug("Done running refresh:", debugprofilestop() - start)
       self.refresh = CT.refreshNormalGraph
-      self.endNum = i + 1 -- NOTE: I think this is correct, but it may break stuff
+      self.endNum = i + 1
       self.updating = false
 
       if self.frame.zoomed then
