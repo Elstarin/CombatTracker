@@ -744,7 +744,7 @@ end
 --------------------------------------------------------------------------------
 local plateIndex
 local index = 2
-local function updateHandler(self, elapsed) -- Dedicated handler to avoid creating the throwaway function every update
+local function updateHandler(self, elapsed) -- Dedicated handler to avoid creating the throwaway function every update. NOTE: Actually it probably doesn't do that...
   local time = GetTime()
 
   local timer = 0
@@ -820,7 +820,7 @@ local function updateHandler(self, elapsed) -- Dedicated handler to avoid creati
         for i = 1, #CT.graphList do
           local graph = graphs[CT.graphList[i]]
 
-          if not graph.updating then graph:update(timer) end
+          graph:update(timer)
         end
 
         graphs.lastUpdate = time + graphs.updateDelay
@@ -992,16 +992,21 @@ end
 
 local lastEventTime = GetTime()
 local function eventHandler(self, event, ...) -- Dedicated handler to avoid creating a throw away function every event
+  local timer = 0
+  if CT.displayedDB then
+    timer = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
+  end
+
   if not CT.tracking then -- Anything that happens out of combat or related to early combat detection
     if event == "UNIT_SPELLCAST_SENT" then -- Let this pass even if not tracking to allow for early combat detection
-      return combatevents[event] and combatevents[event](...)
+      return combatevents[event] and combatevents[event](timer, ...)
     end
   else -- Everything that's specific to combat
     if event == "COMBAT_LOG_EVENT_UNFILTERED" then
       local _, event = ...
-      return combatevents[event] and combatevents[event](...)
+      return combatevents[event] and combatevents[event](timer, ...)
     elseif combatevents[event] then
-      return combatevents[event](...)
+      return combatevents[event](timer, ...)
     end
   end
 
@@ -2111,9 +2116,9 @@ function CT:expanderFrame(command)
 
       local buttonName = self.name
 
-      if not CT.current and not CT.displayed then
-        debug("No current set, so loading last saved set.")
-        CT.loadSavedSet() -- Load the most recent set as default
+      if not CT.current and not CT.displayed then -- NOTE: Disabled this for testing
+        -- debug("No current set, so loading last saved set.")
+        -- CT.loadSavedSet() -- Load the most recent set as default
       end
 
       if CT.displayed then

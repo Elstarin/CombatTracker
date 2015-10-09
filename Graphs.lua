@@ -243,10 +243,6 @@ local function handleGraphData(set, db, graph, data, name, timer, value, prev)
   data[num] = timer -- X coords
   data[-num] = value -- Y coords
 
-  if (num % set.graphs.splitAmount) == 0 then
-    graph.splitCount = graph.splitCount + 1
-  end
-
   if CT.base then -- These updates should only need to happen if it's actually visible
     if graph.frame and graph.frame.zoomed then return end -- Refreshing when zoomed makes it look weird, but we still need to let it create data points if it's active
 
@@ -263,7 +259,10 @@ local function handleGraphData(set, db, graph, data, name, timer, value, prev)
     end
 
     if graph.shown then
-      graph:refresh(refresh)
+      if not graph.updating then
+        graph.lastUpdate = timer
+        graph:refresh(refresh)
+      end
     end
   end
 end
@@ -504,11 +503,8 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local function func(graph, timer)
       local value = ((set.power[2].accuratePower or 0) / (set.power[2].maxPower or 0)) * 100
 
-      handleGraphData(set, db, graph, graph.data, name, timer, value, "prev")
+      handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
-
-    -- graph.data[1] = 0
-    -- graph.data[-1] = 0
 
     local color = CT.colors.holyPower
     local colorString = CT.convertColor(color[1], color[2], color[3])
@@ -1053,6 +1049,7 @@ function CT:buildUptimeGraph(relativeFrame)
 
     CT.uptimeGraphFrame = graphFrame
     -- CT.uptimeGraphFrame.displayed = {}
+    graphFrame.text = {}
   end
 
   -- do -- Create the dropdown menu button
@@ -1202,6 +1199,37 @@ function CT:buildUptimeGraph(relativeFrame)
       if flags.unitName and flags.unitName[num] then
         text = text .. "|r\nName: " .. YELLOW .. flags.unitName[num]
       end
+
+      local casts = flags.logCasts and flags.logCasts[num]
+      if casts then
+        local t = wipe(graphFrame.text) and graphFrame.text
+
+        for timer, spellID in pairs(casts) do
+          if timer ~= "start" then
+            t[#t + 1] = timer
+          end
+        end
+
+        if t[1] then
+          sort(t, function(a, b)
+            if a < b then
+              return true
+            end
+          end)
+
+          for i = 1, #t do
+            local time = t[i]
+            local name = GetSpellInfo(casts[time]) or "|cFFFF0000UNKNOWN|r"
+
+            t[i] = ("\n(|cFF4B6CD7%s|r) |cFFFFFF00%s|r"):format(formatTimer(time), name)
+          end
+
+          local string = "\n\n|cFFFFFFFFCasts while active:|r\n"
+          tinsert(t, 1, string)
+
+          text = text .. table.concat(t)
+        end
+      end
     end
 
     mouseOver.info = text
@@ -1274,7 +1302,7 @@ function CT:buildUptimeGraph(relativeFrame)
         end
       end
 
-      self.lastClickTime = GetTime
+      self.lastClickTime = GetTime() + 0.2
     end
   end)
 
@@ -1308,7 +1336,7 @@ function CT:toggleNormalGraph(command)
     self.frame = nil
     dbGraph.shown = false
 
-    for i = 1, #self.lines do -- Hide all the lines
+    for i = 1, #self.data do -- Hide all the lines
       if self.lines[i] then
         self.lines[i]:Hide()
       end
@@ -1332,7 +1360,7 @@ function CT:toggleNormalGraph(command)
 
     if not self.updating then self:refresh(true) end -- Create/update lines
 
-    for i = 1, #self.lines do -- Show all the lines
+    for i = 1, #self.data do -- Show all the lines
       if self.lines[i] then
         self.lines[i]:Show()
       end
@@ -1340,7 +1368,7 @@ function CT:toggleNormalGraph(command)
       if self.bars and self.bars[i] then
         self.bars[i]:Show()
 
-        self.status = "hidden"
+        self.status = "shown"
       end
 
       if self.triangles and self.triangles[i] then
@@ -1639,8 +1667,6 @@ end
 -- end
 
 function CT:refreshNormalGraph(reset, routine)
-  if self.updating then return debug("Graph update called while still updating, returning") end
-
   local num = #self.data
   local graphWidth, graphHeight = self.frame:GetSize()
 
@@ -1670,10 +1696,6 @@ function CT:refreshNormalGraph(reset, routine)
   if reset then
     self.endNum = 2
 
-    if self.fill and num > 3000 then -- The cut off for when to stop allowing bars to save textures
-      self.fill = false
-    end
-
     if num >= 500 then -- The comparison number is after how many lines do we want to switch to a coroutine (default 500)
       self.refresh = wrap(CT.refreshNormalGraph)
 
@@ -1696,25 +1718,52 @@ function CT:refreshNormalGraph(reset, routine)
   local bars = self.bars
   local triangles = self.triangles
   local frame = self.frame.anchor or self.frame
-  local anchor = self.frame.bg or self.frame
-
-  local lastLineTime = debugprofilestop()
+  local anchor = self.frame.anchor or self.frame
 
   local c1, c2, c3, c4 = 0.0, 0.0, 1.0, 1.0 -- Default to blue
   if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.color[4] end
 
   for i = (self.endNum or 2), num do
+    local lastLine
+
     local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX)
     local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
 
     local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
     local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
 
+    local w = 32
+    local dx, dy = stopX - startX, stopY - startY -- This is about the change
+    local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
+
     if startX ~= stopX then -- If they match, this can break
       -- NOTE: is it if they match and if the y points are the same? Then it would be drawing a point that doesn't take any space
-      local w = 32
-      local dx, dy = stopX - startX, stopY - startY
-      local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
+      local line = lines[i]
+
+      if self.prevDY and dy == self.prevDY then
+        local lastIndex
+
+        if lines[i - 1] then
+          lastLine = lines[i - 1]
+          lastIndex = i - 1
+        elseif lines[i - 2] then
+          lastLine = lines[i - 2]
+          lastIndex = i - 2
+        else
+          for index = (i - 2), 1, -1 do
+            if lines[index] then
+              lastIndex = index
+              lastLine = lines[index]
+              break
+            end
+          end
+        end
+
+        startX = graphWidth * (data[(lastIndex or 2) - 1] - minX) / (maxX - minX)
+        line = lastLine or lines[2] -- NOTE: or line
+        dx, dy = stopX - startX, stopY - startY
+        cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
+      end
 
       if (dx < 0) then -- Normalize direction if necessary
         dx, dy = -dx, -dy
@@ -1749,15 +1798,15 @@ function CT:refreshNormalGraph(reset, routine)
       if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
       if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
 
-      local line = lines[i]
       if not line then
         line = frame:CreateTexture("CT_Graph_Line" .. i, "ARTWORK")
         line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
         line:SetVertexColor(c1, c2, c3, c4)
 
-        lastLineTime = debugprofilestop()
-
+        lastLine = line
         self.lastLine = line -- Easy access to most recent
+        self.totalLines = (self.totalLines or 0) + 1
+
         lines[i] = line
       end
 
@@ -1787,55 +1836,57 @@ function CT:refreshNormalGraph(reset, routine)
         if width < 1 then width = 1 end
         if 1 > minY then minY = 1 end -- Has to be at least 1 wide
 
-        local prevHeight = bars.lastBarHeight
+        do -- Handle the bar
+          local prevHeight = bars.lastBarHeight
 
-        local bar = bars[i]
-        if not bar and (not prevHeight or prevHeight ~= minY) then
-          bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, "ARTWORK")
-          bar:SetTexture(1, 1, 1, 1)
-          bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
+          local bar = bars[i]
 
-          -- bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
-          -- bar:SetSize(width, minY)
+          if not bar and (not self.prevDY or dy ~= self.prevDY) then
+            bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, "ARTWORK")
+            bar:SetTexture(1, 1, 1, 1)
+            bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
 
-          -- print(i, "Creating bar at", debugprofilestop() - lastLineTime)
+            bars.lastBar = bar
+            bars.lastBarHeight = minY
+            bars.lastBarWidth = width
+            bars.lastIndex = i
+            bars.prevStartX = startX
+            bars.prevStopX = stopX
 
-          bars.lastBar = bar
-          bars.lastBarHeight = minY
-          bars.lastBarWidth = width
-          bars.lastIndex = i
-          bars.prevStartX = startX
-          bars.prevStopX = stopX
+            self.totalBars = (self.totalBars or 0) + 1
 
-          bars[i] = bar
-        end
+            bars[i] = bar
+          end
 
-        if not bar then --  and prevHeight == minY
-          if lines[i] then
+          if bar then
+            bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
+            bar:SetSize(width, minY)
+          end
+
+          if self.prevDY and dy == self.prevDY then
             if bars[i - 1] then
-              bars[i - 1]:SetPoint("RIGHT", lines[i], 0, 0)
+              bars[i - 1]:SetPoint("RIGHT", lastLine, 0, 0)
             else
               for index = (i - 2), 1, -1 do
                 if bars[index] then
-                  bars[index]:SetPoint("RIGHT", lines[i], 0, 0)
+                  bars[index]:SetPoint("RIGHT", lastLine, 0, 0)
                   break
                 end
               end
             end
-          end
-        else
-          bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
-          bar:SetSize(width, minY)
-
-          if bars[i - 1] then
-            bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-          else
-            for index = (i - 2), 1, -1 do
-              if bars[index] then
-                bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-                break
+          elseif bar then
+            if bars[i - 1] then
+              bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+            else
+              for index = (i - 2), 1, -1 do
+                if bars[index] then
+                  bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+                  break
+                end
               end
             end
+          else
+            debug(i, "No bar, but does need to anchor!")
           end
         end
 
@@ -1851,6 +1902,8 @@ function CT:refreshNormalGraph(reset, routine)
             else
               tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
             end
+
+            self.totalTriangles = (self.totalTriangles or 0) + 1
 
             triangles[i] = tri
           end
@@ -1883,11 +1936,15 @@ function CT:refreshNormalGraph(reset, routine)
       end
     end
 
+    self.prevDY = dy
+
     if i == num then -- Done running the graph update
-      debug("Done running refresh:", debugprofilestop() - start)
+      -- debug("Done running refresh:", debugprofilestop() - start)
       self.refresh = CT.refreshNormalGraph
       self.endNum = i + 1
       self.updating = false
+
+      -- debug("TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
 
       if self.frame.zoomed then
         self.frame.slider:SetMinMaxValues(self.lines[4]:GetLeft() - self.frame:GetLeft(), self.lastLine:GetRight() - self.frame:GetRight())
@@ -2297,8 +2354,8 @@ function CT.loadDefaultGraphs()
       name = "Damage"
     end
 
-    name = "Mana" -- NOTE: Testing only
-    -- name = "Holy Power" -- NOTE: Testing only
+    -- name = "Mana" -- NOTE: Testing only
+    name = "Holy Power" -- NOTE: Testing only
 
     if name and set.graphs[name] then
       return set.graphs[name]:toggle("show")
@@ -2522,6 +2579,7 @@ function CT:buildGraph()
     slider:SetScript("OnValueChanged", function(self, value)
       graphFrame.anchor:SetSize(graphFrame:GetWidth(), graphFrame:GetHeight())
       graphFrame:SetHorizontalScroll(value)
+      debug("Slider:", value)
     end)
 
     slider:Hide()

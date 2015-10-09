@@ -8,6 +8,7 @@ local combatevents = CT.combatevents
 local round = CT.round
 local delayGCD = 0.10
 local debug = CT.debug
+CT.loggingAuraData = {}
 --------------------------------------------------------------------------------
 -- Changing Data
 --------------------------------------------------------------------------------
@@ -496,6 +497,10 @@ local function addAura(spellID, spellName, auraType, consolidated, count)
     aura.name = spellName
     aura.type = auraType
 
+    if spellName == "Illuminated Healing" then -- NOTE: Testing only
+      aura.logCasts = {}
+    end
+
     if CT.spells.defensives[spellID] then
       aura.defensive = {}
       local type, percent = CT.getDefensiveBuff(spellName)
@@ -564,7 +569,7 @@ end
 --------------------------------------------------------------------------------
 -- Healing and Damage
 --------------------------------------------------------------------------------
-local function spellHeal(time, event, _, srcGUID, srcName, srcFlags, _, dstGUID, dstName, dstFlags, _, spellID, spellName, school, amount, overheal, absorb, crit, MS)
+local function spellHeal(timer, time, event, _, srcGUID, srcName, srcFlags, _, dstGUID, dstName, dstFlags, _, spellID, spellName, school, amount, overheal, absorb, crit, MS)
   -- If it isn't done by me or my pet or done to me or my pet, then return
   if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
 
@@ -641,7 +646,7 @@ local function spellHeal(time, event, _, srcGUID, srcName, srcFlags, _, dstGUID,
   end
 end
 
-local function spellDamage(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, amount, overkill, school2, resist, block, absorb, crit, glance, crush, offHand, MS)
+local function spellDamage(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, amount, overkill, school2, resist, block, absorb, crit, glance, crush, offHand, MS)
   -- If it isn't done by me or my pet or done to me or my pet, then return
   if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
 
@@ -747,7 +752,7 @@ local function spellDamage(time, event, _, srcGUID, srcName, _, _, dstGUID, dstN
   end
 end
 
-local function spellMissed(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, missType, offHand, MS, amount)
+local function spellMissed(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, missType, offHand, MS, amount)
   -- If it isn't done by me or my pet or done to me or my pet, then return
   if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
 
@@ -827,7 +832,7 @@ local function spellMissed(time, event, _, srcGUID, srcName, _, _, dstGUID, dstN
   end
 end
 
-local function swingDamage(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, amount, overkill, school2, resist, block, absorb, crit, glance, crush, offHand, MS)
+local function swingDamage(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, amount, overkill, school2, resist, block, absorb, crit, glance, crush, offHand, MS)
   -- If it isn't done by me or my pet or done to me or my pet, then return
   if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
 
@@ -899,7 +904,7 @@ combatevents["SWING_DAMAGE"] = swingDamage
 --------------------------------------------------------------------------------
 -- Spell Casts
 --------------------------------------------------------------------------------
-local function castSent(unit, spellName, rank, dstName, lineID)
+local function castSent(timer, unit, spellName, rank, dstName, lineID)
   if unit ~= "player" then return end
 
   -- local _, _, _, _, _, _, spellID = GetSpellInfo(spellName) -- Get spellID
@@ -948,7 +953,7 @@ local function castSent(unit, spellName, rank, dstName, lineID)
   end
 end
 
-local function castStart(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
+local function castStart(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
   if srcGUID ~= data.playerGUID then return end
 
   local spell = data.spells[spellID]
@@ -1006,7 +1011,7 @@ local function castStart(time, event, _, srcGUID, srcName, _, _, dstGUID, dstNam
   end
 end
 
-local function castStop(unitID, spellName, rank, lineID, spellID)
+local function castStop(timer, unitID, spellName, rank, lineID, spellID)
   if unitID ~= "player" then return end
   if not data.casting then return end -- Sometimes castStart doesn't get called, and I don't want castStop running if it didn't
 
@@ -1072,7 +1077,7 @@ local function castStop(unitID, spellName, rank, lineID, spellID)
   spell.castStop = true
 end
 
-local function castSucceeded(unitID, spellName, rank, lineID, spellID)
+local function castSucceeded(timer, unitID, spellName, rank, lineID, spellID)
   if unitID ~= "player" then return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
@@ -1083,6 +1088,19 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
 
   if spell.ticker then
     debug(spellName, "still has a ticker!")
+  end
+
+  if CT.loggingAuraData[1] then
+    for i = 1, #CT.loggingAuraData do
+      local t = CT.loggingAuraData[i]
+      local time = timer - t.start
+
+      if not t[time] then
+        t[time] = spellID
+      else
+        t[time + 0.0000001] = spellID
+      end
+    end
   end
 
   if CT.resetCasts[spellID] then -- Check if the cast spell causes any others to reset their CDs
@@ -1262,7 +1280,7 @@ local function castSucceeded(unitID, spellName, rank, lineID, spellID)
   data.lastCastTime = GetTime()
 end
 
-local function castInterrupt(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, extraID, extraName, school2)
+local function castInterrupt(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, extraID, extraName, school2)
   if srcGUID ~= data.playerGUID then return end
 
   -- debug("INTERRUPTED")
@@ -1273,7 +1291,7 @@ local function castInterrupt(time, event, _, srcGUID, srcName, _, _, dstGUID, ds
   -- end
 end
 
-local function castSuccess(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
+local function castSuccess(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
   if srcGUID ~= data.playerGUID then return end
 end
 
@@ -1286,7 +1304,7 @@ combatevents["SPELL_CAST_SUCCESS"] = castSuccess
 --------------------------------------------------------------------------------
 -- Auras
 --------------------------------------------------------------------------------
-local function unitAura(unitID)
+local function unitAura(timer, unitID)
   local filter
   local index = 0
 
@@ -1325,7 +1343,7 @@ local function unitAura(unitID)
   end
 end
 
-local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, dstName, dstFlags, _, spellID, spellName, school, auraType, amount)
+local function auraApplied(timer, time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, dstName, dstFlags, _, spellID, spellName, school, auraType, amount)
   if (srcName ~= data.playerName) and (dstName ~= data.playerName) then return end -- If it doesn't effect player then it shouldn't matter
   -- Actually, it will matter for dispellable debuffs
 
@@ -1387,7 +1405,7 @@ local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
     local setGraph = data.uptimeGraphs[type][spellID]
 
     if not setGraph then
-      setGraph = data.addAura(spellID, spellName, type, count, color)
+      setGraph = data.addAura(spellID, spellName, type, count, color, {["logCasts"] = false})
     end
 
     if setGraph then -- Don't merge with above, always needs to be checked
@@ -1396,49 +1414,21 @@ local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
       end
 
       local data = setGraph[dstGUID].data
-      data[#data + 1] = timer
+      local num = #data + 1
+      data[num] = timer
+
+      local flags = setGraph.flags
+
+      if flags.logCasts then -- Handle logging of data (like all spell casts) when a specific buff is active
+        flags.logCasts[num] = {["start"] = timer}
+        tinsert(CT.loggingAuraData, flags.logCasts[num])
+
+        debug("Adding aura:", aura.name)
+      end
 
       setGraph:refresh()
     end
   end
-
-  -- if BreakingThisOnPurpose and uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then -- Uptime graph
-  --   local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
-  --   local num = #self.data + 1
-  --   self.data[num] = timer
-  --   self.unitName[num] = dstName
-  --
-  --   local targetData = self.targetData[dstGUID]
-  --   if not targetData then
-  --     self.targetData[dstGUID] = {}
-  --     self.targetData[#self.targetData + 1] = self.targetData[dstGUID]
-  --     targetData = self.targetData[dstGUID]
-  --     targetData.data = {}
-  --     targetData.lines = {}
-  --     targetData.data[1] = 0
-  --     targetData.name = dstName
-  --     targetData.spellName = spellName
-  --     targetData.spellID = spellID
-  --     targetData.endNum = 1
-  --     targetData.group = self.group
-  --     targetData.checkButton = self.checkButton
-  --     targetData.shown = self.shown
-  --
-  --     if self.shown then
-  --       CT.toggleUptimeGraph(self, true)
-  --     end
-  --   end
-  --
-  --   targetData.data[#targetData.data + 1] = timer
-  --
-  --   if (amount or 0) > 1 then
-  --     if self.stacks then
-  --       self.stacks[num] = count
-  --     end
-  --   end
-  --
-  --   self:refresh(nil, nil, true)
-  -- end
 
   if CT.resetAuras[spellID] then -- Check for reset CDs
     for i = 1, #CT.resetAuras[spellID] do
@@ -1453,7 +1443,7 @@ local function auraApplied(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
   data.lastAuraTime = GetTime()
 end
 
-local function auraAppliedDose(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
+local function auraAppliedDose(timer, time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
   if dstGUID ~= data.playerGUID then return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
@@ -1469,22 +1459,22 @@ local function auraAppliedDose(time, _, _, srcGUID, srcName, _, _, dstGUID, dstN
   aura.currentStacks = amount
 
   local timer = GetTime() - CT.combatStart
-  if uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then -- Uptime graph
-    local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
-    local num = #self.data + 2
-    self.data[num - 1] = timer
-    self.data[num] = timer
-    self.unitName[num] = dstName
-
-    if self.stacks and amount and amount > 1 then
-      self.stacks[num] = amount
-    end
-
-    self:refresh(nil, nil, true)
-  end
+  -- if uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then -- Uptime graph
+  --   local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
+  --   local num = #self.data + 2
+  --   self.data[num - 1] = timer
+  --   self.data[num] = timer
+  --   self.unitName[num] = dstName
+  --
+  --   if self.stacks and amount and amount > 1 then
+  --     self.stacks[num] = amount
+  --   end
+  --
+  --   self:refresh(nil, nil, true)
+  -- end
 end
 
-local function auraRefresh(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, dstName, dstFlags, _, spellID, spellName, school, auraType, amount)
+local function auraRefresh(timer, time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, dstName, dstFlags, _, spellID, spellName, school, auraType, amount)
   if (srcName ~= data.playerName) and (dstName ~= data.playerName) then return end
 
   local aura = data.auras[spellID]
@@ -1545,8 +1535,25 @@ local function auraRefresh(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
       end
 
       local data = setGraph[dstGUID].data
-      data[#data + 1] = timer
-      data[#data + 1] = timer + 0.00000001
+      local num = #data + 2
+      data[num - 1] = timer
+      data[num] = timer + 0.00000001
+
+      local flags = setGraph.flags
+
+      if flags.logCasts then -- Handle logging of data (like all spell casts) when a specific buff is active
+        local t = flags.logCasts[num - 2]
+        flags.logCasts[num] = {["start"] = timer}
+
+        for i = 1, #CT.loggingAuraData do
+          if CT.loggingAuraData[i] == t then
+            CT.loggingAuraData[i] = flags.logCasts[num]
+            t.start = nil
+            debug("Replaced aura:", aura.name)
+            break
+          end
+        end
+      end
 
       setGraph:refresh()
     end
@@ -1569,7 +1576,7 @@ local function auraRefresh(time, _, _, srcGUID, srcName, srcFlags, _, dstGUID, d
   end
 end
 
-local function auraRemoved(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
+local function auraRemoved(timer, time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
   if (srcName ~= data.playerName) and (dstName ~= data.playerName) then return end
   -- if not ((dstGUID == data.playerGUID) or (srcGUID == data.playerGUID)) then return end
   local uptimeGraphs = CT.current.uptimeGraphs
@@ -1591,20 +1598,22 @@ local function auraRemoved(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName,
     aura.totalUptime = (aura.totalUptime or 0) + duration
   end
 
-  aura.school = school
-  aura.removedCount = (aura.removedCount or 0) + 1
-  aura.removedAmount = (aura.removedAmount or 0) + (amount or 0)
-  aura.currentAmount = 0
-  aura.currentStacks = 0
-  aura.expiredEarly = (aura.expiredEarly or 0) + remaining
-  aura.removedTime = timer
-  aura.start = false
-  aura.timer = 0
+  do -- Basic stuff and CDs
+    aura.school = school
+    aura.removedCount = (aura.removedCount or 0) + 1
+    aura.removedAmount = (aura.removedAmount or 0) + (amount or 0)
+    aura.currentAmount = 0
+    aura.currentStacks = 0
+    aura.expiredEarly = (aura.expiredEarly or 0) + remaining
+    aura.removedTime = timer
+    aura.start = false
+    aura.timer = 0
 
-  if CT.spells.defensives[spellID] and aura.defensive[aura.totalCount - 1] then
-    aura.defensive[aura.totalCount - 1].stop = GetTime()
-  elseif CT.spells.offensives[spellID] and aura.offensive[aura.totalCount - 1] then
-    aura.offensive[aura.totalCount - 1].stop = GetTime()
+    if CT.spells.defensives[spellID] and aura.defensive[aura.totalCount - 1] then
+      aura.defensive[aura.totalCount - 1].stop = GetTime()
+    elseif CT.spells.offensives[spellID] and aura.offensive[aura.totalCount - 1] then
+      aura.offensive[aura.totalCount - 1].stop = GetTime()
+    end
   end
 
   do -- Uptime graph
@@ -1619,25 +1628,50 @@ local function auraRemoved(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName,
 
     if setGraph and setGraph[dstGUID] then
       local data = setGraph[dstGUID].data
-      data[#data + 1] = timer
+      local num = #data + 1
+      data[num] = timer
+
+      local flags = setGraph.flags
+
+      if flags.logCasts then -- Stops logging of data (like all spell casts)
+        local t = flags.logCasts[num - 1] or flags.logCasts[num - 2]
+        for i = 1, #CT.loggingAuraData do
+          if CT.loggingAuraData[i] == t then
+            debug("Removing aura:", aura.name)
+            t.start = nil
+            tremove(CT.loggingAuraData, i)
+            break
+          end
+        end
+      end
 
       setGraph:refresh()
     end
   end
 
-  -- if uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then
-  --   local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
-  --   self.data[#self.data + 1] = timer
+  -- if aura.logCasts then -- Handle logging of data (like all spell casts) when a specific buff is active
+  --   local t
   --
-  --   if dstGUID and self.targetData[dstGUID] then
-  --     self.targetData[dstGUID].data[#self.targetData[dstGUID].data + 1] = timer
+  --   for timer, table in pairs(aura.logCasts) do
+  --     for i = 1, #CT.loggingAuraData do
+  --       if CT.loggingAuraData[i] == table then
+  --         debug("Removing aura:", aura.name)
+  --         t = tremove(CT.loggingAuraData, i)
+  --         break
+  --       end
+  --     end
   --   end
   --
-  --   self:refresh()
+  --   if t then
+  --     for timer, spellID in pairs(t) do
+  --       local name = GetSpellInfo(spellID)
+  --       print(timer, name)
+  --     end
+  --   end
   -- end
 end
 
-local function auraRemovedDose(time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
+local function auraRemovedDose(timer, time, _, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, auraType, amount)
   if dstGUID ~= data.playerGUID then return end
   local uptimeGraphs = CT.current.uptimeGraphs
 
@@ -1679,7 +1713,7 @@ combatevents["SPELL_AURA_REMOVED_DOSE"] = auraRemovedDose
 --------------------------------------------------------------------------------
 -- Unit Power, Unit Health, and Resources
 --------------------------------------------------------------------------------
-local function energize(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, amount, powerType)
+local function energize(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, amount, powerType)
   if srcGUID ~= data.playerGUID then return end
 
   local spellID = data.currentCastSpellID or spellID
@@ -1717,7 +1751,7 @@ local function energize(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName
   -- spellGained.average = spellGained.total / spellGained.casts
 end
 
-local function unitPowerFrequent(unit, powerType)
+local function unitPowerFrequent(timer, unit, powerType)
   if unit ~= "player" then return end
   if not data then debug("Blocking unit power update.") return end
 
@@ -1772,7 +1806,7 @@ local function unitPowerFrequent(unit, powerType)
   power.oldPower = power.currentPower
 end
 
-local function unitPower(unit, powerType)
+local function unitPower(timer, unit, powerType)
   local powerTypeIndex = CT.powerTypes["SPELL_POWER_" .. powerType]
   local power = data.power[powerTypeIndex]
 
@@ -1787,7 +1821,7 @@ local function unitPower(unit, powerType)
   end
 end
 
-local function unitPowerFrequentOLD(unit, powerType)
+local function unitPowerFrequentOLD(timer, unit, powerType)
   if unit ~= "player" then return end
 
   local powerTypeIndex = CT.powerTypes["SPELL_POWER_" .. powerType]
@@ -1857,7 +1891,7 @@ local function unitPowerFrequentOLD(unit, powerType)
   power.oldPower = power.currentPower
 end
 
-local function unitHealthFrequent(unit)
+local function unitHealthFrequent(timer, unit)
   if unit ~= "player" then return end
 
   local health = data.health
@@ -1865,7 +1899,7 @@ local function unitHealthFrequent(unit)
   health.currentHealth = UnitHealth(unit)
 end
 
-local function unitMaxPower(unit, powerType)
+local function unitMaxPower(timer, unit, powerType)
   if unit ~= "player" then return end
 
   local powerTypeIndex = CT.powerTypes["SPELL_POWER_" .. powerType]
@@ -1874,7 +1908,7 @@ local function unitMaxPower(unit, powerType)
   power.maxPower = UnitPowerMax(unit, powerTypeIndex)
 end
 
-local function unitMaxHealth(unit)
+local function unitMaxHealth(timer, unit)
   if unit ~= "player" then return end
 
   local health = data.health
@@ -1891,12 +1925,12 @@ combatevents["UNIT_MAXHEALTH"] = unitMaxHealth
 --------------------------------------------------------------------------------
 -- Player Movement
 --------------------------------------------------------------------------------
-local function startedMoving()
+local function startedMoving(timer)
   data.moving = true
   data.moveStart = GetTime()
 end
 
-local function stoppedMoving()
+local function stoppedMoving(timer)
   data.moving = false
   data.moveStart = data.moveStart or GetTime()
   data.movement = (data.movement or 0) + (GetTime() - data.moveStart) -- TODO: Got an error, data.moveStart was nil
@@ -1907,7 +1941,7 @@ combatevents["PLAYER_STOPPED_MOVING"] = stoppedMoving
 --------------------------------------------------------------------------------
 -- Player Target and Focus
 --------------------------------------------------------------------------------
-local function targetChanged()
+local function targetChanged(timer)
   if true then return debug("Blocking targetChanged") end
   if not CT.current then return end
   local uptimeGraphs = CT.current.uptimeGraphs
@@ -1962,7 +1996,7 @@ local function targetChanged()
   data.target.prevTarget = name
 end
 
-local function focusChanged()
+local function focusChanged(timer)
   if not CT.current then return end
   local uptimeGraphs = CT.current.uptimeGraphs
   local currentTime = GetTime()
@@ -2016,7 +2050,7 @@ local function focusChanged()
   data.focus.prevFocus = name
 end
 
-local function mouseOverChanged()
+local function mouseOverChanged(timer)
   if not CT.current then return end
   -- local GUID = UnitGUID("mouseover")
 
@@ -2185,7 +2219,7 @@ local modifiers = {
   ["RALT"] = "ALT-",
 }
 
-local function modKeys(key, num) -- NOTE: If the player alt tabs, alt gets added, but the release won't register, causing duplicates
+local function modKeys(timer, key, num) -- NOTE: If the player alt tabs, alt gets added, but the release won't register, causing duplicates
   if num == 1 then -- Add it to active list
     activeMods[#activeMods + 1] = modifiers[key]
     -- debug("Adding", key)
@@ -2210,7 +2244,7 @@ combatevents["MODIFIER_STATE_CHANGED"] = modKeys
 --------------------------------------------------------------------------------
 -- Misc
 --------------------------------------------------------------------------------
-local function spellSummon(time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
+local function spellSummon(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school)
   -- debug("Summoned", spellName)
 end
 

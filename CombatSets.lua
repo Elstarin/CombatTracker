@@ -462,6 +462,7 @@ local function basicUptimeGraphData(set, db)
       dbGraph = db.uptimeGraphs.cooldowns[spellID]
       dbGraph.shown = false
       dbGraph.name = spellName
+      dbGraph.flags = {}
     end
 
     dbGraph.__index = dbGraph
@@ -513,7 +514,7 @@ local function basicUptimeGraphData(set, db)
     return setGraph, dbGraph
   end
 
-  function set.addAura(spellID, spellName, type, count, color)
+  function set.addAura(spellID, spellName, type, count, color, flags)
     local setGraph = set.uptimeGraphs[type][spellID]
     local dbGraph = db.uptimeGraphs[type][spellID]
 
@@ -528,10 +529,20 @@ local function basicUptimeGraphData(set, db)
       dbGraph = db.uptimeGraphs[type][spellID]
       dbGraph.shown = false
       dbGraph.name = spellName
+      dbGraph.flags = {}
     end
 
     dbGraph.__index = dbGraph
     setmetatable(setGraph, dbGraph)
+
+    if flags then
+      for flagName, value in pairs(flags) do
+
+        if not dbGraph.flags[flagName] then
+          dbGraph.flags[flagName] = value or {}
+        end
+      end
+    end
 
     setGraph.spellID = spellID
     setGraph.toggle = CT.toggleUptimeGraph
