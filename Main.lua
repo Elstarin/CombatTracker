@@ -638,26 +638,72 @@ local trackingOnLogIn = false
 local loadBaseOnLogin = false
 
 do -- Debugging stuff
-  local match
+  local matched
   local start = debugprofilestop() / 1000
-  local printFormat = "|cFF9E5A01(|r|cFF00CCFF%.3f|r|cFF9E5A01)|r |cFF00FF00%s|r: %s"
+  local printFormat = "|cFF9E5A01(|r|cFF00CCFF%.3f|r|cFF9E5A01)|r |cFF00FF00CT|r: %s"
   local debugMode = false
+
   if GetUnitName("player") == "Elstari" or GetUnitName("player") == "Elendi" and GetRealmName() == "Drak'thul" then
     debugMode = true
     testMode = true
     trackingOnLogIn = true
     loadBaseOnLogin = true
-    match = true
+    matched = true
+  end
+
+  local blocked = nil
+  if debugMode then
+    blocked = {}
   end
 
   function CT.debug(...)
     if debugMode then
+      local cTime = GetTime()
       local t = {...}
-      print(printFormat:format((debugprofilestop() / 1000) - start, CombatTracker:GetName(), table.concat(t, " ")))
+
+      for i = 1, #t do
+        if type(t[i]) == "table" then
+          t[i] = "|cFF888888" .. tostring(t[i]) .. "|r"
+        elseif type(t[i]) == "function" then
+          t[i] = "|cFFDA70D6" .. tostring(t[i]) .. "|r"
+        end
+      end
+
+      local string = table.concat(t, " ")
+
+      if string then
+        if not string:find("%.$") and not string:find("%!$") and not string:find("%)$") then
+          string = string .. "."
+        end
+
+        if string:find("%(.*%)") then
+          string = string:gsub("(%()(.*)(%))", "|cFF9E5A01%1|r|cFF00CCFF%2|r|cFF9E5A01%3|r")
+        end
+
+        if string:find("%[.*%]") then
+          local command, number = string:match("%[(.*): (%d*%.?%d*)%]")
+          local command = command and strupper(command)
+          local number = tonumber(number)
+
+          string = string:gsub("%[.*%]%s?", "")
+
+          if command and number and command == "DELAY" then
+            if not blocked[string] then
+              blocked[string] = cTime + number
+            elseif cTime >= blocked[string] then
+              blocked[string] = nil
+            else
+              return
+            end
+          end
+        end
+      end
+
+      print(printFormat:format((debugprofilestop() / 1000) - start, string))
     end
   end
 
-  if not match then
+  if not matched then
     CT.debug("If you aren't developing this addon and you see this message,",
       "that means I, being the genius that I am, released it with debug mode enabled.",
       "\n\nYou can easily fix it by opening the Main.lua document with any text editor,",
@@ -3088,30 +3134,30 @@ function CT.createBaseFrame() -- Create Base Frame
     end)
 
     CT.scrollBar:SetScript("OnMouseWheel", function(self, value)
-      local cur_val = CT.scrollBar:GetValue()
-      local min_val, max_val = CT.scrollBar:GetMinMaxValues()
+      local current = CT.scrollBar:GetValue()
+      local minimum, maximum = CT.scrollBar:GetMinMaxValues()
 
-      if value < 0 and cur_val < max_val then
-        cur_val = min(max_val, cur_val + 46)
-        CT.scrollBar:SetValue(cur_val)
-      elseif value > 0 and cur_val > min_val then
-        cur_val = max(min_val, cur_val - 46)
-        CT.scrollBar:SetValue(cur_val)
+      if value < 0 and current < maximum then
+        current = min(maximum, current + 46)
+        CT.scrollBar:SetValue(current)
+      elseif value > 0 and current > minimum then
+        current = max(minimum, current - 46)
+        CT.scrollBar:SetValue(current)
       end
     end)
 
     CT.scrollFrame:SetScript("OnMouseWheel", function(self, value)
       CT.scrollBar:SetAlpha(1)
 
-      local cur_val = CT.scrollBar:GetValue()
-      local min_val, max_val = CT.scrollBar:GetMinMaxValues()
+      local current = CT.scrollBar:GetValue()
+      local minimum, maximum = CT.scrollBar:GetMinMaxValues()
 
-      if value < 0 and cur_val < max_val then
-        cur_val = min(max_val, cur_val + 46)
-        CT.scrollBar:SetValue(cur_val)
-      elseif value > 0 and cur_val > min_val then
-        cur_val = max(min_val, cur_val - 46)
-        CT.scrollBar:SetValue(cur_val)
+      if value < 0 and current < maximum then
+        current = min(maximum, current + 46)
+        CT.scrollBar:SetValue(current)
+      elseif value > 0 and current > minimum then
+        current = max(minimum, current - 46)
+        CT.scrollBar:SetValue(current)
       end
 
       CT.scrollBar.AG:Stop()

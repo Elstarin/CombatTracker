@@ -248,15 +248,15 @@ local function handleGraphData(set, db, graph, data, name, timer, value, prev)
 
     local refresh
 
-    if value >= graph.YMax and CT.base.expander.shown then
-      db.graphs[name].YMax = graph.YMax + max(value - graph.YMax, 5)
-      refresh = true
-    end
+    -- if value >= graph.YMax and CT.base.expander.shown then
+    --   db.graphs[name].YMax = graph.YMax + max(value - graph.YMax, 5)
+    --   refresh = true
+    -- end
 
-    if timer > graph.XMax and CT.base.expander and CT.base.expander.shown and graph.frame and not graph.frame.zoomed then
-      db.graphs[name].XMax = graph.XMax + max(timer - graph.XMax, graph.startX * graph.splitCount)
-      refresh = true
-    end
+    -- if timer > graph.XMax and CT.base.expander and CT.base.expander.shown and graph.frame and not graph.frame.zoomed then
+    --   db.graphs[name].XMax = graph.XMax + max(timer - graph.XMax, graph.startX * graph.splitCount)
+    --   refresh = true
+    -- end
 
     if graph.shown then
       if not graph.updating then
@@ -1320,59 +1320,90 @@ function CT:toggleNormalGraph(command)
   local found = nil
   local dbGraph = CT.displayedDB and CT.displayedDB.graphs[self.name]
 
-  if not command then -- Don't bother running through if a show or hide command was sent
-    for i = 1, #frame.displayed do
-      if frame.displayed[i] == self then -- Graph is currently displayed
-        found = i
-        break
-      end
+  for i = 1, #frame.displayed do
+    local graph = frame.displayed[i]
+    if graph == self then -- Graph is currently displayed
+      found = i
+    elseif graph.anchor then -- Reset them all to background
+      graph.anchor:SetDrawLayer("BACKGROUND")
     end
+
+    graph.drawLayer = "BACKGROUND"
+    if graph.bars then graph.bars.alpha = 0.2 end
   end
 
   if found or (command and command == "hide") then -- Hide graph
-    -- debug("Hiding:", self.name .. ".")
+    -- debug("Hiding:", self.name)
+
+    if self.anchor then
+      self.anchor:ClearAllPoints()
+    end
 
     tremove(frame.displayed, found) -- Remove it from list
     self.frame = nil
     dbGraph.shown = false
 
+    local lines, bars, triangles = self.lines, self.bars, self.triangles
     for i = 1, #self.data do -- Hide all the lines
-      if self.lines[i] then
-        self.lines[i]:Hide()
+      if lines[i] then
+        lines[i]:Hide()
       end
 
-      if self.bars and self.bars[i] then
-        self.bars[i]:Hide()
+      if bars and bars[i] then
+        bars[i]:Hide()
 
         self.status = "hidden"
       end
 
-      if self.triangles and self.triangles[i] then
-        self.triangles[i]:Hide()
+      if triangles and triangles[i] then
+        triangles[i]:Hide()
       end
     end
   elseif not dbGraph.shown and not found or (command and command == "show") then -- Show graph
-    -- debug("Showing:", self.name .. ".")
+    -- debug("Showing:", self.name)
 
-    tinsert(frame.displayed, self) -- Add it to list
+    if not self.anchor then
+      self.anchor = frame:CreateTexture("CT_Graph_Frame_Anchor_" .. self.name, "OVERLAY")
+    end
+
+    tinsert(frame.displayed, 1, self) -- Add it to list
     self.frame = frame
+    self.anchor:SetAllPoints(frame.anchor)
+    self.anchor:SetDrawLayer("OVERLAY")
+    self.drawLayer = "OVERLAY"
     dbGraph.shown = true
 
+    if self.bars then self.bars.alpha = 0.5 end
+
     if not self.updating then self:refresh(true) end -- Create/update lines
+  end
 
-    for i = 1, #self.data do -- Show all the lines
-      if self.lines[i] then
-        self.lines[i]:Show()
+  for index = 1, #frame.displayed do
+    local graph = frame.displayed[index]
+    local lines, bars, triangles = graph.lines, graph.bars, graph.triangles
+    local layer = graph.drawLayer
+    local alpha = graph.bars and graph.bars.alpha
+
+    debug(index, graph.name, layer)
+
+    for i = 1, #graph.data do -- Show all the lines
+      if lines[i] then
+        lines[i]:Show()
+        lines[i]:SetDrawLayer(layer)
       end
 
-      if self.bars and self.bars[i] then
-        self.bars[i]:Show()
+      if bars and bars[i] then
+        bars[i]:Show()
+        bars[i]:SetAlpha(alpha)
+        bars[i]:SetDrawLayer(layer)
 
-        self.status = "shown"
+        graph.status = "shown"
       end
 
-      if self.triangles and self.triangles[i] then
-        self.triangles[i]:Show()
+      if triangles and triangles[i] then
+        triangles[i]:Show()
+        triangles[i]:SetAlpha(alpha)
+        triangles[i]:SetDrawLayer(layer)
       end
     end
   end
@@ -1671,24 +1702,26 @@ function CT:refreshNormalGraph(reset, routine)
   local graphWidth, graphHeight = self.frame:GetSize()
 
   if not self.frame.zoomed and num > 1 then -- Make sure graph is in bounds, if it isn't zoomed
-    local startX = graphWidth * (self.data[1] - self.XMin) / (self.XMax - self.XMin)
-    local startY = graphHeight * (self.data[-(num - 1)] - self.YMin) / (self.YMax - self.YMin)
+    local dbGraph = self.__index
 
-    local stopX = graphWidth * (self.data[num] - self.XMin) / (self.XMax - self.XMin)
-    local stopY = graphHeight * (self.data[-num] - self.YMin) / (self.YMax - self.YMin)
+    local startX = graphWidth * (dbGraph.data[1] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin)
+    local startY = graphHeight * (dbGraph.data[-(num - 1)] - dbGraph.YMin) / (dbGraph.YMax - dbGraph.YMin)
+
+    local stopX = graphWidth * (dbGraph.data[num] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin)
+    local stopY = graphHeight * (dbGraph.data[-num] - dbGraph.YMin) / (dbGraph.YMax - dbGraph.YMin)
 
     if 0 > startY then -- Graph is too short, raise it
-      self.YMin = (self.YMin + startY) - 20
+      dbGraph.YMin = (dbGraph.YMin + startY) - 20
       reset = true
     end
 
     if stopX > graphWidth then -- Graph is too long, squish it
-      self.XMax = self.XMax + (self.XMax * 0.333) -- 75%
+      dbGraph.XMax = dbGraph.XMax + (dbGraph.XMax * 0.333) -- 75%
       reset = true
     end
 
     if stopY > graphHeight then -- Graph is too tall, squish it
-      self.YMax = self.YMax + (self.YMax * 0.12) -- 90%
+      dbGraph.YMax = dbGraph.YMax + (dbGraph.YMax * 0.12) -- 90%
       reset = true
     end
   end
@@ -1718,7 +1751,7 @@ function CT:refreshNormalGraph(reset, routine)
   local bars = self.bars
   local triangles = self.triangles
   local frame = self.frame.anchor or self.frame
-  local anchor = self.frame.anchor or self.frame
+  local anchor = self.anchor or self.frame.anchor or self.frame
 
   local c1, c2, c3, c4 = 0.0, 0.0, 1.0, 1.0 -- Default to blue
   if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.color[4] end
@@ -1799,7 +1832,7 @@ function CT:refreshNormalGraph(reset, routine)
       if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
 
       if not line then
-        line = frame:CreateTexture("CT_Graph_Line" .. i, "ARTWORK")
+        line = frame:CreateTexture("CT_Graph_Line" .. i, self.drawLayer or "ARTWORK")
         line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
         line:SetVertexColor(c1, c2, c3, c4)
 
@@ -1842,9 +1875,13 @@ function CT:refreshNormalGraph(reset, routine)
           local bar = bars[i]
 
           if not bar and (not self.prevDY or dy ~= self.prevDY) then
-            bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, "ARTWORK")
+            bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, self.drawLayer or "ARTWORK")
             bar:SetTexture(1, 1, 1, 1)
             bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
+            -- bar:SetBlendMode("ALPHAKEY")
+            -- bar:SetBlendMode("DISABLE")
+            -- bar:SetBlendMode("BLEND")
+            bar:SetBlendMode("ADD")
 
             bars.lastBar = bar
             bars.lastBarHeight = minY
@@ -1893,9 +1930,10 @@ function CT:refreshNormalGraph(reset, routine)
         do -- Handle triangle stuff
           local tri = triangles[i]
           if not tri and (maxY - minY) >= 1 then
-            tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, "ARTWORK")
+            tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, self.drawLayer or "ARTWORK")
             tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
             tri:SetVertexColor(c1, c2, c3, triangles.alpha or bars.alpha or 0.3)
+            tri:SetBlendMode("ADD")
 
             if startY < stopY then
               tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
@@ -1921,13 +1959,28 @@ function CT:refreshNormalGraph(reset, routine)
           end
         end
 
-        self.status = "shown"
+        if self.status and self.status ~= "shown" then
+          for i = 1, num do
+            if bars[i] then
+              bars[i]:Show()
+            end
+
+            if triangles[i] then
+              triangles[i]:Show()
+            end
+          end
+
+          self.status = "shown"
+        end
       elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
         print("Hiding graph filling")
 
-        for i = 1, #bars do
-          if bars[i] and triangles[i] then
+        for i = 1, num do
+          if bars[i] then
             bars[i]:Hide()
+          end
+
+          if triangles[i] then
             triangles[i]:Hide()
           end
         end
@@ -1943,11 +1996,33 @@ function CT:refreshNormalGraph(reset, routine)
       self.refresh = CT.refreshNormalGraph
       self.endNum = i + 1
       self.updating = false
+      self.lastLine = lastLine or self.lastLine
 
       -- debug("TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
 
       if self.frame.zoomed then
-        self.frame.slider:SetMinMaxValues(self.lines[4]:GetLeft() - self.frame:GetLeft(), self.lastLine:GetRight() - self.frame:GetRight())
+        local firstLine, lastLine = nil, nil
+
+        for i = 1, num do
+          if self.lines[i] then
+            firstLine = self.lines[i]
+            break
+          end
+        end
+
+        for i = num, 1, -1 do
+          if self.lines[i] then
+            lastLine = self.lines[i]
+            break
+          end
+        end
+
+        local minimum = firstLine:GetLeft() - self.frame:GetLeft()
+        local maximum = lastLine:GetRight() - self.frame:GetRight()
+
+        if 0 < minimum then minimum = 0 end
+        if 0 > maximum then maximum = 0 end
+        self.frame.slider:SetMinMaxValues(minimum, maximum)
         self.frame.slider:SetValue(0)
       end
     elseif routine and (i % 250) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
@@ -2558,8 +2633,8 @@ function CT:buildGraph()
     graphFrame.slider = CreateFrame("Slider", nil, graphFrame)
     slider = graphFrame.slider
     slider:SetSize(100, 20)
-    slider:SetPoint("TOPLEFT", graphFrame, 0, 0)
-    slider:SetPoint("TOPRIGHT", graphFrame, 0, 0)
+    slider:SetPoint("TOPLEFT", graphFrame, 5, -3)
+    slider:SetPoint("TOPRIGHT", graphFrame, -5, -3)
 
     slider:SetBackdrop({
       bgFile = "Interface\\Buttons\\UI-SliderBar-Background",
@@ -2567,20 +2642,43 @@ function CT:buildGraph()
       tile = true,
       tileSize = 8,
       edgeSize = 8,})
-    slider:SetBackdropColor(0.15, 0.15, 0.15, 1.0)
-    slider:SetBackdropBorderColor(0.7, 0.7, 0.7, 1.0)
+    slider:SetBackdropColor(0.15, 0.15, 0.15, 0)
+    slider:SetBackdropBorderColor(0.7, 0.7, 0.7, 0.5)
 
     slider:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
     slider:SetOrientation("HORIZONTAL")
     slider:SetMinMaxValues(0, 0)
-    slider:SetValue(50)
-    -- slider:SetValueStep(25)
+    slider:SetValue(0)
 
     slider:SetScript("OnValueChanged", function(self, value)
-      graphFrame.anchor:SetSize(graphFrame:GetWidth(), graphFrame:GetHeight())
+      graphFrame.anchor:SetSize(graphFrame:GetSize())
       graphFrame:SetHorizontalScroll(value)
-      debug("Slider:", value)
     end)
+
+    slider.scrollMultiplier = 5
+
+    if not slider.mouseWheelFunc then
+      function slider.mouseWheelFunc(self, value)
+        if graphFrame.zoomed then
+          local current = slider:GetValue()
+          local minimum, maximum = slider:GetMinMaxValues()
+
+          local onePercent = (maximum - minimum) / 100
+          local percent = (current - minimum) / (maximum - minimum) * 100
+
+          if value < 0 and current < maximum then
+            current = min(maximum, current + (onePercent * slider.scrollMultiplier))
+          elseif value > 0 and current > minimum then
+            current = max(minimum, current - (onePercent * slider.scrollMultiplier))
+          end
+
+          slider:SetValue(current)
+        end
+      end
+    end
+
+    slider:SetScript("OnMouseWheel", slider.mouseWheelFunc)
+    graphFrame:SetScript("OnMouseWheel", slider.mouseWheelFunc)
 
     slider:Hide()
   end
@@ -2658,7 +2756,7 @@ function CT:buildGraph()
     local mouseOverCenter = mouseOver:GetCenter()
 
     wipe(mouseLines)
-    for i = 1, #active1.lines do
+    for i = 1, #active1.data do -- Has to be data, lines isn't indexed
       line = active1.lines[i]
 
       if line then
@@ -2675,13 +2773,24 @@ function CT:buildGraph()
 
     local num, line = nearestValue(mouseLines, mouseOverCenter)
 
+    if num and active1.data[-num] then -- Handle the dot's position
+      local y = graphFrame:GetHeight() * (active1.data[-num] - active1.YMin) / (active1.YMax - active1.YMin)
+
+      dot:Show()
+      dot:SetPoint("BOTTOM", mouseOver, 0, y - 5)
+    else
+      dot:Hide()
+    end
+
     if num and active1.data[num] then
       local startX = active1.data[num]
       local startY = active1.data[-num]
 
       local timer = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
-      if active1.frame.zoomed then
+      if active1.frame and active1.frame.zoomed then
         timer = active1.frame.zoomed
+      elseif not active1.frame then
+        debug("[DELAY: 0.3]", "No frame for", active1.name)
       end
 
       local current = mouseOverCenter - active1.lines[2]:GetLeft()
@@ -2760,11 +2869,16 @@ function CT:buildGraph()
             graphFrame.slider:Show()
 
             for i, graph in ipairs(graphFrame.displayed) do
-              local dbGraph = CT.displayedDB.graphs[graph.name]
+              local dbGraph = graph.__index
 
               dbGraph.XMin = (graphFrame.mouseOverLeft / graphWidth) * graph.XMax
               dbGraph.XMax = ((mouseOverRight - graphLeft) / graphWidth) * graph.XMax
-              graph:refresh(true)
+              if not graph.updating then
+                graph:refresh(true)
+                print(dbGraph.XMin, dbGraph.XMax)
+              else
+                debug("Couldn't refresh graph in zoom, it was updating.")
+              end
             end
           end
         end

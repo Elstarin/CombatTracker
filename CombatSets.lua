@@ -429,8 +429,6 @@ local function basicGraphData(set, db, role)
     setGraph.toggle = CT.toggleNormalGraph
     setGraph.refresh = CT.refreshNormalGraph
     setGraph.update, setGraph.color = CT.getGraphUpdateFunc(setGraph, set, db, name)
-
-    -- setGraph:update(0)
   end
 end
 
