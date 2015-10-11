@@ -1729,7 +1729,7 @@ function CT:refreshNormalGraph(reset, routine)
   if reset then
     self.endNum = 2
 
-    if num >= 500 then -- The comparison number is after how many lines do we want to switch to a coroutine (default 500)
+    if (self.totalLines or 0) >= 500 then -- The comparison number is after how many lines do we want to switch to a coroutine (default 500)
       self.refresh = wrap(CT.refreshNormalGraph)
 
       return self:refresh(nil, true) -- Call it again, but now as a coroutine
@@ -1870,25 +1870,15 @@ function CT:refreshNormalGraph(reset, routine)
         if 1 > minY then minY = 1 end -- Has to be at least 1 wide
 
         do -- Handle the bar
-          local prevHeight = bars.lastBarHeight
-
           local bar = bars[i]
 
           if not bar and (not self.prevDY or dy ~= self.prevDY) then
             bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, self.drawLayer or "ARTWORK")
             bar:SetTexture(1, 1, 1, 1)
             bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
-            -- bar:SetBlendMode("ALPHAKEY")
-            -- bar:SetBlendMode("DISABLE")
-            -- bar:SetBlendMode("BLEND")
             bar:SetBlendMode("ADD")
 
             bars.lastBar = bar
-            bars.lastBarHeight = minY
-            bars.lastBarWidth = width
-            bars.lastIndex = i
-            bars.prevStartX = startX
-            bars.prevStopX = stopX
 
             self.totalBars = (self.totalBars or 0) + 1
 
@@ -1960,6 +1950,7 @@ function CT:refreshNormalGraph(reset, routine)
         end
 
         if self.status and self.status ~= "shown" then
+          debug("Showing graph filling.")
           for i = 1, num do
             if bars[i] then
               bars[i]:Show()
@@ -1998,7 +1989,7 @@ function CT:refreshNormalGraph(reset, routine)
       self.updating = false
       self.lastLine = lastLine or self.lastLine
 
-      -- debug("TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
+      -- debug("[DELAY: 5] TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
 
       if self.frame.zoomed then
         local firstLine, lastLine = nil, nil

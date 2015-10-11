@@ -399,7 +399,7 @@ local function basicGraphData(set, db, role)
 
   set.graphs.updateDelay = 0.2
   set.graphs.lastUpdate = 0
-  set.graphs.splitAmount = 500
+  -- set.graphs.splitAmount = 500
 
   for index, name in ipairs(CT.graphList) do
     set.graphs[name] = {}
