@@ -290,17 +290,17 @@ CT.player = {}
 CT.altPower = {}
 CT.player.talents = {}
 CT.mainButtons = {}
-CT.shown = true
+-- CT.shown = true
 CT.activeAuras = {}
-CT.registerReset = {}
+-- CT.registerReset = {}
 CT.buttons = {}
 CT.plates = {}
-CT.graphLines = {}
-CT.uptimeGraphLines = {}
-CT.uptimeGraphLines.Cooldown = {}
-CT.uptimeGraphLines.Buff = {}
-CT.uptimeGraphLines.Debuff = {}
-CT.uptimeGraphLines.Misc = {}
+-- CT.graphLines = {}
+-- CT.uptimeGraphLines = {}
+-- CT.uptimeGraphLines.Cooldown = {}
+-- CT.uptimeGraphLines.Buff = {}
+-- CT.uptimeGraphLines.Debuff = {}
+-- CT.uptimeGraphLines.Misc = {}
 
 CT.setButtons = {}
 
@@ -342,6 +342,14 @@ do -- Debugging stuff
           t[i] = "|cFF888888" .. tostring(t[i]) .. "|r"
         elseif type(t[i]) == "function" then
           t[i] = "|cFFDA70D6" .. tostring(t[i]) .. "|r"
+        elseif type(t[i]) == "nil" then
+          t[i] = "|cffFF4500nil|r"
+        elseif type(t[i]) == "boolean" then
+          if t[i] == true then
+            t[i] = "|cFF4B6CD7true|r"
+          elseif t[i] == false then
+            t[i] = "|cFFFF9B00false|r"
+          end
         end
       end
 
@@ -407,6 +415,7 @@ local strfind, strmatch, format, gsub, gmatch, strsub, strtrim, strsplit, strlow
 local _G, coroutine, table, GetTime, CopyTable =
         _G, coroutine, table, GetTime, CopyTable
 local getNumWorldFrameChildren = WorldFrame.GetNumChildren -- Used for finding first nameplate, it's a tiny efficiency gain
+local after = C_Timer.After
 
 local anchorTable = {"TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT"}
 local cornerAnchors = {"TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"}
@@ -1049,6 +1058,12 @@ function CT:OnDisable()
   -- debug("CT Disable")
   -- debug("CT Disable")
 end
+
+function CT:OnDatabaseShutdown()
+  if CT.tracking then
+    CT.stopTracking()
+  end
+end
 --------------------------------------------------------------------------------
 -- Main Button Functions
 --------------------------------------------------------------------------------
@@ -1564,7 +1579,7 @@ local function createMenuButtons(popup)
       b.title:SetShadowOffset(3, -3)
 
       b:SetScript("OnClick", function(self, button)
-        b.func()
+        b.func(self, button)
       end)
     end
   end
@@ -1870,9 +1885,9 @@ function CT:expanderFrame(command)
   end
 end
 
-local function createButtonFrame(button)
-  button:SetPoint("TOPLEFT", 0, 0)
-  button:SetPoint("TOPRIGHT", 0, 0)
+local function createMainButton(button)
+  -- button:SetPoint("TOPLEFT", 0, 0)
+  -- button:SetPoint("TOPRIGHT", 0, 0)
   button:SetSize(150, 44)
 
   do -- Basic textures and stuff
@@ -2054,19 +2069,7 @@ local function createButtonFrame(button)
   end
 end
 
-local function loadButtonsToFrame(table)
-  if not table then return end
-
-  for i = 1, max(#table, #CT.contentFrame) do
-
-  end
-end
-
 function CT.createSpecDataButtons() -- Create the default main buttons
-  for i = 1, #CT.setButtons do
-    CT.setButtons[i]:Hide()
-  end
-
   for i = 1, #CT.specData do
     local b = CT.buttons[i]
 
@@ -2076,7 +2079,7 @@ function CT.createSpecDataButtons() -- Create the default main buttons
 
       b.text = {}
 
-      createButtonFrame(b)
+      createMainButton(b)
       tinsert(CT.update, b)
 
       do -- Button Scripts
@@ -2205,8 +2208,6 @@ function CT.createSpecDataButtons() -- Create the default main buttons
 
       SetPortraitToTexture(b.icon, b.icon:GetTexture())
     end
-
-    b:Show()
   end
 
   if CT.buttons[1] then
@@ -2216,14 +2217,10 @@ function CT.createSpecDataButtons() -- Create the default main buttons
 
   CT.totalNumButtons = #CT.specData
 
-  CT.setButtonAnchors(CT.buttons)
+  CT.contentFrame:displayMainButtons(CT.buttons)
 end
 
 function CT.createSavedSetButtons(table)
-  for i = 1, #CT.buttons do
-    CT.buttons[i]:Hide()
-  end
-
   for i = 1, #table do
     local b = CT.setButtons[i]
 
@@ -2237,7 +2234,7 @@ function CT.createSavedSetButtons(table)
       b.expanded = false
       b.expandedDown = false
 
-      createButtonFrame(b)
+      createMainButton(b)
 
       do -- Button Scripts
         b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -2295,8 +2292,6 @@ function CT.createSavedSetButtons(table)
           end
         end)
       end
-    elseif b then
-      b:Hide()
     end
 
     local text = table[i].setName or "Unknown"
@@ -2322,8 +2317,6 @@ function CT.createSavedSetButtons(table)
     elseif b.checked then
       b:SetChecked(false)
     end
-
-    b:Show()
   end
 
   if CT.buttons[1] then
@@ -2331,7 +2324,7 @@ function CT.createSavedSetButtons(table)
     if not CT.topAnchor2 then CT.topAnchor2 = {CT.buttons[1].button:GetPoint(2)} end
   end
 
-  CT.setButtonAnchors(CT.setButtons)
+  CT.contentFrame:displayMainButtons(CT.setButtons)
 end
 
 function CT.scrollFrameUpdate(table)
@@ -2373,51 +2366,6 @@ function CT.updateButtonOrderByNum()
   sort(CT.mainButtons, function(a,b) return a.num<b.num end)
 end
 
-function CT.slideButtonAnimation(button, direction)
-  if button and direction then
-    if not button.AGSlide then
-      button.AGSlide = button:CreateAnimationGroup("SlideButtons")
-      button.AGSlide[1] = button.AGSlide:CreateAnimation("Translation")
-      button.AGSlide[1]:SetDuration(0.0001)
-      button.AGSlide[1]:SetOrder(1)
-      button.AGSlide[2] = button.AGSlide:CreateAnimation("Translation")
-      button.AGSlide[2]:SetDuration(0.25)
-      button.AGSlide[2]:SetSmoothing("OUT")
-      button.AGSlide[2]:SetOrder(2)
-    end
-    if direction == "up" then
-      button.AGSlide[1]:SetOffset(0, -button:GetHeight())
-      button.AGSlide[2]:SetOffset(0, button:GetHeight())
-    elseif direction == "down" then
-      button.AGSlide[1]:SetOffset(0, button:GetHeight())
-      button.AGSlide[2]:SetOffset(0, -button:GetHeight())
-    end
-    button.AGSlide:Play()
-  end
-end
-
-function CT.setButtonAnchors(table)
-  local table = table or CT.buttons
-
-  for i = 1, #table do
-    local button = table[i]
-    if i == 1 then
-      button:ClearAllPoints()
-      button:SetPoint("TOPLEFT", 0, 0)
-      button:SetPoint("TOPRIGHT")
-    else
-      local prevButtonExpander = table[i - 1].expander
-      button:ClearAllPoints()
-      button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, -CT.settings.buttonSpacing)
-      button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, -CT.settings.buttonSpacing)
-    end
-    local _, coords = button.expander:GetCenter()
-    button.coords = coords
-  end
-
-  CT.scrollFrameUpdate(table)
-end
-
 function CT:setButtonAnchorsDragging()
   -- NOTE: This stops all the buttons from anchoring to eachother, cause it was screwing up the drag animation
   local height = 0
@@ -2450,45 +2398,6 @@ function CT:setButtonAnchorsDragging()
     end
     local _, coords = button:GetCenter()
     button.coords = coords
-  end
-end
-
-function CT.cycleMainButtons() -- NOTE: If order is changed, this gets all messed up. Also it revers to the old order.
-  local numBeforeUpdate = CT.totalNumButtons
-  -- loadMainButtons("specUpdate")
-  for i = 1, #CT.mainButtons do
-    local button = CT.mainButtons[i]
-    if not button.AGFadeIn then
-      button.AGFadeIn = button:CreateAnimationGroup("Fade In")
-      local animation = button.AGFadeIn:CreateAnimation("Alpha")
-      animation:SetDuration(0.5)
-      animation:SetChange(1)
-      animation:SetSmoothing("IN")
-      button.AGFadeIn:SetScript("OnFinished", function(self, requested)
-        button:SetAlpha(1)
-      end)
-    end
-    if not button.AGFadeOut then
-      button.AGFadeOut = button:CreateAnimationGroup("Fade Out")
-      local animation = button.AGFadeOut:CreateAnimation("Alpha")
-      animation:SetDuration(0.5)
-      animation:SetChange(-1)
-      animation:SetStartDelay(i * 0.1)
-      animation:SetSmoothing("OUT")
-      button.AGFadeOut:SetScript("OnFinished", function(self, requested)
-        button:SetAlpha(0)
-        -- CT.updateText(button) -- removed this function, shouldn't be worth it overall. If needed, call SetText() here manually.
-        CT.updateSpellIcons(button)
-        button.AGFadeIn:Play()
-        if button.num > CT.totalNumButtons then
-          button:Hide()
-        end
-      end)
-    end
-    if button.num > numBeforeUpdate then
-      button:SetAlpha(0)
-    end
-    button.AGFadeOut:Play()
   end
 end
 
@@ -2649,6 +2558,69 @@ function CT.createBaseFrame() -- Create Base Frame
         lastMouseoverButton:UnlockHighlight()
       end
     end)
+
+    function CT.slideButtonAnimation(button, direction)
+      if button and direction then
+        if not button.AGSlide then
+          button.AGSlide = button:CreateAnimationGroup("SlideButtons")
+          button.AGSlide[1] = button.AGSlide:CreateAnimation("Translation")
+          button.AGSlide[1]:SetDuration(0.0001)
+          button.AGSlide[1]:SetOrder(1)
+          button.AGSlide[2] = button.AGSlide:CreateAnimation("Translation")
+          button.AGSlide[2]:SetDuration(0.25)
+          button.AGSlide[2]:SetSmoothing("OUT")
+          button.AGSlide[2]:SetOrder(2)
+        end
+        if direction == "up" then
+          button.AGSlide[1]:SetOffset(0, -button:GetHeight())
+          button.AGSlide[2]:SetOffset(0, button:GetHeight())
+        elseif direction == "down" then
+          button.AGSlide[1]:SetOffset(0, button:GetHeight())
+          button.AGSlide[2]:SetOffset(0, -button:GetHeight())
+        end
+        button.AGSlide:Play()
+      end
+    end
+
+    function CT.base:cycleMainButtons() -- NOTE: If order is changed, this gets all messed up. Also it revers to the old order.
+      if true then return end
+      local numBeforeUpdate = CT.totalNumButtons
+
+      for i = 1, #CT.mainButtons do
+        local button = CT.mainButtons[i]
+        if not button.AGFadeIn then
+          button.AGFadeIn = button:CreateAnimationGroup("Fade In")
+          local animation = button.AGFadeIn:CreateAnimation("Alpha")
+          animation:SetDuration(0.5)
+          animation:SetChange(1)
+          animation:SetSmoothing("IN")
+          button.AGFadeIn:SetScript("OnFinished", function(self, requested)
+            button:SetAlpha(1)
+          end)
+        end
+        if not button.AGFadeOut then
+          button.AGFadeOut = button:CreateAnimationGroup("Fade Out")
+          local animation = button.AGFadeOut:CreateAnimation("Alpha")
+          animation:SetDuration(0.5)
+          animation:SetChange(-1)
+          animation:SetStartDelay(i * 0.1)
+          animation:SetSmoothing("OUT")
+          button.AGFadeOut:SetScript("OnFinished", function(self, requested)
+            button:SetAlpha(0)
+            -- CT.updateText(button) -- removed this function, shouldn't be worth it overall. If needed, call SetText() here manually.
+            CT.updateSpellIcons(button)
+            button.AGFadeIn:Play()
+            if button.num > CT.totalNumButtons then
+              button:Hide()
+            end
+          end)
+        end
+        if button.num > numBeforeUpdate then
+          button:SetAlpha(0)
+        end
+        button.AGFadeOut:Play()
+      end
+    end
   end
 
   local close = f.closeButton
@@ -2827,6 +2799,108 @@ function CT.createBaseFrame() -- Create Base Frame
       CT.scrollBar.AG:Stop()
       CT.scrollBar.AG:Play()
     end)
+
+    function CT.contentFrame:setButtonAnchors()
+      for i = 1, #self do
+        local button = self[i]
+
+        if i == 1 then
+          button:ClearAllPoints()
+          button:SetPoint("TOPLEFT", 0, 0)
+          button:SetPoint("TOPRIGHT")
+        else
+          local prevButtonExpander = self[i - 1].expander
+          button:ClearAllPoints()
+          button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, -CT.settings.buttonSpacing)
+          button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, -CT.settings.buttonSpacing)
+        end
+
+        local _, coords = button.expander:GetCenter()
+        button.coords = coords
+      end
+
+      CT.scrollFrameUpdate(self)
+    end
+
+    local function finishCycleHide(self, requested)
+      local b = self:GetParent()
+      b:Hide()
+    end
+
+    local function finishCycleShow(self, requested)
+      local b = self:GetParent()
+      b:Show()
+      b:SetAlpha(1)
+
+      if b.done then
+        CT.contentFrame.animating = false
+      end
+    end
+
+    function CT.contentFrame:displayMainButtons(buttons)
+      if not buttons then debug("Called display buttons, but didn't pass a button table.") return end
+
+      local self = CT.contentFrame
+      local num = #buttons
+      self.animating = true
+
+      for i = 1, #self do -- Animate button out and hide
+        local b = self[i]
+
+        local fadeOut = b.fadeOut
+        if not fadeOut then
+          fadeOut = b:CreateAnimationGroup()
+          local a = fadeOut:CreateAnimation("Alpha")
+          a:SetDuration(0.2)
+          a:SetSmoothing("OUT")
+          a:SetFromAlpha(1)
+          a:SetToAlpha(-1)
+          fadeOut:SetScript("OnFinished", finishCycleHide)
+
+          fadeOut.a = a
+          b.a = fadeOut
+        end
+
+        fadeOut.a:SetStartDelay(i * 0.05)
+        fadeOut:Play()
+
+        self[i] = nil
+      end
+
+      for i = 1, num do -- Load in new button
+        local b = buttons[i]
+        b:Show()
+        b:SetAlpha(0)
+
+        local fadeIn = b.fadeIn
+        if not fadeIn then
+          fadeIn = b:CreateAnimationGroup()
+          local a = fadeIn:CreateAnimation("Alpha")
+          a:SetDuration(0.2)
+          a:SetSmoothing("IN")
+          a:SetFromAlpha(-1)
+          a:SetToAlpha(1)
+
+          fadeIn:SetScript("OnFinished", finishCycleShow)
+
+          fadeIn.a = a
+          b.a = fadeIn
+        end
+
+        if i == num then -- Last one
+          b.done = true
+        else
+          b.done = false
+        end
+
+        fadeIn.a:SetStartDelay(i * 0.05)
+        fadeIn:Play()
+
+        self[i] = buttons[i]
+      end
+
+      CT.contentFrame:setButtonAnchors(buttons)
+    end
   end
 
   do -- Popup button
@@ -2936,60 +3010,60 @@ function CT.createBaseFrame() -- Create Base Frame
         local popup = createMenuButtons(self.popup)
 
         if not popup[1].func then
-          popup[1].title:SetText("Load Saved Fight")
+          popup[1].title:SetText("Load Saved Fights")
 
           local count = 0
-          popup[1].func = function(self, button)
-            count = count + 1
+          popup[1].func = function(self, click)
+            if not CT.contentFrame.animating then
+              local cTime = GetTime()
 
-            if count == 1 then
-              local _, specName = GetSpecializationInfo(GetSpecialization())
+              if cTime >= (self.lastClick or 0) then
+                count = count + 1
 
-              CT.createSavedSetButtons(CombatTrackerCharDB[specName].sets)
-              popup[1].title:SetText("Return")
-            else
-              CT.createSpecDataButtons()
-              popup[1].title:SetText("Load Saved Fight")
+                if count == 1 then
+                  local _, specName = GetSpecializationInfo(GetSpecialization())
 
-              count = 0
+                  CT.createSavedSetButtons(CombatTrackerCharDB[specName].sets)
+                  popup[1].title:SetText("Return")
+                else
+                  CT.createSpecDataButtons()
+                  popup[1].title:SetText("Load Saved Fights")
+
+                  count = 0
+                end
+
+                self.lastClick = cTime + 0.3
+              end
             end
           end
         end
 
         if not popup[2].func then
-          if not profile then
-            popup[2].title:SetText("Expand Frame")
-          else
-            popup[2].title:SetText("Profile Code")
-          end
+          popup[2].title:SetText("Expand Frame")
 
-          popup[2].func = function(popup, button)
-            if not profile then
-              CT:expanderFrame()
-            else
-              profileCode()
-            end
+          popup[2].func = function(self, click)
+            CT:expanderFrame()
           end
         end
 
         if not popup[3].func then
           popup[3].title:SetText("Reset Data")
 
-          popup[3].func = function(popup, button)
-            CT.resetData(button)
+          popup[3].func = function(popup, click)
+            CT.resetData(click)
           end
         end
 
         if not popup[4].func then
           popup[4].title:SetText("Options\n(but not really)")
 
-          popup[4].func = function(f, button)
+          popup[4].func = function(f, click)
             popup[4].title:SetText("Umm, you don't need options, everything is perfect the way it is.")
 
-            C_Timer.After(5, function()
+            after(5, function()
               popup[4].title:SetText("(But seriously, they're on my to-do list. I promise.)")
 
-              C_Timer.After(5, function()
+              after(5, function()
                 popup[4].title:SetText("Options\n(but not really)")
               end)
             end)
@@ -3023,7 +3097,7 @@ function CT:arrowClick(direction)
     button.num = button.num - 1
     self.num = button.num
     CT.updateButtonOrderByNum()
-    CT.setButtonAnchors()
+    CT.contentFrame:setButtonAnchors()
     CT.slideButtonAnimation(upperButton, "down")
     CT.slideButtonAnimation(button, "up")
   elseif direction == "down" and CT.mainButtons[button.num + 1] then
@@ -3032,22 +3106,10 @@ function CT:arrowClick(direction)
     button.num = button.num + 1
     self.num = button.num
     CT.updateButtonOrderByNum()
-    CT.setButtonAnchors()
+    CT.contentFrame:setButtonAnchors()
     CT.slideButtonAnimation(lowerButton, "up")
     CT.slideButtonAnimation(button, "down")
   end
-end
-
-function CT:OnDatabaseShutdown()
-  if CT.tracking then
-    CT.stopTracking()
-  end
-
-  CT:saveFunction()
-end
-
-function CT:saveFunction(key, value)
-  -- self.db.char[key] = value
 end
 
 function CT.showLastFight()
@@ -3100,45 +3162,45 @@ function CT.showLastFight()
   end
 end
 
-function CT.comparisonPopout(numRows)
-  if not CT.popout then CT.popout = {} end
-  if not CT.popout.baseStartWidth then CT.popout.baseStartWidth = CombatTrackerBase:GetWidth() end
-
-  if CT.mainButtons[1] then
-    local width = CT.mainButtons[1]:GetWidth()
-    local height = CT.mainButtons[1]:GetHeight()
-    if CT.popout.shown == true then
-      for line = 1, CT.popout.numLines do
-        for i = 1, #CT.popout[line] do
-          CT.popout[line][i]:Hide()
-        end
-      end
-      CombatTrackerBase:SetWidth(CT.popout.baseStartWidth)
-      CT.popout.shown = false
-    else
-      for line = 1, numRows do
-        CT.popout.numLines = line
-        if not CT.popout[line] then CT.popout[line] = {} end
-        for i = 1, #CT.mainButtons do
-          CT.popout[line][i] = CreateFrame("Button", line .. "Popout" .. i, CT.mainButtons[i], "CTcomparisonPopoutTemplate")
-          local button = CT.popout[line][i]
-          button:SetSize(width, height)
-          button.value:SetText(random(70, 100) .. "%")
-          button:SetFrameLevel(2)
-          if line == 1 then
-            button:SetPoint("TOPLEFT", CT.mainButtons[i], "TOPRIGHT", -width * 0.75, 0)
-            button:SetPoint("BOTTOMLEFT", CT.mainButtons[i], "BOTTOMRIGHT", -width * 0.75, 0)
-          else
-            button:SetPoint("TOPLEFT", CT.popout[line - 1][i], "TOPRIGHT", -width * 0.75, 0)
-            button:SetPoint("BOTTOMLEFT", CT.popout[line - 1][i], "BOTTOMRIGHT", -width * 0.75, 0)
-          end
-        end
-        CombatTrackerBase:SetWidth(CombatTrackerBase:GetWidth() + width * 0.25)
-        CT.popout.shown = true
-      end
-    end
-  end
-end
+-- function CT.comparisonPopout(numRows)
+--   if not CT.popout then CT.popout = {} end
+--   if not CT.popout.baseStartWidth then CT.popout.baseStartWidth = CombatTrackerBase:GetWidth() end
+--
+--   if CT.mainButtons[1] then
+--     local width = CT.mainButtons[1]:GetWidth()
+--     local height = CT.mainButtons[1]:GetHeight()
+--     if CT.popout.shown == true then
+--       for line = 1, CT.popout.numLines do
+--         for i = 1, #CT.popout[line] do
+--           CT.popout[line][i]:Hide()
+--         end
+--       end
+--       CombatTrackerBase:SetWidth(CT.popout.baseStartWidth)
+--       CT.popout.shown = false
+--     else
+--       for line = 1, numRows do
+--         CT.popout.numLines = line
+--         if not CT.popout[line] then CT.popout[line] = {} end
+--         for i = 1, #CT.mainButtons do
+--           CT.popout[line][i] = CreateFrame("Button", line .. "Popout" .. i, CT.mainButtons[i], "CTcomparisonPopoutTemplate")
+--           local button = CT.popout[line][i]
+--           button:SetSize(width, height)
+--           button.value:SetText(random(70, 100) .. "%")
+--           button:SetFrameLevel(2)
+--           if line == 1 then
+--             button:SetPoint("TOPLEFT", CT.mainButtons[i], "TOPRIGHT", -width * 0.75, 0)
+--             button:SetPoint("BOTTOMLEFT", CT.mainButtons[i], "BOTTOMRIGHT", -width * 0.75, 0)
+--           else
+--             button:SetPoint("TOPLEFT", CT.popout[line - 1][i], "TOPRIGHT", -width * 0.75, 0)
+--             button:SetPoint("BOTTOMLEFT", CT.popout[line - 1][i], "BOTTOMRIGHT", -width * 0.75, 0)
+--           end
+--         end
+--         CombatTrackerBase:SetWidth(CombatTrackerBase:GetWidth() + width * 0.25)
+--         CT.popout.shown = true
+--       end
+--     end
+--   end
+-- end
 
 SLASH_CombatTracker1 = "/ct"
 function SlashCmdList.CombatTracker(msg, editbox)

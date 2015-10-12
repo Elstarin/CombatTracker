@@ -6,7 +6,7 @@ local CT = CombatTracker
 local buttonClickNum = 7
 local debug = CT.debug
 
-local function saveDataSet(db)
+local function saveDataSet(db) -- TODO: Save player's ilevel with the set, and make option to only save bosses
   if db then -- Save current DB
     -- debug("Saving data set:", db.setName .. ".")
     if not db.stop then

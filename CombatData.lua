@@ -483,8 +483,6 @@ local function addSpell(spellID, spellName, school)
 end
 
 local function addAura(spellID, spellName, auraType, consolidated, count)
-  local uptimeGraphs = CT.current.uptimeGraphs
-  local lineTable = CT.uptimeGraphLines[spellName]
   local aura = data.auras[spellID]
 
   if aura then
