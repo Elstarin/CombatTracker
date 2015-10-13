@@ -2866,7 +2866,6 @@ function CT:buildGraph()
               dbGraph.XMax = ((mouseOverRight - graphLeft) / graphWidth) * graph.XMax
               if not graph.updating then
                 graph:refresh(true)
-                print(dbGraph.XMin, dbGraph.XMax)
               else
                 debug("Couldn't refresh graph in zoom, it was updating.")
               end
@@ -2888,13 +2887,9 @@ function CT:buildGraph()
 
             dbGraph.XMin = 0
 
-            if (#graph.data % graphs.splitAmount) == 0 then
-              graph.splitCount = graph.splitCount + 1
-            end
-
             if timer > graph.XMax then
               -- graph.XMax = graph.XMax + max(timer - graph.XMax, graph.startX)
-              dbGraph.XMax = graph.XMax + max(timer - graph.XMax, graph.startX * graph.splitCount)
+              dbGraph.XMax = graph.XMax + (timer - graph.XMax)
             end
 
             graph:refresh(true)
@@ -2951,8 +2946,6 @@ function CT:buildGraph()
       end
     end
   end)
-
-  -- CT.loadDefaultGraphs()
 
   self.graphCreated = true
   return graphFrame

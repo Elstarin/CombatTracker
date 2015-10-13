@@ -285,6 +285,15 @@ local function nameCurrentSet(set)
   return name
 end
 
+local function findSetIcon(set)
+  -- local thisName = self:GetName()
+  -- local texture = _G["PlayerPortrait"]:GetTexture()
+  --
+  -- set.icon = texture
+
+  -- debug("Texture:", texture)
+end
+
 local function basicSetData(set, db)
   CT.graphList = CT.graphList and wipe(CT.graphList) or {}
 
@@ -348,35 +357,24 @@ local function basicPowerData(set, db)
       power.costFrames = {}
 
       do -- Get power text color
-        if powerName == "Mana" then
-          power.tColor = "|cFF0000FF"
-        elseif powerName == "Rage" then
-          power.tColor = "|cFFFF0000"
-        elseif powerName == "Focus" then
-          power.tColor = "|cFFFF8040"
-        elseif powerName == "Energy" then
-          power.tColor = "|cFFFFFF00"
-        elseif powerName == "Combo Points" then
-          power.tColor = "|cFFFFFFFF"
-        elseif powerName == "Chi" then
-          power.tColor = "|cFFB5FFEB"
-        elseif powerName == "Runes" then
-          power.tColor = "|cFF808080"
-        elseif powerName == "Runic Power" then
-          power.tColor = "|cFF00D1FF"
-        elseif powerName == "Soul Shards" then
-          power.tColor = "|cFF80528C"
-        elseif powerName == "Eclipse" then
-          power.tColor = "|cFF4D85E6"
-        elseif powerName == "Holy Power" then
-          power.tColor = "|cFFF2E699"
-        elseif powerName == "Demonic Fury" then
-          power.tColor = "|cFF80528C"
-        elseif powerName == "Burning Embers" then
-          power.tColor = "|cFFBF6B02"
-        else
-          debug("No text color found for " .. powerName .. ".")
-        end
+        local color = "|cFFFFFFFF"
+
+        if powerName == "Mana" then color = "|cFF0000FF"
+        elseif powerName == "Rage" then color = "|cFFFF0000"
+        elseif powerName == "Focus" then color = "|cFFFF8040"
+        elseif powerName == "Energy" then color = "|cFFFFFF00"
+        elseif powerName == "Combo Points" then color = "|cFFFFFFFF"
+        elseif powerName == "Chi" then color = "|cFFB5FFEB"
+        elseif powerName == "Runes" then color = "|cFF808080"
+        elseif powerName == "Runic Power" then color = "|cFF00D1FF"
+        elseif powerName == "Soul Shards" then color = "|cFF80528C"
+        elseif powerName == "Eclipse" then color = "|cFF4D85E6"
+        elseif powerName == "Holy Power" then color = "|cFFF2E699"
+        elseif powerName == "Demonic Fury" then color = "|cFF80528C"
+        elseif powerName == "Burning Embers" then color = "|cFFBF6B02"
+        else debug("No text color found for " .. powerName .. ".") end
+
+        power.tColor = color
       end
 
       CT.graphList[#CT.graphList + 1] = CT.powerTypesFormatted[i]
@@ -702,6 +700,7 @@ function CT.buildNewSet()
     setmetatable(set, db)
 
     db.setName = nameCurrentSet(set)
+    db.icon = findSetIcon(set)
     db.start = GetTime()
     set.role = role
 

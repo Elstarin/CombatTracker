@@ -1392,6 +1392,7 @@ end
 
 function func:expanderShortCD(time, timer)
   local spell = CT.displayed.spells[self.spellID]
+  
   if spell then
     self.hasDisplayedText = true
 
