@@ -52,6 +52,7 @@ function CT.createInfoTooltip(parent, title, icon, func, textTable)
   if not f then
     CT.infoTooltip = CreateFrame("Frame", "CT_InfoTooltip", CT.base)
     f = CT.infoTooltip
+    f:SetFrameStrata("HIGH")
     created = true
 
     f.resize = adjustTooltipSize
@@ -189,7 +190,7 @@ function CT.createInfoTooltip(parent, title, icon, func, textTable)
     f.fadeIn:Play()
   end
 
-  f:SetParent(parent)
+  -- f:SetParent(parent)
   f.parent = parent
   f:SetPoint("BOTTOMLEFT", parent, "TOPRIGHT", -25, 5)
 

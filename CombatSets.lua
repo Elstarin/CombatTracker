@@ -18,42 +18,6 @@ local function saveDataSet(db) -- TODO: Save player's ilevel with the set, and m
   end
 end
 
-function CT.addNewSet()
-  local _, specName = GetSpecializationInfo(GetSpecialization())
-
-  if CT.current then tinsert(CombatTrackerCharDB[specName].sets, 1, CT.current) end
-  CombatTrackerCharDB[specName].sets.current = {}
-  CT.current = CombatTrackerCharDB[specName].sets.current
-
-  CT.setBasicData()
-  CT.nameCurrentSet()
-  CT.getPlayerDetails()
-
-  if not CT.displayed then CT.displayed = CT.current end
-
-  CT.showLineGraph(nil, CT.buttons[buttonClickNum].name)
-
-  local foundGraph
-  for index, v in ipairs(CT.current.uptimeGraphs.categories) do
-    for i = 1, #v do
-      if v[i].name == buttonName then
-        foundGraph = true
-        CT.toggleUptimeGraph(v[i], true)
-      end
-    end
-  end
-
-  if not foundGraph then
-    for index, v in ipairs(CT.current.uptimeGraphs.categories) do
-      for i = 1, #v do
-        if v[i].name == "Activity" then
-          CT.toggleUptimeGraph(v[i], true)
-        end
-      end
-    end
-  end
-end
-
 function CT.nameCurrentSet()
   do -- Find a name for this set
     local name
@@ -152,86 +116,6 @@ function CT.stopTracking()
   CT.tracking = false
 
   CT.finalizeGraphLength()
-end
-
-function CT.createSetButtons(menu, table)
-  -- CT.createSavedSetButtons(table)
-  -- menu = nil -- NOTE: Testing only
-
-  if not menu then return end
-
-  local widestButton = 0
-  local height = 0
-  local width = menu:GetWidth()
-  local y = 0
-
-  for i = 1, max(#menu, #table) do
-    local b = menu[i]
-
-    if table[i] then
-      if not b then
-        menu[i] = CreateFrame("CheckButton", nil, menu)
-        b = CT.createSmallButton(menu[i], false, true)
-        b:SetPoint("LEFT", 0, 0)
-        b:SetPoint("RIGHT", 0, 0)
-        b.title:SetTextColor(1, 1, 1, 1)
-        b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-
-        b:SetScript("OnClick", function(self, click)
-          if click == "LeftButton" then
-            if self:GetChecked() then
-              local set, db = CT.loadSavedSet(table[i])
-              CT.forceUpdate = true
-
-              for i = 1, #menu do -- Uncheck any previously checked buttons, so only one is checked at any time
-                if menu[i] ~= self and menu[i]:GetChecked() then
-                  menu[i]:SetChecked(false)
-                end
-              end
-            else
-              if CT.current then
-                debug("Setting displayed back to current.")
-                CT.displayed = CT.current
-                CT.displayedDB = CT.currentDB
-                CT.forceUpdate = true
-              end
-            end
-          elseif click == "RightButton" then
-            local t = tremove(table, i) -- Remove saved variables
-            t = nil
-
-            if not InCombatLockdown() then
-              collectgarbage("collect")
-            end
-
-            CT.createSetButtons(menu, table) -- Refresh list
-          end
-        end)
-      end
-
-      b:Show()
-      local text = table[i].setName or "Unknown"
-      local time = CT.formatTimer(table[i].fightLength) or "0:00"
-      b.title:SetJustifyH("LEFT")
-      b.title:SetFormattedText("%s. %s%s|r (%s%s|r)", i, "|cFFFFFF00", text, "|cFF00CCFF", time)
-
-      local stringWidth = b.title:GetWidth()
-      if stringWidth > widestButton then
-        widestButton = stringWidth
-      end
-
-      b:SetSize(width - 5, 20)
-      b:SetPoint("TOP", menu, 0, y)
-      y = y - 20
-
-      height = height + 20
-    elseif b then
-      b:Hide()
-    end
-  end
-
-  menu:SetWidth(widestButton + 20)
-  menu:SetHeight(height)
 end
 
 local function nameCurrentSet(set)
@@ -356,26 +240,7 @@ local function basicPowerData(set, db)
       power.spellList.numAdded = 0
       power.costFrames = {}
 
-      do -- Get power text color
-        local color = "|cFFFFFFFF"
-
-        if powerName == "Mana" then color = "|cFF0000FF"
-        elseif powerName == "Rage" then color = "|cFFFF0000"
-        elseif powerName == "Focus" then color = "|cFFFF8040"
-        elseif powerName == "Energy" then color = "|cFFFFFF00"
-        elseif powerName == "Combo Points" then color = "|cFFFFFFFF"
-        elseif powerName == "Chi" then color = "|cFFB5FFEB"
-        elseif powerName == "Runes" then color = "|cFF808080"
-        elseif powerName == "Runic Power" then color = "|cFF00D1FF"
-        elseif powerName == "Soul Shards" then color = "|cFF80528C"
-        elseif powerName == "Eclipse" then color = "|cFF4D85E6"
-        elseif powerName == "Holy Power" then color = "|cFFF2E699"
-        elseif powerName == "Demonic Fury" then color = "|cFF80528C"
-        elseif powerName == "Burning Embers" then color = "|cFFBF6B02"
-        else debug("No text color found for " .. powerName .. ".") end
-
-        power.tColor = color
-      end
+      power.tColor = CT.getPowerColor(powerName)
 
       CT.graphList[#CT.graphList + 1] = CT.powerTypesFormatted[i]
     end
@@ -655,7 +520,7 @@ local function basicUptimeGraphData(set, db)
   end
 end
 
-local function registerDefaultGraphs(set, db)
+local function registerDefaultGraphs(set, db) -- TODO: Pet uptime, stances, etc
   local GUID = set.playerGUID
   local playerName = set.playerName
 
@@ -684,12 +549,6 @@ function CT.buildNewSet()
     local _, specName, description, specIcon, background, role, primaryStat = GetSpecializationInfo(GetSpecialization())
 
     saveDataSet(db)
-
-    -- wipeSVars = true
-    if wipeSVars then
-      debug("Wiping all saved data sets.")
-      CombatTrackerCharDB[specName].sets = {}
-    end
 
     set = {}
 
@@ -724,6 +583,10 @@ function CT.buildNewSet()
   CT.loadDefaultGraphs()
   CT.loadDefaultUptimeGraph()
 
+  if CT.base and CT.base.expander then -- If base is loaded, set the name right away, otherwise it'll get set when expander is shown
+    CT.base.expander.titleData.rightText1:SetText(db.setName)
+  end
+
   return set, db
 end
 
@@ -732,7 +595,15 @@ function CT.loadSavedSet(db)
 
   if not db then -- If a db table wasn't passed, load the most recent
     if specName and CombatTrackerCharDB[specName] and CombatTrackerCharDB[specName].sets then
-      db = CombatTrackerCharDB[specName].sets[1]
+      if CombatTrackerCharDB[specName].sets[1] then
+        if CombatTrackerCharDB[specName].sets[1].start and CombatTrackerCharDB[specName].sets[1].stop then -- Make sure they are safe
+          db = CombatTrackerCharDB[specName].sets[1]
+        else
+          return debug("Couldn't load set 1, because it doesn't have a start and/or stop. Returning.")
+        end
+      else
+        return debug("Couldn't load default set, because there is no set 1. Returning.")
+      end
     end
 
     if not db then return debug("Didn't pass a DB table, and failed to find db[1] to load.") end

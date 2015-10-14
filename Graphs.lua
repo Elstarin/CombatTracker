@@ -5,14 +5,8 @@ if not CombatTracker then return end
 local CT = CombatTracker
 local graphFunctions = {}
 
-local round = CT.round
 local formatTimer = CT.formatTimer
 local colorText = CT.colorText
-local colors = CT.colors
-local debug = CT.debug
-
-local SetTexCoord, SetPoint, SetTexture, SetVertexColor =
-        SetTexCoord, SetPoint, SetTexture, SetVertexColor
 
 local infinity = math.huge
 
@@ -26,10 +20,14 @@ CT.uptimeCategories = {
   "misc",
 }
 
+local SetTexCoord, SetPoint, SetTexture, SetVertexColor =
+        SetTexCoord, SetPoint, SetTexture, SetVertexColor
 local SetPoint, SetSize, SetVertexColor, SetTexCoords, CreateTexture =
-      SetPoint, SetSize, SetVertexColor, SetTexCoords, CreateTexture
-
-local wrap, yield, after = coroutine.wrap, coroutine.yield, C_Timer.After
+        SetPoint, SetSize, SetVertexColor, SetTexCoords, CreateTexture
+local debug, colors, GetTime, round, after, newTicker =
+        CT.debug, CT.colors, GetTime, CT.round, C_Timer.After, C_Timer.NewTicker
+local wrap, yield, after =
+        coroutine.wrap, coroutine.yield, C_Timer.After
 --------------------------------------------------------------------------------
 -- Graph Plot Functions
 --------------------------------------------------------------------------------
@@ -1384,8 +1382,6 @@ function CT:toggleNormalGraph(command)
     local layer = graph.drawLayer
     local alpha = graph.bars and graph.bars.alpha
 
-    debug(index, graph.name, layer)
-
     for i = 1, #graph.data do -- Show all the lines
       if lines[i] then
         lines[i]:Show()
@@ -2670,6 +2666,7 @@ function CT:buildGraph()
 
     slider:SetScript("OnMouseWheel", slider.mouseWheelFunc)
     graphFrame:SetScript("OnMouseWheel", slider.mouseWheelFunc)
+    graphFrame:EnableMouseWheel(false) -- Default to false, but is enabled while zoomed
 
     slider:Hide()
   end
@@ -2846,8 +2843,10 @@ function CT:buildGraph()
     local graphs = CT.displayed.graphs
 
     if GetTime() >= (self.lastClickTime or 0) then
-      if button == "LeftButton" then
+      if button == "LeftButton" then -- Zooming in
         if not graphFrame.zoomed then
+          graphFrame:EnableMouseWheel(true) -- Catch mousewheel while over graph
+
           if self.popup and self.popup:IsShown() then
             self.popup:Hide()
           else
@@ -2874,6 +2873,8 @@ function CT:buildGraph()
         end
       elseif button == "RightButton" then -- Remove the zoom
         if graphFrame.zoomed then
+          graphFrame:EnableMouseWheel(false) -- Stop catching mousewheel, let it work for normal scrolling
+
           local timer = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
 
           graphFrame.zoomed = false

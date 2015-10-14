@@ -3,12 +3,16 @@ if not CombatTracker then return end
 -- Locals, Frames, and Tables
 --------------------------------------------------------------------------------
 local CT = CombatTracker
--- CT.data = {}
 local combatevents = CT.combatevents
-local round = CT.round
 local delayGCD = 0.10
-local debug = CT.debug
 CT.loggingAuraData = {}
+
+local GetSpellInfo, GetSpellBaseCooldown, GetSpellBaseCooldown, GetSpellCharges, IsHarmfulSpell =
+        GetSpellInfo, GetSpellBaseCooldown, GetSpellBaseCooldown, GetSpellCharges, IsHarmfulSpell
+local GetHaste, SetUnitBuff, SetSpellByID, UnitGUID, UnitName, UnitReaction, UnitCanAttack, UnitPower =
+        GetHaste, SetUnitBuff, SetSpellByID, UnitGUID, UnitName, UnitReaction, UnitCanAttack, UnitPower
+local debug, GetTime, round, after, newTicker =
+        CT.debug, GetTime, CT.round, C_Timer.After, C_Timer.NewTicker
 --------------------------------------------------------------------------------
 -- Changing Data
 --------------------------------------------------------------------------------
@@ -16,89 +20,6 @@ local data
 
 function CT.updateLocalData(set)
   data = set
-end
---------------------------------------------------------------------------------
--- Basic Data Tables
---------------------------------------------------------------------------------
-function CT.setBasicData()
-  data = CT.current
-
-  data.name = GetUnitName("player", false)
-
-  data.pet = {}
-  -- data.petGUID = UnitGUID("pet")
-  data.petName = GetUnitName("pet", false)
-  data.petDamage = {}
-
-  data.brokenBy = {}
-
-  data.spells = {}
-  -- data.spellsOnCD = {}
-  -- data.spells.types = {}
-
-  data.auras = {}
-  -- data.auras.defensives = {}
-  -- data.auras.offensives = {}
-
-  data.activity = {}
-  data.activity.timeCasting = data.activity.timeCasting or 0
-  data.activity.tempCast = data.activity.tempCast or 0
-  data.activity.total = data.activity.total or 0
-
-  data.stats = {}
-  -- data.stats.updated = GetTime()
-
-  data.target = {}
-  data.target.targets = {}
-  data.target.prevTarget = "None"
-
-  data.focus = {}
-  data.focus.focused = {}
-  data.focus.prevFocus = "None"
-
-  data.units = {}
-
-  -- data.misc = {}
-
-  data.power = {}
-
-  data.stance = {}
-
-  data.health = {}
-  -- data.health.maxHealth = UnitHealthMax("player")
-
-  data.healing = {}
-  data.healingTaken = {}
-
-  data.damage = {}
-  data.damageTaken = {}
-
-  CT.settings.spellCooldownThrottle = 0.0085
-
-  data.bossID = {}
-
-  -- CT.sets.current = data -- The current set
-
-  do -- Line graphs
-    data.graphs = {}
-    data.graphs.updateDelay = 0.2
-    data.graphs.lastUpdate = 0
-    data.graphs.splitAmount = 500
-  end
-
-  do -- Uptime graphs
-    data.uptimeGraphs = {}
-    data.uptimeGraphs.cooldowns = {}
-    data.uptimeGraphs.buffs = {}
-    data.uptimeGraphs.debuffs = {}
-    data.uptimeGraphs.misc = {}
-    data.uptimeGraphs.categories = {
-      data.uptimeGraphs.cooldowns,
-      data.uptimeGraphs.buffs,
-      data.uptimeGraphs.debuffs,
-      data.uptimeGraphs.misc,
-    }
-  end
 end
 --------------------------------------------------------------------------------
 -- Running the Cooldown
@@ -244,7 +165,7 @@ local function runCooldown(spell, spellID, spellName)
     end)
 
     if not spell.cooldownHandler then debug("No cooldown handler for", spellName .. ".") end
-    spell.ticker = C_Timer.NewTicker(0.001, spell.cooldownHandler)
+    spell.ticker = newTicker(0.001, spell.cooldownHandler)
   else
     spell.queued = true
     spell.charges = false
@@ -1019,7 +940,7 @@ local function castStop(timer, unitID, spellName, rank, lineID, spellID)
   if ((data.currentCastDuration or 0) + 0.1) > (spell.castLength or 0) then
     finalCastDuration = (spell.castLength or 0)
   else
-    C_Timer.After(0.1, function()
+    after(0.1, function()
       if spell.castSuccess then
         error("Set " .. spellName .. " as failed, but it didn't.")
       end
@@ -1420,8 +1341,6 @@ local function auraApplied(timer, time, _, _, srcGUID, srcName, srcFlags, _, dst
       if flags.logCasts then -- Handle logging of data (like all spell casts) when a specific buff is active
         flags.logCasts[num] = {["start"] = timer}
         tinsert(CT.loggingAuraData, flags.logCasts[num])
-
-        debug("Adding aura:", aura.name)
       end
 
       setGraph:refresh()
@@ -1547,7 +1466,6 @@ local function auraRefresh(timer, time, _, _, srcGUID, srcName, srcFlags, _, dst
           if CT.loggingAuraData[i] == t then
             CT.loggingAuraData[i] = flags.logCasts[num]
             t.start = nil
-            debug("Replaced aura:", aura.name)
             break
           end
         end
@@ -1635,7 +1553,6 @@ local function auraRemoved(timer, time, _, _, srcGUID, srcName, _, _, dstGUID, d
         local t = flags.logCasts[num - 1] or flags.logCasts[num - 2]
         for i = 1, #CT.loggingAuraData do
           if CT.loggingAuraData[i] == t then
-            debug("Removing aura:", aura.name)
             t.start = nil
             tremove(CT.loggingAuraData, i)
             break
@@ -1653,7 +1570,6 @@ local function auraRemoved(timer, time, _, _, srcGUID, srcName, _, _, dstGUID, d
   --   for timer, table in pairs(aura.logCasts) do
   --     for i = 1, #CT.loggingAuraData do
   --       if CT.loggingAuraData[i] == table then
-  --         debug("Removing aura:", aura.name)
   --         t = tremove(CT.loggingAuraData, i)
   --         break
   --       end
@@ -2784,7 +2700,7 @@ end
 --   end
 -- end
 
--- spell.ticker = C_Timer.NewTicker(0.001, function(ticker)
+-- spell.ticker = newTicker(0.001, function(ticker)
 --   local currentTime = GetTime()
 --   spell.remaining = endCD - currentTime
 --   spell.CD = duration - spell.remaining

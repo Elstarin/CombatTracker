@@ -80,6 +80,29 @@ local staggerLight = "|cFF85FF85" -- Mint Green
 local staggerMedium = "|cFFFFFAB8"	-- Pale Yellow
 local staggerHeavy = "|cFFFF6B6B" -- Light Red
 
+function CT.getPowerColor(powerName)
+  local color = "|cFFFFFFFF"
+
+  if powerName then
+    if powerName == "Mana" then color = "|cFF0000FF"
+    elseif powerName == "Rage" then color = "|cFFFF0000"
+    elseif powerName == "Focus" then color = "|cFFFF8040"
+    elseif powerName == "Energy" then color = "|cFFFFFF00"
+    elseif powerName == "Combo Points" then color = "|cFFFFFFFF"
+    elseif powerName == "Chi" then color = "|cFFB5FFEB"
+    elseif powerName == "Runes" then color = "|cFF808080"
+    elseif powerName == "Runic Power" then color = "|cFF00D1FF"
+    elseif powerName == "Soul Shards" then color = "|cFF80528C"
+    elseif powerName == "Eclipse" then color = "|cFF4D85E6"
+    elseif powerName == "Holy Power" then color = "|cFFF2E699"
+    elseif powerName == "Demonic Fury" then color = "|cFF80528C"
+    elseif powerName == "Burning Embers" then color = "|cFFBF6B02"
+    else debug("No text color found for", powerName) end
+  end
+
+  return color
+end
+
 function CT.formatTimer(timer)
   if timer then
     local mins = floor(timer / 60)

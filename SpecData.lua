@@ -37,7 +37,7 @@ local function addBasicGraphs(role)
 
       local t = uptimeGraphs.misc["Target"]
 
-      if t.shown then
+      if shown then
         if uptimeGraphs.shownList then
           uptimeGraphs.shownList[#uptimeGraphs.shownList + 1] = t
         else
@@ -47,35 +47,35 @@ local function addBasicGraphs(role)
         CT.toggleUptimeGraph(t)
       end
 
-      if t.data then wipe(t.data) else t.data = {} end
-      if t.unitName then wipe(t.unitName) else t.unitName = {} end
-      if t.colorChange then wipe(t.colorChange) else t.colorChange = {} end
+      if data then wipe(data) else data = {} end
+      if unitName then wipe(unitName) else unitName = {} end
+      if colorChange then wipe(colorChange) else colorChange = {} end
 
-      t.data[1] = 0
-      t.data[2] = 0
-      t.unitName[2] = "None"
-      t.refresh = CT.refreshUptimeGraph
-      t.name = "Target"
-      t.category = "Misc"
-      t.group = "Targeted"
-      t.colorPrimary = colors.lightgreen
-      t.colorSecondary = colors.lightblue
-      t.color = colors.lightgreen
-      t.startX = 10
-      t.XMin = 0
-      t.XMax = 10
-      t.YMin = 0
-      t.YMax = 10
-      t.endNum = 1
+      data[1] = 0
+      data[2] = 0
+      unitName[2] = "None"
+      refresh = CT.refreshUptimeGraph
+      name = "Target"
+      category = "Misc"
+      group = "Targeted"
+      colorPrimary = colors.lightgreen
+      colorSecondary = colors.lightblue
+      color = colors.lightgreen
+      startX = 10
+      XMin = 0
+      XMax = 10
+      YMin = 0
+      YMax = 10
+      endNum = 1
 
-      if CT.uptimeGraphLines[t.category][t.name] then -- This should mean the graph was previously created in another set
-        for num, line in pairs(CT.uptimeGraphLines[t.category][t.name]) do
+      if CT.uptimeGraphLines[category][name] then -- This should mean the graph was previously created in another set
+        for num, line in pairs(CT.uptimeGraphLines[category][name]) do
           line:Hide()
         end
 
-        wipe(CT.uptimeGraphLines[t.category][t.name])
+        wipe(CT.uptimeGraphLines[category][name])
       else
-        CT.uptimeGraphLines[t.category][t.name] = {}
+        CT.uptimeGraphLines[category][name] = {}
       end
     end
 
@@ -87,7 +87,7 @@ local function addBasicGraphs(role)
 
       local t = uptimeGraphs.misc["Focus Target"]
 
-      if t.shown then
+      if shown then
         if uptimeGraphs.shownList then
           uptimeGraphs.shownList[#uptimeGraphs.shownList + 1] = t
         else
@@ -97,35 +97,35 @@ local function addBasicGraphs(role)
         CT.toggleUptimeGraph(t)
       end
 
-      if t.data then wipe(t.data) else t.data = {} end
-      if t.unitName then wipe(t.unitName) else t.unitName = {} end
-      if t.colorChange then wipe(t.colorChange) else t.colorChange = {} end
+      if data then wipe(data) else data = {} end
+      if unitName then wipe(unitName) else unitName = {} end
+      if colorChange then wipe(colorChange) else colorChange = {} end
 
-      t.data[1] = 0
-      t.data[2] = 0
-      t.unitName[2] = "None"
-      t.refresh = CT.refreshUptimeGraph
-      t.name = "Focus Target"
-      t.category = "Misc"
-      t.group = "Focused"
-      t.colorPrimary = colors.lightgreen
-      t.colorSecondary = colors.lightblue
-      t.color = colors.lightgreen
-      t.startX = 10
-      t.XMin = 0
-      t.XMax = 10
-      t.YMin = 0
-      t.YMax = 10
-      t.endNum = 1
+      data[1] = 0
+      data[2] = 0
+      unitName[2] = "None"
+      refresh = CT.refreshUptimeGraph
+      name = "Focus Target"
+      category = "Misc"
+      group = "Focused"
+      colorPrimary = colors.lightgreen
+      colorSecondary = colors.lightblue
+      color = colors.lightgreen
+      startX = 10
+      XMin = 0
+      XMax = 10
+      YMin = 0
+      YMax = 10
+      endNum = 1
 
-      if CT.uptimeGraphLines[t.category][t.name] then -- This should mean the graph was previously created in another set
-        for num, line in pairs(CT.uptimeGraphLines[t.category][t.name]) do
+      if CT.uptimeGraphLines[category][name] then -- This should mean the graph was previously created in another set
+        for num, line in pairs(CT.uptimeGraphLines[category][name]) do
           line:Hide()
         end
 
-        wipe(CT.uptimeGraphLines[t.category][t.name])
+        wipe(CT.uptimeGraphLines[category][name])
       else
-        CT.uptimeGraphLines[t.category][t.name] = {}
+        CT.uptimeGraphLines[category][name] = {}
       end
     end
 
@@ -137,30 +137,30 @@ local function addBasicGraphs(role)
 
       local t = uptimeGraphs.cooldowns["Activity"]
 
-      t.data = {}
-      t.spellName = {}
+      data = {}
+      spellName = {}
 
-      t.data[1] = 0
-      t.refresh = CT.refreshUptimeGraph
-      t.name = "Activity"
-      t.category = "Cooldown"
-      t.group = "Duration"
-      t.color = colors.orange
-      t.startX = 10
-      t.XMin = 0
-      t.XMax = 10
-      t.YMin = 0
-      t.YMax = 10
-      t.endNum = 1
+      data[1] = 0
+      refresh = CT.refreshUptimeGraph
+      name = "Activity"
+      category = "Cooldown"
+      group = "Duration"
+      color = colors.orange
+      startX = 10
+      XMin = 0
+      XMax = 10
+      YMin = 0
+      YMax = 10
+      endNum = 1
 
-      if CT.uptimeGraphLines[t.category][t.name] then -- This should mean the graph was previously created in another set
-        for num, line in pairs(CT.uptimeGraphLines[t.category][t.name]) do
+      if CT.uptimeGraphLines[category][name] then -- This should mean the graph was previously created in another set
+        for num, line in pairs(CT.uptimeGraphLines[category][name]) do
           line:Hide()
         end
 
-        wipe(CT.uptimeGraphLines[t.category][t.name])
+        wipe(CT.uptimeGraphLines[category][name])
       else
-        CT.uptimeGraphLines[t.category][t.name] = {}
+        CT.uptimeGraphLines[category][name] = {}
       end
     end
 
@@ -281,147 +281,133 @@ elseif CLASS == "DRUID" then
   classFunc = druid
 elseif CLASS == "HUNTER" then
   local function hunter(specName)
-    local uptimeGraphs = CT.current.uptimeGraphs
-    local graphs = CT.current.graphs
+    local data = {}
 
-    do -- Focus
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Focus"
-      t.powerIndex = 2
-      t.func = func.resource1
-      t.expanderFunc = func.expanderResource1
-      t.dropDownFunc = CT.type1
-      t.lines = { "Focus Gained:", "Focus Wasted:", "Effective Gain:", "",
-                  "Times Capped:", "Seconds Capped:", }
-    end
+    data[#data + 1] = { -- Focus
+      name = "Focus",
+      powerIndex = 2,
+      func = func.resource1,
+      expanderFunc = func.expanderResource1,
+      dropDownFunc = CT.type1,
+      lines = { "Focus Gained:", "Focus Wasted:", "Effective Gain:", "",
+                  "Times Capped:", "Seconds Capped:", },
+    }
 
-    do -- Activity
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Activity"
-      t.func = func.activity
-      t.dropDownFunc = CT.type2
-      t.lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
+    data[#data + 1] = { -- Activity
+      name = "Activity",
+      func = func.activity,
+      dropDownFunc = CT.type2,
+      lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
                     "Seconds Casting:", "Seconds on GCD:", "", "", "Total Casts:", "Total Instant Casts:",
-                    "Total Hard Casts:",}
-      t.icon = "Interface/ICONS/Ability_DualWield.png"
-    end
+                    "Total Hard Casts:",},
+      icon = "Interface/ICONS/Ability_DualWield.png",
+    }
 
-    do -- All Casts
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "All Casts"
-      t.func = func.allCasts
-      t.expanderFunc = func.expanderAllCasts
-      t.dropDownFunc = CT.type4
-      t.lines = {}
-    end
+    data[#data + 1] = { -- All Casts
+      name = "All Casts",
+      func = func.allCasts,
+      expanderFunc = func.expanderAllCasts,
+      dropDownFunc = CT.type4,
+      lines = {},
+    }
 
-    do -- Damage
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Damage"
-      t.func = func.damage
-      t.expanderFunc = func.expanderDamage
-      t.dropDownFunc = CT.type1
-      t.lines = {"Total Damage:", "Average DPS:",}
-    end
-
-    do -- Pet uptime
-      if not uptimeGraphs.misc["Pet"] then
-        uptimeGraphs.misc["Pet"] = {}
-        uptimeGraphs.misc[#uptimeGraphs.misc + 1] = uptimeGraphs.misc["Pet"]
-      end
-
-      local t = uptimeGraphs.misc["Pet"]
-      t.data = {}
-      t.data[1] = 0
-      t.lines = {}
-      t.spellName = {}
-      t.refresh = CT.refreshUptimeGraph
-      t.name = "Pet"
-      t.category = "Misc"
-      t.group = "Uptime"
-      t.color = colors.orange
-      t.startX = 10
-      t.XMin = 0
-      t.XMax = 10
-      t.YMin = 0
-      t.YMax = 10
-      t.endNum = 1
-    end
+    data[#data + 1] = { -- Damage
+      name = "Damage",
+      func = func.damage,
+      expanderFunc = func.expanderDamage,
+      dropDownFunc = CT.type1,
+      lines = {"Total Damage:", "Average DPS:",},
+    }
 
     if specName == "Survival" then
-      do -- Explosive Shot
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Explosive Shot"
-        t.spellID = 53301
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+      data[#data + 1] = { -- Explosive Shot
+        name = "Explosive Shot",
+        spellID = 53301,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        costsPower = 1,
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                      "Average Heal:",}
-        t.costsPower = 1
+                      "Average Heal:",},
+      }
 
-        CT.addCooldownGraph(53301, "Explosive Shot", colors.yellow)
-      end
+      -- CT.addCooldownGraph(53301, "Explosive Shot", colors.yellow)
 
-      do -- Black Arrow
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Black Arrow"
-        t.spellID = 3674
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+      data[#data + 1] = { -- Black Arrow
+        name = "Black Arrow",
+        spellID = 3674,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        costsPower = 1,
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                      "Average Heal:",}
-        t.costsPower = 1
+                      "Average Heal:",},
+      }
 
-        CT.addCooldownGraph(3674, "Black Arrow", colors.yellow)
-      end
+      -- CT.addCooldownGraph(3674, "Black Arrow", colors.yellow)
     elseif specName == "Marksmanship" then
-      do -- Chimaera Shot
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Chimaera Shot"
-        t.spellID = 53209
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
+      data[#data + 1] = { -- Chimaera Shot
+        name = "Chimaera Shot",
+        spellID = 53209,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        costsPower = 1,
+        lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
                     "Focus Spent:", "Reset Casts:", "Longest Delay:", "",
-                    "Procs Used:", "Total Procs:", "Biggest Hit:", "Average Hit:",}
-        t.costsPower = 1
+                    "Procs Used:", "Total Procs:", "Biggest Hit:", "Average Hit:",},
+      }
 
-        CT.addCooldownGraph(53209, "Chimaera Shot", colors.yellow)
-      end
+      -- CT.addCooldownGraph(53209, "Chimaera Shot", colors.yellow)
 
-      do -- Kill Shot
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Kill Shot"
-        t.spellID = 53351
-        t.func = func.execute
-        t.expanderFunc = func.expanderExecute
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
+      data[#data + 1] = { -- Kill Shot
+        name = "Kill Shot",
+        spellID = 53351,
+        func = func.execute,
+        expanderFunc = func.expanderExecute,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
                     "Reset Casts:", "Longest Delay:", "", "",
-                    "Procs Used:", "Total Procs:", "Biggest Hit:", "Average Hit:",}
+                    "Procs Used:", "Total Procs:", "Biggest Hit:", "Average Hit:",},
+      }
 
-        CT.addCooldownGraph(53351, "Kill Shot", colors.yellow)
-      end
+      -- CT.addCooldownGraph(53351, "Kill Shot", colors.yellow)
     elseif specName == "Beast Master" then
+      data[#data + 1] = { -- Kill Command TODO: SpellID
+        name = "Kill Command",
+        -- spellID = 53209,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        costsPower = 1,
+        lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
+                    "Focus Spent:", "Reset Casts:", "Longest Delay:", "",
+                    "Procs Used:", "Total Procs:", "Biggest Hit:", "Average Hit:",},
+      }
 
+      data[#data + 1] = { -- Kill Shot
+        name = "Kill Shot",
+        spellID = 53351,
+        func = func.execute,
+        expanderFunc = func.expanderExecute,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
+                    "Reset Casts:", "Longest Delay:", "", "",
+                    "Procs Used:", "Total Procs:", "Biggest Hit:", "Average Hit:",},
+      }
+
+      -- CT.addCooldownGraph(53351, "Kill Shot", colors.yellow)
     end
+
+    return data
   end
 
   classFunc = hunter
@@ -431,55 +417,55 @@ elseif CLASS == "MAGE" then
     local graphs = CT.current.graphs
 
     do -- Activity
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Activity"
-      t.func = func.activity
-      t.expanderFunc = func.expanderActivity
-      t.dropDownFunc = CT.type2
-      t.lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
+      data[#data + 1] = {}
+
+      name = "Activity"
+      func = func.activity
+      expanderFunc = func.expanderActivity
+      dropDownFunc = CT.type2
+      lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
                     "Seconds Casting:", "Seconds on GCD:", "", "", "Total Casts:", "Total Instant Casts:",
                     "Total Hard Casts:",}
-      t.icon = "Interface/ICONS/Ability_DualWield.png"
+      icon = "Interface/ICONS/Ability_DualWield.png"
     end
 
     do -- Damage
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Damage"
-      t.func = func.damage
-      t.dropDownFunc = CT.type1
-      t.lines = {"Total Gain:", "Total Loss:",}
-      t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
+      data[#data + 1] = {}
+
+      name = "Damage"
+      func = func.damage
+      dropDownFunc = CT.type1
+      lines = {"Total Gain:", "Total Loss:",}
+      icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
     end
 
     do -- All Casts
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "All Casts"
-      t.func = func.allCasts
-      t.expanderFunc = func.expanderAllCasts
-      t.dropDownFunc = CT.type4
-      t.lines = {}
+      data[#data + 1] = {}
+
+      name = "All Casts"
+      func = func.allCasts
+      expanderFunc = func.expanderAllCasts
+      dropDownFunc = CT.type4
+      lines = {}
     end
 
     if specName == "Frost" then
 
     elseif specName == "Arcane" then
       -- do -- Crusader Strike
-      --   CT.specData[#CT.specData + 1] = {}
-      --   local t = CT.specData[#CT.specData]
-      --   t.name = "Crusader Strike"
-      --   t.spellID = 35395
-      --   t.func = func.shortCD
-      --   t.expanderFunc = func.expanderShortCD
-      --   t.dropDownFunc = CT.type2
-      --   t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+      --   data[#data + 1] = {}
+      --
+      --   name = "Crusader Strike"
+      --   spellID = 35395
+      --   func = func.shortCD
+      --   expanderFunc = func.expanderShortCD
+      --   dropDownFunc = CT.type2
+      --   lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
       --                 "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
       --                 "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
       --                 "Average Heal:",}
-      --   t.costsPower = 1
-      --   t.givesPower = 2
+      --   costsPower = 1
+      --   givesPower = 2
       --   CT.addCooldownGraph(35395, "Crusader Strike", colors.yellow)
       -- end
     elseif specName == "Fire" then
@@ -505,6 +491,8 @@ elseif CLASS == "MONK" then
   classFunc = monk
 elseif CLASS == "PALADIN" then
   local function paladin(specName)
+    local data = {}
+
     local graphs, uptimeGraphs
     if CT.current then
       uptimeGraphs = CT.current.uptimeGraphs
@@ -512,589 +500,483 @@ elseif CLASS == "PALADIN" then
     end
 
     if specName == "Retribution" then
-      do -- Activity
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Activity"
-        t.func = func.activity
-        t.expanderFunc = func.expanderActivity
-        t.dropDownFunc = CT.type2
-        t.lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
+      data[#data + 1] = { -- Activity
+        name = "Activity",
+        dropDownFunc = CT.type2,
+        lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
                       "Seconds Casting:", "Seconds on GCD:", "", "", "Total Casts:", "Total Instant Casts:",
-                      "Total Hard Casts:",}
-        t.icon = "Interface/ICONS/Ability_DualWield.png"
-      end
+                      "Total Hard Casts:",},
+        icon = "Interface/ICONS/Ability_DualWield.png",
+        func = func.activity,
+        expanderFunc = func.expanderActivity,
+      }
 
-      do -- Holy Power
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Holy Power"
-        t.powerIndex = 9
-        t.func = func.resource2
-        t.expanderFunc = func.expanderResource2
-        t.dropDownFunc = CT.type1
-        t.lines = {"Total Gain:", "Total Loss:",}
-        t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
-      end
+      data[#data + 1] = { -- Holy Power
+        name = "Holy Power",
+        powerIndex = 9,
+        func = func.resource2,
+        expanderFunc = func.expanderResource2,
+        dropDownFunc = CT.type1,
+        lines = {"Total Gain:", "Total Loss:",},
+        icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png",
+      }
 
-      do -- Damage
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Damage"
-        t.func = func.damage
-        t.dropDownFunc = CT.type1
-        t.lines = {"Total Gain:", "Total Loss:",}
-        t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
-      end
+      data[#data + 1] = { -- Damage
+        name = "Damage",
+        func = func.damage,
+        dropDownFunc = CT.type1,
+        lines = {"Total Gain:", "Total Loss:",},
+        icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png",
+      }
 
-      do -- Crusader Strike
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Crusader Strike"
-        t.spellID = 35395
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+      data[#data + 1] = { -- Crusader Strike
+        name = "Crusader Strike",
+        spellID = 35395,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                      "Average Heal:",}
-        t.costsPower = 1
-        t.givesPower = 2
+                      "Average Heal:",},
+        costsPower = 1,
+        givesPower = 2,
+      }
 
-        CT.addCooldownGraph(35395, "Crusader Strike", colors.yellow)
-      end
+      -- CT.addCooldownGraph(35395, "Crusader Strike", colors.yellow)
 
-      do -- Judgment
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Judgment"
-        t.spellID = 20271
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+      data[#data + 1] = { -- Judgment
+        name = "Judgment",
+        spellID = 20271,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        costsPower = 1,
+        givesPower = 2,
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                      "Average Heal:",}
-        t.costsPower = 1
-        t.givesPower = 2
+                      "Average Heal:",},
+      }
 
-        CT.addCooldownGraph(20271, "Judgment", colors.yellow)
-      end
+      -- CT.addCooldownGraph(20271, "Judgment", colors.yellow)
 
-      do -- Exorcism
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Exorcism"
-        t.spellID = 879
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+      data[#data + 1] = { -- Exorcism
+        name = "Exorcism",
+        spellID = 879,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        costsPower = 1,
+        givesPower = 2,
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                      "Average Heal:",}
-        t.costsPower = 1
-        t.givesPower = 2
+                      "Average Heal:",},
+      }
 
-        CT.addCooldownGraph(879, "Exorcism", colors.yellow)
-      end
+      -- CT.addCooldownGraph(879, "Exorcism", colors.yellow)
 
-      if CT.player.talents[6] then
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = CT.player.talents[6]
-        t.costsPower = 1
+      do -- Light's hammer, holy prism, or execution sentence
+        local talent = CT.player.talents[6]
 
-        if t.name == "Light's Hammer" then
-          t.spellID = 114158
-          t.func = func.longCD
-          t.dropDownFunc = CT.type3
-          t.lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
-        elseif t.name == "Execution Sentence" then
-          t.spellID = 114916
-          t.func = func.longCD
-          t.dropDownFunc = CT.type3
-          t.lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
-        elseif t.name == "Holy Prism" then
-          t.spellID = 114165
-          t.func = func.shortCD
-          t.expanderFunc = func.expanderShortCD
-          t.dropDownFunc = CT.type2
-          t.lines = {"Percent on CD:", "Percent off CD:", "Seconds Wasted:", "Average Delay:",
-                     "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
-                     "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                     "Average Heal:", "Average Targets Hit:",}
+        if talent and talent == "Light's Hammer" then
+          data[#data + 1] = {
+            name = talent,
+            spellID = 114158,
+            func = func.longCD,
+            dropDownFunc = CT.type3,
+            costsPower = 1,
+            lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",},
+          }
+
+          -- CT.addCooldownGraph(spellID, CT.player.talents[6], colors.yellow)
+        elseif talent and talent == "Execution Sentence" then
+          data[#data + 1] = {
+            name = talent,
+            spellID = 114916,
+            func = func.longCD,
+            dropDownFunc = CT.type3,
+            costsPower = 1,
+            lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",},
+          }
+
+          -- CT.addCooldownGraph(spellID, CT.player.talents[6], colors.yellow)
+        elseif talent and talent == "Holy Prism" then
+          data[#data + 1] = {
+            name = talent,
+            spellID = 114165,
+            func = func.shortCD,
+            expanderFunc = func.expanderShortCD,
+            dropDownFunc = CT.type2,
+            costsPower = 1,
+            lines = {"Percent on CD:", "Percent off CD:", "Seconds Wasted:", "Average Delay:",
+                      "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
+                      "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
+                      "Average Heal:", "Average Targets Hit:",},
+          }
+
+          -- CT.addCooldownGraph(spellID, CT.player.talents[6], colors.yellow)
         end
-
-        CT.addCooldownGraph(t.spellID, CT.player.talents[6], colors.yellow)
       end
 
       if CT.player.talents[7] and CT.player.talents[7] == "Seraphim" or CT.player.talents[7] == "Empowered Seals" then
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = CT.player.talents[7]
-        t.costsPower = 1
+        local talent = CT.player.talents[7]
 
-        if t.name == "Seraphim" then
-          t.spellID = 152262
-          t.func = func.auraUptime
-          t.expanderFunc = func.expanderAuraUptime
-          t.dropDownFunc = CT.type2
-          t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
-                      "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
-                      "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
-                      "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
+        if name == "Seraphim" then
+          data[#data + 1] = {
+            spellID = 152262,
+            func = func.auraUptime,
+            expanderFunc = func.expanderAuraUptime,
+            dropDownFunc = CT.type2,
+            name = talent,
+            costsPower = 1,
+            lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+                        "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
+                        "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
+                        "Percent of Healing:", "Procs Used:", "Total Procs:", "",},
+          }
 
-          -- CT.addAuraGraph(86273, t.name, "Buff", nil, colors.blue)
-        elseif t.name == "Empowered Seals" then
-          -- t.spellID = 114916
-          -- t.func = func.longCD
-          -- t.dropDownFunc = CT.type3
-          -- t.lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
-        elseif t.name == "Holy Prism" then
+          -- CT.addAuraGraph(86273, name, "Buff", nil, colors.blue)
+        elseif name == "Empowered Seals" then
+          data[#data + 1] = {
+            spellID = 114916,
+            func = func.longCD,
+            dropDownFunc = CT.type3,
+            name = talent,
+            costsPower = 1,
+            lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",},
+          }
+        elseif name == "Holy Prism" then
 
         end
 
-        CT.addCooldownGraph(t.spellID, t.name, colors.yellow)
+        -- CT.addCooldownGraph(spellID, name, colors.yellow)
       end
 
-      do -- Stance
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Stance"
-        t.func = func.stance
-        t.expanderFunc = func.expanderStance
-        t.dropDownFunc = CT.type2
-        t.lines = {"Total Gained", "Applied / Refreshed", "Expired Early",}
-
-        if CT.current then
-          uptimeGraphs.misc["Stance"] = {}
-          uptimeGraphs.misc[#uptimeGraphs.misc + 1] = uptimeGraphs.misc["Stance"]
-          local t = uptimeGraphs.misc["Stance"]
-          t.data = {}
-          t.data[1] = 0
-          t.spellName = {}
-          t.colorChange = {}
-          t.lines = {}
-          t.refresh = CT.refreshUptimeGraph
-          t.name = "Stance"
-          t.category = "Misc"
-          t.group = "Seal"
-          t.colorPrimary = colors.lightgreen
-          t.colorSecondary = colors.lightblue
-          t.color = colors.lightgreen
-          t.startX = 10
-          t.XMin = 0
-          t.XMax = 10
-          t.YMin = 0
-          t.YMax = 10
-          t.endNum = 1
-
-          CT.uptimeGraphLines[t.category][t.name] = {}
-        end
-      end
-
-      return
+      data[#data + 1] = { -- Stance
+        name = "Stance",
+        func = func.stance,
+        expanderFunc = func.expanderStance,
+        dropDownFunc = CT.type2,
+        lines = {"Total Gained", "Applied / Refreshed", "Expired Early",},
+      }
     elseif specName == "Holy" then
-      do -- Activity
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Activity"
-        t.func = func.activity
-        t.expanderFunc = func.expanderActivity
-        t.dropDownFunc = CT.type2
-        t.lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
+      data[#data + 1] = { -- Activity
+        name = "Activity",
+        func = func.activity,
+        expanderFunc = func.expanderActivity,
+        dropDownFunc = CT.type2,
+        icon = "Interface/ICONS/Ability_DualWield.png",
+        lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
                       "Seconds Casting:", "Seconds on GCD:", "", "", "Total Casts:", "Total Instant Casts:",
-                      "Total Hard Casts:",}
-        t.icon = "Interface/ICONS/Ability_DualWield.png"
+                      "Total Hard Casts:",},
+      }
+
+      data[#data + 1] = { -- Mana
+        name = "Mana",
+        powerIndex = 0,
+        func = func.resource1,
+        expanderFunc = func.expanderResource1,
+        dropDownFunc = CT.type1,
+        lines = { "Mana Gained:", "Mana Wasted:", "Effective Gain:", "",
+                    "Times Capped:", "Seconds Capped:", },
+      }
+
+      data[#data + 1] = { -- Holy Power
+        name = "Holy Power",
+        powerIndex = 9,
+        func = func.resource2,
+        expanderFunc = func.expanderResource2,
+        dropDownFunc = CT.type1,
+        icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png",
+        lines = { "Holy Power Gained:", "Holy Power Wasted:", "", "",
+                  "Times Capped:", "Seconds Capped:", },
+      }
+
+      data[#data + 1] = { -- Healing
+        name = "Healing",
+        func = func.healing,
+        dropDownFunc = CT.type1,
+        icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png",
+        lines = {"Total Gain:", "Total Loss:",},
+      }
+
+      data[#data + 1] = { -- Illuminated Healing
+        name = "Illuminated Healing",
+        spellID = 86273,
+        func = func.auraUptime,
+        expanderFunc = func.expanderAuraUptime,
+        dropDownFunc = CT.type2,
+        lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+                  "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
+                  "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
+                  "Percent of Healing:", "Procs Used:", "Total Procs:", "",},
+      }
+
+      -- CT.addAuraGraph(86273, "Illuminated Healing", "Buff", nil, colors.blue)
+
+      data[#data + 1] = { -- All Casts
+        name = "All Casts",
+        func = func.allCasts,
+        expanderFunc = func.expanderAllCasts,
+        dropDownFunc = CT.type4,
+        lines = {},
+      }
+
+      data[#data + 1] = { -- Holy Shock
+        name = "Holy Shock",
+        spellID = 20473,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
+                    "Holy Power Gained:", "Holy Power Spent:", "Reset Casts:", "Longest Delay:",
+                    "Procs Used:", "Total Procs:", "Biggest Heal:", "Average Heal:",},
+        costsPower = 1,
+        givesPower = 2,
+      }
+      -- CT.addCooldownGraph(20473, "Holy Shock", colors.yellow)
+
+      do -- Light's hammer, holy prism, or execution sentence
+        local talent = CT.player.talents[6]
+
+        if talent and talent == "Light's Hammer" then
+          data[#data + 1] = {
+            name = talent,
+            spellID = 114158,
+            func = func.longCD,
+            dropDownFunc = CT.type3,
+            costsPower = 1,
+            lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",},
+          }
+
+          -- CT.addCooldownGraph(spellID, CT.player.talents[6], colors.yellow)
+        elseif talent and talent == "Execution Sentence" then
+          data[#data + 1] = {
+            name = talent,
+            spellID = 114916,
+            func = func.longCD,
+            dropDownFunc = CT.type3,
+            costsPower = 1,
+            lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",},
+          }
+
+          -- CT.addCooldownGraph(spellID, CT.player.talents[6], colors.yellow)
+        elseif talent and talent == "Holy Prism" then
+          data[#data + 1] = {
+            name = talent,
+            spellID = 114165,
+            func = func.shortCD,
+            expanderFunc = func.expanderShortCD,
+            dropDownFunc = CT.type2,
+            costsPower = 1,
+            lines = {"Percent on CD:", "Percent off CD:", "Seconds Wasted:", "Average Delay:",
+                      "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
+                      "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
+                      "Average Heal:", "Average Targets Hit:",},
+          }
+
+          -- CT.addCooldownGraph(spellID, CT.player.talents[6], colors.yellow)
+        end
       end
 
-      do -- Mana
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Mana"
-        t.powerIndex = 0
-        t.func = func.resource1
-        t.expanderFunc = func.expanderResource1
-        t.dropDownFunc = CT.type1
-        t.lines = { "Mana Gained:", "Mana Wasted:", "Effective Gain:", "",
-                    "Times Capped:", "Seconds Capped:", }
-      end
-
-      do -- Holy Power
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Holy Power"
-        t.powerIndex = 9
-        t.func = func.resource2
-        t.expanderFunc = func.expanderResource2
-        t.dropDownFunc = CT.type1
-        t.lines = { "Holy Power Gained:", "Holy Power Wasted:", "", "",
-                    "Times Capped:", "Seconds Capped:", }
-        t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
-      end
-
-      do -- Healing TODO: No expander func
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Healing"
-        t.func = func.healing
-        t.dropDownFunc = CT.type1
-        t.lines = {"Total Gain:", "Total Loss:",}
-        t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
-      end
-
-      do -- Illuminated Healing
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Illuminated Healing"
-        t.spellID = 86273
-        t.func = func.auraUptime
-        t.expanderFunc = func.expanderAuraUptime
-        t.dropDownFunc = CT.type2
-        t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
-                    "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
-                    "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
-                    "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
-
-        -- CT.addAuraGraph(86273, "Illuminated Healing", "Buff", nil, colors.blue)
-      end
-
-      do -- All Casts
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "All Casts"
-        t.func = func.allCasts
-        t.expanderFunc = func.expanderAllCasts
-        t.dropDownFunc = CT.type4
-        t.lines = {}
-      end
-
-      do -- Holy Shock
-        CT.specData[#CT.specData + 1] = {
-          name = "Holy Shock",
-          spellID = 20473,
+      if CT.player.talents[7] and not IsPassiveSpell(CT.player.talents[7]) then
+        data[#data + 1] = {
+          name = CT.player.talents[7],
           func = func.shortCD,
-          expanderFunc = func.expanderShortCD,
           dropDownFunc = CT.type2,
-          lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
-                      "Holy Power Gained:", "Holy Power Spent:", "Reset Casts:", "Longest Delay:",
-                      "Procs Used:", "Total Procs:", "Biggest Heal:", "Average Heal:",},
           costsPower = 1,
-          givesPower = 2,
+          lines = {"None", "None"},
         }
-        local t = CT.specData[#CT.specData]
-        -- t.name = "Holy Shock"
-        -- t.spellID = 20473
-        -- t.func = func.shortCD
-        -- t.expanderFunc = func.expanderShortCD
-        -- t.dropDownFunc = CT.type2
-        -- t.lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
-        --             "Holy Power Gained:", "Holy Power Spent:", "Reset Casts:", "Longest Delay:",
-        --             "Procs Used:", "Total Procs:", "Biggest Heal:", "Average Heal:",}
-        -- t.costsPower = 1
-        -- t.givesPower = 2
-        t.testFunc = function(time, timer)
-
-        end
-
-        -- CT.addCooldownGraph(20473, "Holy Shock", colors.yellow)
       end
 
-      do -- CT.player.talents[6]
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = CT.player.talents[6]
-        t.costsPower = 1
+      data[#data + 1] = { -- Divine Protection
+        name = "Divine Protection",
+        spellID = 498,
+        func = func.longCD,
+        dropDownFunc = CT.type3,
+        costsPower = 1,
+        lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",},
+      }
 
-        if t.name == "Light's Hammer" then
-          t.spellID = 114158
-          t.func = func.longCD
-          t.dropDownFunc = CT.type3
-          t.lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
-        elseif t.name == "Execution Sentence" then
-          t.spellID = 114916
-          t.func = func.longCD
-          t.dropDownFunc = CT.type3
-          t.lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
-        elseif t.name == "Holy Prism" then
-          t.spellID = 114165
-          t.func = func.shortCD
-          t.expanderFunc = func.expanderShortCD
-          t.dropDownFunc = CT.type2
-          t.lines = {"Percent on CD:", "Percent off CD:", "Seconds Wasted:", "Average Delay:",
-                     "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
-                     "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                     "Average Heal:", "Average Targets Hit:",}
-        end
+      data[#data + 1] = {
+        name = "Cleanse",
+        func = func.dispel,
+        dropDownFunc = CT.type2,
+        costsPower = 1,
+        lines = {"None", "None",},
+      }
 
-        -- CT.addCooldownGraph(t.spellID, CT.player.talents[6], colors.yellow)
-      end
-
-      if not IsPassiveSpell(CT.player.talents[7]) then
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = CT.player.talents[7]
-        t.func = func.shortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"None", "None"}
-        t.costsPower = 1
-      end
-
-      -- do -- Divine Protection
-      --   CT.specData[#CT.specData + 1] = {}
-      --   local t = CT.specData[#CT.specData]
-      --   t.name = "Divine Protection"
-      --   t.spellID = 498
-      --   t.func = func.longCD
-      --   t.dropDownFunc = CT.type3
-      --   t.lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
-      --   t.costsPower = 1
-      -- end
-
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Cleanse"
-      t.func = func.dispel
-      t.dropDownFunc = CT.type2
-      t.lines = {"None", "None",}
-      t.costsPower = 1
-
-      do -- Stance
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Stance"
-        t.func = func.stance
-        t.expanderFunc = func.expanderStance
-        t.dropDownFunc = CT.type2
-        t.lines = {"Total Gained", "Applied / Refreshed", "Expired Early",}
-
-        if CT.current then
-          uptimeGraphs.misc["Stance"] = {}
-          uptimeGraphs.misc[#uptimeGraphs.misc + 1] = uptimeGraphs.misc["Stance"]
-          local t = uptimeGraphs.misc["Stance"]
-          t.data = {}
-          t.data[1] = 0
-          t.spellName = {}
-          t.colorChange = {}
-          t.lines = {}
-          t.refresh = CT.refreshUptimeGraph
-          t.name = "Stance"
-          t.category = "Misc"
-          t.group = "Seal"
-          t.colorPrimary = colors.lightgreen
-          t.colorSecondary = colors.lightblue
-          t.color = colors.lightgreen
-          t.startX = 10
-
-          t.XMin = 0
-          t.XMax = 10
-          t.YMin = 0
-          t.YMax = 10
-          t.endNum = 1
-
-          if CT.uptimeGraphLines[t.category][t.name] then -- This should mean the graph was previously created in another set
-            for num, line in pairs(CT.uptimeGraphLines[t.category][t.name]) do
-              line:Hide()
-            end
-
-            wipe(CT.uptimeGraphLines[t.category][t.name])
-          else
-            CT.uptimeGraphLines[t.category][t.name] = {}
-          end
-        end
-      end
+      data[#data + 1] = { -- Stance
+        name = "Stance",
+        func = func.stance,
+        expanderFunc = func.expanderStance,
+        dropDownFunc = CT.type2,
+        lines = {"Total Gained", "Applied / Refreshed", "Expired Early",},
+      }
 
       CT.executePercent = 20
-      return
     elseif specName == "Protection" then
-      do -- Activity
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Activity"
-        t.func = func.activity
-        t.expanderFunc = func.expanderActivity
-        t.dropDownFunc = CT.type2
-        t.lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
+      data[#data + 1] = { -- Activity
+        name = "Activity",
+        func = func.activity,
+        expanderFunc = func.expanderActivity,
+        dropDownFunc = CT.type2,
+        icon = "Interface/ICONS/Ability_DualWield.png",
+        lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
                       "Seconds Casting:", "Seconds on GCD:", "", "", "Total Casts:", "Total Instant Casts:",
-                      "Total Hard Casts:",}
-        t.icon = "Interface/ICONS/Ability_DualWield.png"
-      end
+                      "Total Hard Casts:",},
+      }
 
-      do -- Holy Power
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Holy Power"
-        t.powerIndex = 9
-        t.func = func.resource2
-        t.expanderFunc = func.expanderResource2
-        t.dropDownFunc = CT.type1
-        t.lines = {"Total Gain:", "Total Loss:",}
-        t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
-      end
+      data[#data + 1] = { -- Holy Power
+        name = "Holy Power",
+        powerIndex = 9,
+        func = func.resource2,
+        expanderFunc = func.expanderResource2,
+        dropDownFunc = CT.type1,
+        lines = {"Total Gain:", "Total Loss:",},
+        icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png",
+      }
 
-      do -- Damage
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Damage"
-        t.func = func.damage
-        t.dropDownFunc = CT.type1
-        t.lines = {"Total Gain:", "Total Loss:",}
-        t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
-      end
+      data[#data + 1] = { -- Damage
+        name = "Damage",
+        func = func.damage,
+        dropDownFunc = CT.type1,
+        icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png",
+        lines = {"Total Gain:", "Total Loss:",},
+      }
 
-      do -- All Casts
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "All Casts"
-        t.func = func.allCasts
-        t.expanderFunc = func.expanderAllCasts
-        t.dropDownFunc = CT.type4
-        t.lines = {}
-      end
+      data[#data + 1] = { -- All Casts
+        name = "All Casts",
+        func = func.allCasts,
+        expanderFunc = func.expanderAllCasts,
+        dropDownFunc = CT.type4,
+        lines = {},
+      }
 
-      do -- Damage Taken
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Damage Taken"
-        t.func = func.damage
-        t.dropDownFunc = CT.type1
-        t.lines = {"Total Gain:", "Total Loss:",}
-        t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
-      end
+      data[#data + 1] = { -- Damage Taken
+        name = "Damage Taken",
+        func = func.damage,
+        dropDownFunc = CT.type1,
+        lines = {"Total Gain:", "Total Loss:",},
+        icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png",
+      }
 
-      do -- Crusader Strike
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Crusader Strike"
-        t.spellID = 35395
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+      data[#data + 1] = { -- Crusader Strike
+        name = "Crusader Strike",
+        spellID = 35395,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        costsPower = 1,
+        givesPower = 2,
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                      "Average Heal:",}
-        t.costsPower = 1
-        t.givesPower = 2
+                      "Average Heal:",},
+      }
 
-        CT.addCooldownGraph(35395, "Crusader Strike", colors.yellow)
-      end
+      -- CT.addCooldownGraph(35395, "Crusader Strike", colors.yellow)
 
-      do -- Judgment
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Judgment"
-        t.spellID = 20271
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+      data[#data + 1] = { -- Judgment
+        name = "Judgment",
+        spellID = 20271,
+        func = func.shortCD,
+        expanderFunc = func.expanderShortCD,
+        dropDownFunc = CT.type2,
+        costsPower = 1,
+        givesPower = 2,
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                      "Average Heal:",}
-        t.costsPower = 1
-        t.givesPower = 2
+                      "Average Heal:",},
+      }
 
-        CT.addCooldownGraph(20271, "Judgment", colors.yellow)
-      end
+      -- CT.addCooldownGraph(20271, "Judgment", colors.yellow)
 
-      if CT.player.talents[6] then
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = CT.player.talents[6]
-        t.costsPower = 1
+      do -- Light's hammer, holy prism, or execution sentence
+        local talent = CT.player.talents[6]
 
-        if t.name == "Light's Hammer" then
-          t.spellID = 114158
-          t.func = func.longCD
-          t.dropDownFunc = CT.type3
-          t.lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
-        elseif t.name == "Execution Sentence" then
-          t.spellID = 114916
-          t.func = func.longCD
-          t.dropDownFunc = CT.type3
-          t.lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
-        elseif t.name == "Holy Prism" then
-          t.spellID = 114165
-          t.func = func.shortCD
-          t.expanderFunc = func.expanderShortCD
-          t.dropDownFunc = CT.type2
-          t.lines = {"Percent on CD:", "Percent off CD:", "Seconds Wasted:", "Average Delay:",
-                     "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
-                     "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
-                     "Average Heal:", "Average Targets Hit:",}
+        if talent and talent == "Light's Hammer" then
+          data[#data + 1] = {
+            name = talent,
+            spellID = 114158,
+            func = func.longCD,
+            dropDownFunc = CT.type3,
+            costsPower = 1,
+            lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",},
+          }
+
+          -- CT.addCooldownGraph(spellID, CT.player.talents[6], colors.yellow)
+        elseif talent and talent == "Execution Sentence" then
+          data[#data + 1] = {
+            name = talent,
+            spellID = 114916,
+            func = func.longCD,
+            dropDownFunc = CT.type3,
+            costsPower = 1,
+            lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",},
+          }
+
+          -- CT.addCooldownGraph(spellID, CT.player.talents[6], colors.yellow)
+        elseif talent and talent == "Holy Prism" then
+          data[#data + 1] = {
+            name = talent,
+            spellID = 114165,
+            func = func.shortCD,
+            expanderFunc = func.expanderShortCD,
+            dropDownFunc = CT.type2,
+            costsPower = 1,
+            lines = {"Percent on CD:", "Percent off CD:", "Seconds Wasted:", "Average Delay:",
+                      "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
+                      "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
+                      "Average Heal:", "Average Targets Hit:",},
+          }
+
+          -- CT.addCooldownGraph(spellID, CT.player.talents[6], colors.yellow)
         end
-
-        CT.addCooldownGraph(t.spellID, CT.player.talents[6], colors.yellow)
       end
 
       if CT.player.talents[7] and CT.player.talents[7] == "Seraphim" or CT.player.talents[7] == "Empowered Seals" then
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = CT.player.talents[7]
-        t.costsPower = 1
+        data[#data + 1] = {}
 
-        if t.name == "Seraphim" then
-          t.spellID = 152262
-          t.func = func.auraUptime
-          t.expanderFunc = func.expanderAuraUptime
-          t.dropDownFunc = CT.type2
-          t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+        name = CT.player.talents[7]
+        costsPower = 1
+
+        if name == "Seraphim" then
+          spellID = 152262
+          func = func.auraUptime
+          expanderFunc = func.expanderAuraUptime
+          dropDownFunc = CT.type2
+          lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
                       "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
                       "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                       "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
 
-          -- CT.addAuraGraph(86273, t.name, "Buff", nil, colors.blue)
-        elseif t.name == "Empowered Seals" then
-          -- t.spellID = 114916
-          -- t.func = func.longCD
-          -- t.dropDownFunc = CT.type3
-          -- t.lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
-        elseif t.name == "Holy Prism" then
+          -- CT.addAuraGraph(86273, name, "Buff", nil, colors.blue)
+        elseif name == "Empowered Seals" then
+          -- spellID = 114916
+          -- func = func.longCD
+          -- dropDownFunc = CT.type3
+          -- lines = {"Total Delay:", "Average Delay:", "Average Delay", "%d. Cast Delay:",}
+        elseif name == "Holy Prism" then
 
         end
 
-        CT.addCooldownGraph(t.spellID, t.name, colors.yellow)
+        -- CT.addCooldownGraph(spellID, name, colors.yellow)
       end
 
-      do -- Stance
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Stance"
-        t.func = func.stance
-        t.expanderFunc = func.expanderStance
-        t.dropDownFunc = CT.type2
-        t.lines = {"Total Gained", "Applied / Refreshed", "Expired Early",}
-
-        uptimeGraphs.misc["Stance"] = {}
-        uptimeGraphs.misc[#uptimeGraphs.misc + 1] = uptimeGraphs.misc["Stance"]
-        local t = uptimeGraphs.misc["Stance"]
-        t.data = {}
-        t.data[1] = 0
-        t.spellName = {}
-        t.colorChange = {}
-        t.lines = {}
-        t.refresh = CT.refreshUptimeGraph
-        t.name = "Stance"
-        t.category = "Misc"
-        t.group = "Seal"
-        t.colorPrimary = colors.lightgreen
-        t.colorSecondary = colors.lightblue
-        t.color = colors.lightgreen
-        t.startX = 10
-
-        t.XMin = 0
-        t.XMax = 10
-        t.YMin = 0
-        t.YMax = 10
-        t.endNum = 1
-
-        CT.uptimeGraphLines[t.category][t.name] = {}
-      end
+      data[#data + 1] = { -- Stance
+        name = "Stance",
+        func = func.stance,
+        expanderFunc = func.expanderStance,
+        dropDownFunc = CT.type2,
+        lines = {"Total Gained", "Applied / Refreshed", "Expired Early",},
+      }
     end
+
+    return data
   end
 
   classFunc = paladin
@@ -1115,124 +997,109 @@ elseif CLASS == "PRIEST" then
   classFunc = priest
 elseif CLASS == "ROGUE" then
   local function rogue(specName)
-    local uptimeGraphs = CT.current.uptimeGraphs
-    local graphs = CT.current.graphs
+    local data = {}
 
-    do -- Activity
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Activity"
-      t.func = func.activity
-      t.expanderFunc = func.expanderActivity
-      t.dropDownFunc = CT.type2
-      t.lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
+    data[#data + 1] = { -- Activity
+      name = "Activity",
+      func = func.activity,
+      expanderFunc = func.expanderActivity,
+      dropDownFunc = CT.type2,
+      icon = "Interface/ICONS/Ability_DualWield.png",
+      lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
                     "Seconds Casting:", "Seconds on GCD:", "", "", "Total Casts:", "Total Instant Casts:",
-                    "Total Hard Casts:",}
-      t.icon = "Interface/ICONS/Ability_DualWield.png"
-    end
+                    "Total Hard Casts:",},
+    }
 
-    do -- Energy
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Energy"
-      t.powerIndex = 3
-      t.func = func.resource1
-      t.expanderFunc = func.expanderResource1
-      t.dropDownFunc = CT.type1
-      t.lines = { "Total Gained:", "Total Wasted:", "Effective Gain:", "",
-                  "Times Capped:", "Seconds Capped:", }
-    end
+    data[#data + 1] = { -- Energy
+      name = "Energy",
+      powerIndex = 3,
+      func = func.resource1,
+      expanderFunc = func.expanderResource1,
+      dropDownFunc = CT.type1,
+      lines = { "Total Gained:", "Total Wasted:", "Effective Gain:", "",
+                  "Times Capped:", "Seconds Capped:", },
+    }
 
-    do -- Combo Points
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Combo Points"
-      t.func = func.resource2
-      t.expanderFunc = func.expanderResource2
-      t.dropDownFunc = CT.type1
-      t.lines = {"Total Gain:", "Total Loss:",}
-      -- t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
-    end
+    data[#data + 1] = { -- Combo Points
+      name = "Combo Points",
+      func = func.resource2,
+      expanderFunc = func.expanderResource2,
+      dropDownFunc = CT.type1,
+      lines = {"Total Gain:", "Total Loss:",},
+      -- icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png",
+    }
 
     if specName == "Subtlety" then
 
     elseif specName == "Assassination" then
-      do -- Deadly Poison
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Deadly Poison"
-        t.spellID = 2823
-        t.func = func.auraUptime
-        t.expanderFunc = func.expanderAuraUptime
-        t.dropDownFunc = CT.type2
-        t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+      data[#data + 1] = { -- Deadly Poison
+        name = "Deadly Poison",
+        spellID = 2823,
+        func = func.auraUptime,
+        expanderFunc = func.expanderAuraUptime,
+        dropDownFunc = CT.type2,
+        lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
                     "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
-                    "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
+                    "Percent of Healing:", "Procs Used:", "Total Procs:", "",},
+      }
 
-        -- CT.addAuraGraph(t.spellID, t.name, "Buff", nil, colors.green)
-      end
+      -- CT.addAuraGraph(spellID, name, "Buff", nil, colors.green)
 
-      do -- Deadly Poison
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Envenom"
-        t.spellID = 32645
-        t.func = func.auraUptime
-        t.expanderFunc = func.expanderEnvenom
-        t.dropDownFunc = CT.type2
-        t.lines = {"Uptime:", "Longest Delay:", "Avg Energy Level:", "Avg Combo Points:",
-                    "Total Casts:", "Times Refreshed:", "Wasted Time:", "Avg Wasted Time:",}
+      data[#data + 1] = { -- Envenom
+        name = "Envenom",
+        spellID = 32645,
+        func = func.auraUptime,
+        expanderFunc = func.expanderEnvenom,
+        dropDownFunc = CT.type2,
+        lines = {"Uptime:", "Longest Delay:", "Avg Energy Level:", "Avg Combo Points:",
+                    "Total Casts:", "Times Refreshed:", "Wasted Time:", "Avg Wasted Time:",},
+      }
 
-        -- CT.addAuraGraph(t.spellID, t.name, "Buff", nil, colors.green)
-      end
+      -- CT.addAuraGraph(spellID, name, "Buff", nil, colors.green)
 
-      do -- Dispatch
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Dispatch"
-        t.spellID = 111240
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderExecute
-        t.dropDownFunc = CT.type2
-        t.lines = { "Number of Casts:", "Max Possible Casts:", "", "",
+      data[#data + 1] = { -- Dispatch
+        name = "Dispatch",
+        spellID = 111240,
+        func = func.shortCD,
+        expanderFunc = func.expanderExecute,
+        dropDownFunc = CT.type2,
+        lines = { "Number of Casts:", "Max Possible Casts:", "", "",
                     "Blindside Procs:", "Procs Used:", "Procs Wasted:", "",
                     "", "", "", "",
-                    "",}
-      end
+                    "",},
+      }
 
-      do -- Vendetta
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Vendetta"
-        t.spellID = 79140
-        t.func = func.longCD
-        t.expanderFunc = func.expanderBurstCD
-        t.dropDownFunc = CT.type3
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:", "Longest Delay:",
+      data[#data + 1] = { -- Vendetta
+        name = "Vendetta",
+        spellID = 79140,
+        func = func.longCD,
+        expanderFunc = func.expanderBurstCD,
+        dropDownFunc = CT.type3,
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:", "Longest Delay:",
                       "Total Casts:", "", "", "",
                       "", "", "", "",
-                      "",}
+                      "",},
+      }
 
-        CT.addCooldownGraph(t.spellID, t.name, colors.orange)
-      end
+      CT.addCooldownGraph(spellID, name, colors.orange)
 
-      do -- Defensives
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Defensives"
-        t.spellID = 0
-        t.func = func.auraUptime
-        t.expanderFunc = func.expanderDefensives
-        t.dropDownFunc = CT.type2
-        t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+      data[#data + 1] = { -- Defensives
+        name = "Defensives",
+        spellID = 0,
+        func = func.auraUptime,
+        expanderFunc = func.expanderDefensives,
+        dropDownFunc = CT.type2,
+        lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
                     "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
-                    "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
-      end
+                    "Percent of Healing:", "Procs Used:", "Total Procs:", "",},
+      }
     elseif specName == "Combat" then
 
     end
+
+    return data
   end
 
   classFunc = rogue
@@ -1242,101 +1109,101 @@ elseif CLASS == "SHAMAN" then
     local graphs = CT.current.graphs
 
     do -- Activity
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Activity"
-      t.func = func.activity
-      t.expanderFunc = func.expanderActivity
-      t.dropDownFunc = CT.type2
-      t.lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
+      data[#data + 1] = {}
+
+      name = "Activity"
+      func = func.activity
+      expanderFunc = func.expanderActivity
+      dropDownFunc = CT.type2
+      lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
                     "Seconds Casting:", "Seconds on GCD:", "", "", "Total Casts:", "Total Instant Casts:",
                     "Total Hard Casts:",}
-      t.icon = "Interface/ICONS/Ability_DualWield.png"
+      icon = "Interface/ICONS/Ability_DualWield.png"
     end
 
     do -- Damage
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Damage"
-      t.func = func.damage
-      t.dropDownFunc = CT.type1
-      t.lines = {"Total Gain:", "Total Loss:",}
-      t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
+      data[#data + 1] = {}
+
+      name = "Damage"
+      func = func.damage
+      dropDownFunc = CT.type1
+      lines = {"Total Gain:", "Total Loss:",}
+      icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
     end
 
     do -- All Casts
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "All Casts"
-      t.func = func.allCasts
-      t.expanderFunc = func.expanderAllCasts
-      t.dropDownFunc = CT.type4
-      t.lines = {}
+      data[#data + 1] = {}
+
+      name = "All Casts"
+      func = func.allCasts
+      expanderFunc = func.expanderAllCasts
+      dropDownFunc = CT.type4
+      lines = {}
     end
 
     if specName == "Enhancement" then
       do -- Stormstrike
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Stormstrike"
-        t.spellID = 17364
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+        data[#data + 1] = {}
+
+        name = "Stormstrike"
+        spellID = 17364
+        func = func.shortCD
+        expanderFunc = func.expanderShortCD
+        dropDownFunc = CT.type2
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
                       "Average Heal:",}
-        t.costsPower = 1
+        costsPower = 1
         CT.addCooldownGraph(17364, "Stormstrike", colors.yellow)
       end
 
       do -- Lava Lash
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Lava Lash"
-        t.spellID = 60103
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+        data[#data + 1] = {}
+
+        name = "Lava Lash"
+        spellID = 60103
+        func = func.shortCD
+        expanderFunc = func.expanderShortCD
+        dropDownFunc = CT.type2
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
                       "Average Heal:",}
-        t.costsPower = 1
+        costsPower = 1
         CT.addCooldownGraph(60103, "Lava Lash", colors.yellow)
       end
 
       do -- Flame Shock
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Flame Shock"
-        t.spellID = 8050
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+        data[#data + 1] = {}
+
+        name = "Flame Shock"
+        spellID = 8050
+        func = func.shortCD
+        expanderFunc = func.expanderShortCD
+        dropDownFunc = CT.type2
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
                       "Average Heal:",}
-        t.costsPower = 1
+        costsPower = 1
 
         -- CT.addAuraGraph(8050, "Flame Shock", "Debuff", nil, colors.blue)
       end
     elseif specName == "Elemental" then
       do -- Flame Shock
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Flame Shock"
-        t.spellID = 8050
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+        data[#data + 1] = {}
+
+        name = "Flame Shock"
+        spellID = 8050
+        func = func.shortCD
+        expanderFunc = func.expanderShortCD
+        dropDownFunc = CT.type2
+        lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                       "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                       "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
                       "Average Heal:",}
-        t.costsPower = 1
+        costsPower = 1
 
         -- CT.addAuraGraph(8050, "Flame Shock", "Debuff", nil, colors.blue)
       end
@@ -1352,50 +1219,50 @@ elseif CLASS == "WARLOCK" then
     local graphs = CT.current.graphs
 
     do -- Activity
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Activity"
-      t.func = func.activity
-      t.expanderFunc = func.expanderActivity
-      t.dropDownFunc = CT.type2
-      t.lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
+      data[#data + 1] = {}
+
+      name = "Activity"
+      func = func.activity
+      expanderFunc = func.expanderActivity
+      dropDownFunc = CT.type2
+      lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
                     "Seconds Casting:", "Seconds on GCD:", "", "", "Total Casts:", "Total Instant Casts:",
                     "Total Hard Casts:",}
-      t.icon = "Interface/ICONS/Ability_DualWield.png"
+      icon = "Interface/ICONS/Ability_DualWield.png"
     end
 
     do -- Damage
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "Damage"
-      t.func = func.damage
-      t.dropDownFunc = CT.type1
-      t.lines = {"Total Gain:", "Total Loss:",}
-      t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
+      data[#data + 1] = {}
+
+      name = "Damage"
+      func = func.damage
+      dropDownFunc = CT.type1
+      lines = {"Total Gain:", "Total Loss:",}
+      icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
     end
 
     do -- All Casts
-      CT.specData[#CT.specData + 1] = {}
-      local t = CT.specData[#CT.specData]
-      t.name = "All Casts"
-      t.func = func.allCasts
-      t.expanderFunc = func.expanderAllCasts
-      t.dropDownFunc = CT.type4
-      t.lines = {}
+      data[#data + 1] = {}
+
+      name = "All Casts"
+      func = func.allCasts
+      expanderFunc = func.expanderAllCasts
+      dropDownFunc = CT.type4
+      lines = {}
     end
 
     if specName == "Demonology" then
 
     elseif specName == "Affliction" then
       do -- Agony
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Agony"
-        t.spellID = 980
-        t.func = func.auraUptime
-        t.expanderFunc = func.expanderAuraUptime
-        t.dropDownFunc = CT.type2
-        t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+        data[#data + 1] = {}
+
+        name = "Agony"
+        spellID = 980
+        func = func.auraUptime
+        expanderFunc = func.expanderAuraUptime
+        dropDownFunc = CT.type2
+        lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
                     "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
@@ -1404,14 +1271,14 @@ elseif CLASS == "WARLOCK" then
       end
 
       do -- Corruption
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Corruption"
-        t.spellID = 172
-        t.func = func.auraUptime
-        t.expanderFunc = func.expanderAuraUptime
-        t.dropDownFunc = CT.type2
-        t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+        data[#data + 1] = {}
+
+        name = "Corruption"
+        spellID = 172
+        func = func.auraUptime
+        expanderFunc = func.expanderAuraUptime
+        dropDownFunc = CT.type2
+        lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
                     "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
@@ -1420,14 +1287,14 @@ elseif CLASS == "WARLOCK" then
       end
 
       do -- Unstable Affliction
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Unstable Affliction"
-        t.spellID = 30108
-        t.func = func.auraUptime
-        t.expanderFunc = func.expanderAuraUptime
-        t.dropDownFunc = CT.type2
-        t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+        data[#data + 1] = {}
+
+        name = "Unstable Affliction"
+        spellID = 30108
+        func = func.auraUptime
+        expanderFunc = func.expanderAuraUptime
+        dropDownFunc = CT.type2
+        lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
                     "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
@@ -1436,14 +1303,14 @@ elseif CLASS == "WARLOCK" then
       end
 
       do -- Haunt
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Haunt"
-        t.spellID = 48181
-        t.func = func.auraUptime
-        t.expanderFunc = func.expanderAuraUptime
-        t.dropDownFunc = CT.type2
-        t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+        data[#data + 1] = {}
+
+        name = "Haunt"
+        spellID = 48181
+        func = func.auraUptime
+        expanderFunc = func.expanderAuraUptime
+        dropDownFunc = CT.type2
+        lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
                     "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
@@ -1452,26 +1319,26 @@ elseif CLASS == "WARLOCK" then
       end
     elseif specName == "Destruction" then
       do -- Burning Embers
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Burning Embers"
-        t.powerIndex = 14
-        t.func = func.resource1
-        t.expanderFunc = func.expanderResource1
-        t.dropDownFunc = CT.type1
-        t.lines = { "Focus Gained:", "Focus Wasted:", "Effective Gain:", "",
+        data[#data + 1] = {}
+
+        name = "Burning Embers"
+        powerIndex = 14
+        func = func.resource1
+        expanderFunc = func.expanderResource1
+        dropDownFunc = CT.type1
+        lines = { "Focus Gained:", "Focus Wasted:", "Effective Gain:", "",
                     "Times Capped:", "Seconds Capped:", }
       end
 
       do -- Immolate
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Immolate"
-        t.spellID = 348
-        t.func = func.auraUptime
-        t.expanderFunc = func.expanderAuraUptime
-        t.dropDownFunc = CT.type2
-        t.lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
+        data[#data + 1] = {}
+
+        name = "Immolate"
+        spellID = 348
+        func = func.auraUptime
+        expanderFunc = func.expanderAuraUptime
+        dropDownFunc = CT.type2
+        lines = {"Uptime:", "Downtime:", "Average Downtime:", "Longest Downtime:",
                     "Total Applications:", "Times Refreshed:", "Wasted Time:", "",
                     "Total Absorbs:", "Wasted Absorbs", "Average Absorb:", "Biggest Absorb:",
                     "Percent of Healing:", "Procs Used:", "Total Procs:", "",}
@@ -1480,18 +1347,18 @@ elseif CLASS == "WARLOCK" then
       end
 
       do -- Conflagrate
-        CT.specData[#CT.specData + 1] = {}
-        local t = CT.specData[#CT.specData]
-        t.name = "Conflagrate"
-        t.spellID = 17962
-        t.func = func.shortCD
-        t.expanderFunc = func.expanderShortCD
-        t.dropDownFunc = CT.type2
-        t.lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
+        data[#data + 1] = {}
+
+        name = "Conflagrate"
+        spellID = 17962
+        func = func.shortCD
+        expanderFunc = func.expanderShortCD
+        dropDownFunc = CT.type2
+        lines = { "Percent on CD:", "Seconds Wasted:", "Average Delay:", "Number of Casts:",
                     "Holy Power Gained:", "Holy Power Spent:", "Reset Casts:", "Longest Delay:",
                     "Procs Used:", "Total Procs:", "Biggest Heal:", "Average Heal:",}
-        t.costsPower = 1
-        t.givesPower = 2
+        costsPower = 1
+        givesPower = 2
 
         CT.addCooldownGraph(17962, "Conflagrate", colors.yellow)
       end
@@ -1540,61 +1407,63 @@ function CT.getPlayerDetails()
     end
   end
 
-  CT.specData = CT.specData and wipe(CT.specData) or {}
+  CT.specData = classFunc(specName)
 
-  classFunc(specName)
+  if not CT.specData then return debug("No spec data table returned from classFunc") end
+
+  return CT.specData
 end
 
 
 --[[ TEMPLATES
 
 do -- Activity
-  CT.specData[#CT.specData + 1] = {}
-  local t = CT.specData[#CT.specData]
-  t.name = "Activity"
-  t.func = func.activity
-  t.expanderFunc = func.expanderActivity
-  t.dropDownFunc = CT.type2
-  t.lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
+  data[#data + 1] = {}
+
+  name = "Activity"
+  func = func.activity
+  expanderFunc = func.expanderActivity
+  dropDownFunc = CT.type2
+  lines = {"Active Time:", "Percent:", "Seconds Active:", "Total Active Seconds:",
                 "Seconds Casting:", "Seconds on GCD:", "", "", "Total Casts:", "Total Instant Casts:",
                 "Total Hard Casts:",}
-  t.icon = "Interface/ICONS/Ability_DualWield.png"
+  icon = "Interface/ICONS/Ability_DualWield.png"
 end
 
 do -- Damage
-  CT.specData[#CT.specData + 1] = {}
-  local t = CT.specData[#CT.specData]
-  t.name = "Damage"
-  t.func = func.damage
-  t.dropDownFunc = CT.type1
-  t.lines = {"Total Gain:", "Total Loss:",}
-  t.icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
+  data[#data + 1] = {}
+
+  name = "Damage"
+  func = func.damage
+  dropDownFunc = CT.type1
+  lines = {"Total Gain:", "Total Loss:",}
+  icon = "Interface/ICONS/Spell_Holy_DivineProvidence.png"
 end
 
 do -- All Casts
-  CT.specData[#CT.specData + 1] = {}
-  local t = CT.specData[#CT.specData]
-  t.name = "All Casts"
-  t.func = func.allCasts
-  t.expanderFunc = func.expanderAllCasts
-  t.dropDownFunc = CT.type4
-  t.lines = {}
+  data[#data + 1] = {}
+
+  name = "All Casts"
+  func = func.allCasts
+  expanderFunc = func.expanderAllCasts
+  dropDownFunc = CT.type4
+  lines = {}
 end
 
 do -- Crusader Strike
-  CT.specData[#CT.specData + 1] = {}
-  local t = CT.specData[#CT.specData]
-  t.name = "Crusader Strike"
-  t.spellID = 35395
-  t.func = func.shortCD
-  t.expanderFunc = func.expanderShortCD
-  t.dropDownFunc = CT.type2
-  t.lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
+  data[#data + 1] = {}
+
+  name = "Crusader Strike"
+  spellID = 35395
+  func = func.shortCD
+  expanderFunc = func.expanderShortCD
+  dropDownFunc = CT.type2
+  lines = {"Percent on CD:", "Seconds Wasted:", "Average Delay:",
                 "Number of Casts:", "Spent:", "Gained:", "Reset Casts:",
                 "Longest Delay:", "Procs Used:", "Total Procs:", "Biggest Heal:",
                 "Average Heal:",}
-  t.costsPower = 1
-  t.givesPower = 2
+  costsPower = 1
+  givesPower = 2
   CT.addCooldownGraph(35395, "Crusader Strike", colors.yellow)
 end
 
