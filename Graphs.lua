@@ -665,7 +665,7 @@ function CT:toggleUptimeGraph(command)
   if frame.displayed then -- First remove the displayed graph
     frame:SetHeight(frame.defaultHeight)
     local self = frame.displayed
-    local dbGraph = getmetatable(self)
+    local dbGraph = self.__index or getmetatable(self)
 
     frame.displayed = nil
     self.frame = nil
@@ -1050,47 +1050,6 @@ function CT:buildUptimeGraph(relativeFrame)
     graphFrame.text = {}
   end
 
-  -- do -- Create the dropdown menu button
-  --   graphFrame.button = CreateFrame("Button", nil, graphFrame)
-  --   button = graphFrame.button
-  --   button:SetSize(40, 20)
-  --   -- button:SetPoint("TOPRIGHT", graphFrame, -3, -3)
-  --   button:SetPoint("TOPRIGHT", graphFrame, "BOTTOMRIGHT", 0, 0)
-  --
-  --   button.normal = button:CreateTexture(nil, "BACKGROUND")
-  --   button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-  --   button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-  --   button.normal:SetAllPoints(button)
-  --   button:SetNormalTexture(button.normal)
-  --
-  --   button.highlight = button:CreateTexture(nil, "BACKGROUND")
-  --   button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-  --   button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-  --   button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-  --   button.highlight:SetAllPoints(button)
-  --   button:SetHighlightTexture(button.highlight)
-  --
-  --   button.disabled = button:CreateTexture(nil, "BACKGROUND")
-  --   button.disabled:SetTexture("Interface\\PetBattles\\PetJournal")
-  --   button.disabled:SetTexCoord(0.49804688, 0.90625000, 0.12792969, 0.17285156)
-  --   button.disabled:SetAllPoints(button)
-  --   button:SetDisabledTexture(button.disabled)
-  --
-  --   button.pushed = button:CreateTexture(nil, "BACKGROUND")
-  --   button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-  --   button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-  --   button.pushed:SetAllPoints(button)
-  --   button:SetPushedTexture(button.pushed)
-  --
-  --   button.title = button:CreateFontString(nil, "ARTWORK")
-  --   button.title:SetPoint("CENTER", 0, 0)
-  --   button.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
-  --   button.title:SetTextColor(0.93, 0.86, 0.01, 1.0)
-  --   button.title:SetText("Select")
-  --
-  --   button:Hide()
-  -- end
-
   do -- Create Graph Borders
     graphFrame.border = {}
 
@@ -1254,17 +1213,14 @@ function CT:buildUptimeGraph(relativeFrame)
         end
       elseif button == "RightButton" then
         if not self.popup then
-          self.popup = CreateFrame("Frame", nil, self)
-          self.popup:SetFrameStrata("HIGH")
+          self.popup = CreateFrame("Frame", nil, CT.base)
+          self.popup:SetFrameStrata("TOOLTIP")
           self.popup:SetSize(150, 20)
           self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
           self.popup.bg:SetAllPoints()
           self.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
           self.popup:Hide()
-
-          self.popup:SetScript("OnEnter", function() -- This is just so it doesn't pass the OnEnter to the lower frame. TODO: Better way?
-
-          end)
+          self.popup:EnableMouse(true) -- This is just so it doesn't pass the OnEnter to the lower frame.
 
           self.popup:SetScript("OnShow", function()
             self.popup.exitTime = GetTime() + 1
@@ -1304,17 +1260,15 @@ function CT:buildUptimeGraph(relativeFrame)
     end
   end)
 
-  self.uptimeGraphCreated = true
-
   return graphFrame
 end
 --------------------------------------------------------------------------------
 -- Normal Graphs
 --------------------------------------------------------------------------------
-function CT:toggleNormalGraph(command)
+function CT:toggleNormalGraph(command, frame)
   if not CT.graphFrame then return debug("Tried to toggle a graph before graph frame was loaded.", self.name) end
 
-  local frame = CT.graphFrame
+  local frame = frame or CT.graphFrame
   local found = nil
   local dbGraph = CT.displayedDB and CT.displayedDB.graphs[self.name]
 
@@ -1695,7 +1649,7 @@ end
 
 function CT:refreshNormalGraph(reset, routine)
   local num = #self.data
-  local graphWidth, graphHeight = self.frame:GetSize()
+  local graphWidth, graphHeight = self.frame:GetSize() -- TODO: Was no frame
 
   if not self.frame.zoomed and num > 1 then -- Make sure graph is in bounds, if it isn't zoomed
     local dbGraph = self.__index
@@ -2492,11 +2446,26 @@ local function addGraphDropDownButtons(parent)
         b.title:SetFont("Fonts\\FRIZQT__.TTF", 12)
       end
 
-      b:SetScript("OnClick", function(button)
+      b:SetScript("OnClick", function(button, click)
         if button:GetChecked() then -- Show graph
-          self:toggle("show")
+          if IsShiftKeyDown() then -- Create a new graph frame to display it on
+            debug("Shift is down, adding new window.")
+            local graphFrame = CT.base.expander.addNormalGraph()
+            CT.base.expander.resetAnchors()
+            
+            self:toggle("show", graphFrame)
+          else
+            self:toggle("show")
+          end
         else -- Hide graph
-          self:toggle("hide")
+          if IsShiftKeyDown() then -- Hide the graph frame as well as the graph
+            debug("Shift is down, removing new window.")
+            local graphFrame = CT.base.expander.removeNormalGraph()
+            CT.base.expander.resetAnchors()
+            self:toggle("hide", graphFrame)
+          else
+            self:toggle("hide")
+          end
         end
       end)
     end
@@ -2533,16 +2502,12 @@ function CT:buildGraph()
   local graphWidth = 200
 
   local graphFrame = self.graphFrame
-
-  if not graphFrame then -- Create graph frame and background and set basic values
-    self.graphFrame = CreateFrame("ScrollFrame", nil, self)
-    graphFrame = self.graphFrame
-    CT.graphFrame = graphFrame
+  do -- Create graph frame and background and set basic values
+    graphFrame = CreateFrame("ScrollFrame", nil, self)
     graphFrame.anchor = CreateFrame("Frame", nil, self)
     graphFrame:SetScrollChild(graphFrame.anchor)
     graphFrame.anchor:SetSize(100, 100)
     graphFrame.anchor:SetAllPoints(graphFrame)
-    -- graphFrame.anchor:SetPoint("RIGHT", graphFrame)
 
     graphFrame.bg = graphFrame:CreateTexture(nil, "BACKGROUND")
     graphFrame.bg:SetTexture(0.07, 0.07, 0.07, 1.0)
@@ -2553,6 +2518,11 @@ function CT:buildGraph()
       for i, graph in ipairs(self.displayed) do
         graph:toggle("hide")
       end
+    end
+
+    self.graphFrame = graphFrame
+    if not CT.graphFrame then
+      CT.graphFrame = graphFrame
     end
   end
 
@@ -2897,17 +2867,14 @@ function CT:buildGraph()
           end
         else -- Graph is not zoomed in
           if not self.popup then
-            self.popup = CreateFrame("Frame", nil, self)
-            self.popup:SetFrameStrata("HIGH")
+            self.popup = CreateFrame("Frame", nil, CT.base)
+            self.popup:SetFrameStrata("TOOLTIP")
             self.popup:SetSize(150, 20)
             self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
             self.popup.bg:SetAllPoints()
             self.popup.bg:SetTexture(0.1, 0.1, 0.1, 1.0)
             self.popup:Hide()
-
-            self.popup:SetScript("OnEnter", function() -- This is just so it doesn't pass the OnEnter to the lower frame. TODO: Find better way?
-
-            end)
+            self.popup:EnableMouse(true) -- This is just so it doesn't pass the OnEnter to the lower frame.
 
             self.popup:SetScript("OnShow", function()
               self.popup.exitTime = GetTime() + 1

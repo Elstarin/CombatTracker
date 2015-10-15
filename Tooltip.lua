@@ -52,7 +52,7 @@ function CT.createInfoTooltip(parent, title, icon, func, textTable)
   if not f then
     CT.infoTooltip = CreateFrame("Frame", "CT_InfoTooltip", CT.base)
     f = CT.infoTooltip
-    f:SetFrameStrata("HIGH")
+    f:SetFrameStrata("TOOLTIP")
     created = true
 
     f.resize = adjustTooltipSize

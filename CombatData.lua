@@ -85,7 +85,7 @@ local function finishCooldown(spell)
       local dstName = data.playerName
 
       local data = setGraph[dstGUID].data
-      data[#data + 1] = spell.finishedTime - CT.combatStart
+      data[#data + 1] = spell.finishedTime - CT.currentDB.start
 
       setGraph:refresh()
       debug("Starting graph line")
@@ -142,7 +142,7 @@ local function runCooldown(spell, spellID, spellName)
         end
 
         local data = setGraph[dstGUID].data
-        data[#data + 1] = spell.start - CT.combatStart
+        data[#data + 1] = spell.start - CT.currentDB.start
 
         setGraph:refresh()
       end
@@ -374,7 +374,7 @@ local function addSpell(spellID, spellName, school)
 
           local data = setGraph[dstGUID].data
           local num = #data
-          data[num + 1] = spell.finishedTime - CT.combatStart
+          data[num + 1] = spell.finishedTime - CT.currentDB.start
 
           setGraph:refresh()
         end
@@ -919,7 +919,7 @@ local function castStart(timer, time, event, _, srcGUID, srcName, _, _, dstGUID,
 
       local data = setGraph[GUID].data
       local num = #data + 1
-      data[num] = spell.castStart - CT.combatStart
+      data[num] = spell.castStart - CT.currentDB.start
 
       local flags = setGraph.flags
       flags.spellName[num] = spellName
@@ -975,7 +975,7 @@ local function castStop(timer, unitID, spellName, rank, lineID, spellID)
 
       local data = setGraph[GUID].data
       local num = #data + 1
-      data[num] = GetTime() - CT.combatStart
+      data[num] = GetTime() - CT.currentDB.start
 
       local flags = setGraph.flags
 
@@ -1063,16 +1063,7 @@ local function castSucceeded(timer, unitID, spellName, rank, lineID, spellID)
       do -- Handles creating and refreshing of uptime graph
         local setGraph = data.uptimeGraphs.misc["Activity"]
 
-        if not setGraph then
-          local flags = {
-            ["spellName"] = false,
-            ["color"] = false,
-          }
-          setGraph = data.addMisc("Activity", CT.colors.orange, flags)
-          flags = nil
-        end
-
-        if setGraph then -- Don't merge with above, always needs to be checked
+        if setGraph then
           local GUID = data.playerGUID
 
           if not setGraph[GUID] then
@@ -1081,7 +1072,7 @@ local function castSucceeded(timer, unitID, spellName, rank, lineID, spellID)
 
           local data = setGraph[GUID].data
           local num = #data + 1
-          data[num] = startGCD - CT.combatStart
+          data[num] = startGCD - CT.currentDB.start
 
           local flags = setGraph.flags
           flags.spellName[num] = spellName
@@ -1114,7 +1105,7 @@ local function castSucceeded(timer, unitID, spellName, rank, lineID, spellID)
             end
 
             local data = setGraph[GUID].data
-            data[#data + 1] = (startGCD + GCD) - CT.combatStart
+            data[#data + 1] = (startGCD + GCD) - CT.currentDB.start
 
             setGraph:refresh()
           end
@@ -1273,8 +1264,6 @@ local function auraApplied(timer, time, _, _, srcGUID, srcName, srcFlags, _, dst
     aura = addAura(spellID, spellName, auraType, nil, count)
   end
 
-  local timer = (CT.combatStop or GetTime()) - CT.combatStart
-
   do -- Store basic aura data
     aura.school = school
     aura.totalCount = (aura.totalCount or 0) + 1
@@ -1375,7 +1364,7 @@ local function auraAppliedDose(timer, time, _, _, srcGUID, srcName, _, _, dstGUI
   aura.destination[aura.totalCount] = dstGUID
   aura.currentStacks = amount
 
-  local timer = GetTime() - CT.combatStart
+  local timer = GetTime() - CT.currentDB.start
   -- if uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID] then -- Uptime graph
   --   local self = uptimeGraphs.buffs[spellID] or uptimeGraphs.debuffs[spellID]
   --   local num = #self.data + 2
@@ -1405,8 +1394,6 @@ local function auraRefresh(timer, time, _, _, srcGUID, srcName, srcFlags, _, dst
   --     debug("Aura was applied though", aura.applied)
   --   end
   -- end
-
-  local timer = (CT.combatStop or GetTime()) - CT.combatStart
 
   local start = (aura.start or 0)
   local duration = timer - start
@@ -1496,8 +1483,6 @@ local function auraRemoved(timer, time, _, _, srcGUID, srcName, _, _, dstGUID, d
   if (srcName ~= data.playerName) and (dstName ~= data.playerName) then return end
   -- if not ((dstGUID == data.playerGUID) or (srcGUID == data.playerGUID)) then return end
   local uptimeGraphs = CT.current.uptimeGraphs
-
-  local timer = GetTime() - CT.combatStart
 
   local aura = data.auras[spellID]
   if not aura then -- NOTE: Allowing uptime graph to be created with removed may cause issues.
@@ -1879,7 +1864,7 @@ local function targetChanged(timer)
     data.target.targets[data.target.prevTarget] = {}
     prevTarget = data.target.targets[data.target.prevTarget]
     prevTarget.name = data.target.prevTarget
-    prevTarget.timeGained = CT.combatStart
+    prevTarget.timeGained = CT.currentDB.start
   end
 
   target.timeGained = currentTime
@@ -1890,10 +1875,10 @@ local function targetChanged(timer)
   if CT.tracking and uptimeGraphs.misc["Target"] then
     local self = uptimeGraphs.misc["Target"]
     local num = #self.data + 1
-    self.data[num] = currentTime - CT.combatStart
+    self.data[num] = currentTime - CT.currentDB.start
     self.unitName[num] = target.name
 
-    self.data[num + 1] = currentTime - CT.combatStart
+    self.data[num + 1] = currentTime - CT.currentDB.start
     self.unitName[num + 1] = target.name
 
     if self.colorPrimary and self.color == self.colorPrimary then
@@ -1911,6 +1896,7 @@ local function targetChanged(timer)
 end
 
 local function focusChanged(timer)
+  if true then return debug("Blocking focus update.") end
   if not CT.current then return end
   local uptimeGraphs = CT.current.uptimeGraphs
   local currentTime = GetTime()
@@ -1933,7 +1919,7 @@ local function focusChanged(timer)
     data.focus.focused[data.focus.prevFocus] = {}
     prevFocus = data.focus.focused[data.focus.prevFocus]
     prevFocus.name = data.focus.prevFocus
-    prevFocus.timeGained = CT.combatStart
+    prevFocus.timeGained = CT.currentDB.start
   end
 
   focus.timeGained = currentTime
@@ -1944,10 +1930,10 @@ local function focusChanged(timer)
   if CT.tracking and uptimeGraphs.misc["Focus Target"] then
     local self = uptimeGraphs.misc["Focus Target"]
     local num = #self.data + 1
-    self.data[num] = currentTime - CT.combatStart
+    self.data[num] = currentTime - CT.currentDB.start
     self.unitName[num] = focus.name
 
-    self.data[num + 1] = currentTime - CT.combatStart
+    self.data[num + 1] = currentTime - CT.currentDB.start
     self.unitName[num + 1] = focus.name
 
     if self.colorPrimary and self.color == self.colorPrimary then
@@ -2168,7 +2154,12 @@ function CT.iterateCooldowns()
   local uptimeGraphs = CT.current.uptimeGraphs
   local graphs = CT.current.graphs
 
-  C_Timer.After(0.1, function()
+  after(0.1, function()
+    local timer = 0
+    if CT.currentDB then
+      timer = (CT.currentDB.stop or GetTime()) - CT.currentDB.start
+    end
+
     data.stance.num = GetShapeshiftForm()
 
     if data.stance.num > 0 then
@@ -2176,12 +2167,12 @@ function CT.iterateCooldowns()
       local stanceName, _, _, _, _, _, stanceID = GetSpellInfo(stanceName)
       data.stance.name = stanceName
       data.stanceID = stanceID
-      data.stanceSwitchTime = CT.combatStart
+      data.stanceSwitchTime = (CT.currentDB.start or 0)
 
       if uptimeGraphs.misc["Stance"] then
         local self = uptimeGraphs.misc["Stance"]
         local num = #self.data + 1
-        self.data[num] = data.stanceSwitchTime - CT.combatStart
+        self.data[num] = data.stanceSwitchTime - (CT.currentDB.start or 0)
         self.spellName[num] = stanceName
 
         if self.colorPrimary and self.color == self.colorPrimary then
@@ -2331,169 +2322,10 @@ function CT.iterateAuras()
   end
 end
 
-function CT.getPowerTypes()
-  if true then return debug("Blocking old power update.") end
-  if not CT.power then CT.power = {} end
-
-  for i = 0, #CT.powerTypes do
-    if UnitPowerMax("player", i) > 0 then
-      CT.power[CT.powerTypesFormatted[i]] = i
-      -- CT.power[#CT.power + 1] = {
-      --   [1] = i,
-      --   [2] = CT.powerTypesFormatted[i],
-      -- }
-    end
-  end
-end
-
-function CT.updatePowerTypes()
-  if true then return debug("Blocking old power update.") end
-  if not CT.current then CT.getPowerTypes() return end -- No active set, get power types to make buttons instead
-  if data.power[1] then wipe(data.power) end
-
-  local count = 0
-  for i = 0, #CT.powerTypes do
-    if UnitPowerMax("player", i) > 0 then
-      count = count + 1
-      local powerName = CT.powerTypesFormatted[i]
-      data.power[count] = {}
-      data.power[powerName] = data.power[count] -- Create a reference like data.power["Mana"]
-      local power = data.power[count]
-      power.name = powerName
-      power.num = i
-      power.oldPower = UnitPower("player", i)
-      power.currentPower = UnitPower("player", i)
-      power.maxPower = UnitPowerMax("player", i)
-      -- CT.graphList[#CT.graphList + 1] = powerName
-
-      if CT.tracking then
-        if not power.capped and power.currentPower == power.maxPower then
-          power.cappedTime = GetTime()
-          power.capped = true
-        else
-          power.cappedTotal = (power.cappedTotal or 0) + (GetTime() - (power.cappedTime or GetTime()))
-          power.capped = false
-        end
-      end
-
-      power.accuratePower = power.currentPower
-      power.total = power.total or 0
-      power.effective = power.effective or 0
-      power.wasted = power.wasted or 0
-      power.skip = true
-      power.spells = {}
-      power.spellCosts = {}
-      power.spellList = {}
-      power.spellList.numAdded = 0
-      power.costFrames = {}
-
-      if powerName == "Mana" then
-        power.tColor = "|cFF0000FF"
-      elseif powerName == "Rage" then
-        power.tColor = "|cFFFF0000"
-      elseif powerName == "Focus" then
-        power.tColor = "|cFFFF8040"
-      elseif powerName == "Energy" then
-        power.tColor = "|cFFFFFF00"
-      elseif powerName == "Combo Points" then
-        power.tColor = "|cFFFFFFFF"
-      elseif powerName == "Chi" then
-        power.tColor = "|cFFB5FFEB"
-      elseif powerName == "Runes" then
-        power.tColor = "|cFF808080"
-      elseif powerName == "Runic Power" then
-        power.tColor = "|cFF00D1FF"
-      elseif powerName == "Soul Shards" then
-        power.tColor = "|cFF80528C"
-      elseif powerName == "Eclipse" then
-        power.tColor = "|cFF4D85E6"
-      elseif powerName == "Holy Power" then
-        power.tColor = "|cFFF2E699"
-      elseif powerName == "Demonic Fury" then
-        power.tColor = "|cFF80528C"
-      elseif powerName == "Burning Embers" then
-        power.tColor = "|cFFBF6B02"
-      else
-        debug("No text color found for " .. powerName .. ".")
-      end
-
-      data.power[i] = data.power[count]
-    end
-  end
-end
-
-function CT:wipeSavedVariables()
-  for k, v in pairs(CT.setDB) do
-    for k, v in pairs(v) do
-      debug(k, v)
-
-      if v.sets then
-        wipe(v.sets)
-      end
-    end
-  end
-
-  collectgarbage("collect")
-end
-
-local wipeSVars = false
-
 function CT.resetData(clicked)
   if clicked then
     debug("Resetting Data.")
   end
-
-  CT.addNewSet()
-
-  -- do -- Reset Activity Data
-  --   data.activity.total = 0
-  --   data.activity.instantCasts = 0
-  --   data.activity.tempCast = 0
-  --   data.activity.totalGCD = 0
-  --   data.activity.hardCasts = 0
-  --   data.activity.timeCasting = 0
-  -- end
-  --
-  -- for i = 1, #data.spells do
-  --   local spell = data.spells[i]
-  --
-  --   local spellID = spell.ID
-  --   local spellName = spell.name
-  --   local school = spell.school
-  --   local schoolColor = spell.schoolColor
-  --   local icon = spell.icon
-  --
-  --   wipe(spell)
-  --
-  --   spell.ID = spellID
-  --   spell.name = spellName
-  --   spell.school = school
-  --   spell.schoolColor = schoolColor
-  --   spell.icon = icon
-  -- end
-  --
-  -- wipe(data.auras)
-  -- wipe(data.healing)
-  -- wipe(data.damage)
-
-  -- local uptimeGraphs = CT.current.
-  -- if uptimeGraphs.shownList then -- Restore all previously shown uptime graphs
-  --   for i = 1, #uptimeGraphs.shownList do
-  --     CT.toggleUptimeGraph(uptimeGraphs.shownList[i])
-  --   end
-  --
-  --   wipe(uptimeGraphs.shownList)
-  -- end
-
-  CT.combatStart = GetTime()
-
-  -- CT.forceUpdate = true
-end
-
-function CT.cleanSetsTable()
-  -- CT.sets
-
-  -- if not CT.sets.pet.damage[1] then CT.sets.pet = nil end
 end
 
 -- local COMBATLOG_FILTER_EVERYTHING -- Any entity
@@ -2744,7 +2576,7 @@ end
 --
 --     if uptimeGraphs.cooldowns[spellID] and not uptimeGraphs.cooldowns[spellID].ignore then
 --       local self = uptimeGraphs.cooldowns[spellID]
---       self.data[#self.data + 1] = spell.finishedTime - CT.combatStart
+--       self.data[#self.data + 1] = spell.finishedTime - CT.currentDB.start
 --       self:refresh()
 --     elseif uptimeGraphs.cooldowns[spellID].ignore then
 --       uptimeGraphs.cooldowns[spellID].ignore = false
@@ -2828,7 +2660,7 @@ end
 --       if uptimeGraphs.cooldowns["Activity"] then
 --         local self = uptimeGraphs.cooldowns["Activity"]
 --         local num = #self.data + 1
---         self.data[num] = startGCD - CT.combatStart
+--         self.data[num] = startGCD - CT.currentDB.start
 --         self.spellName[num] = spellName
 --         self:refresh()
 --       end
@@ -2845,7 +2677,7 @@ end
 --         if uptimeGraphs.cooldowns["Activity"] then
 --           local self = uptimeGraphs.cooldowns["Activity"]
 --           local num = #self.data + 1
---           self.data[num] = (startGCD + GCD) - CT.combatStart
+--           self.data[num] = (startGCD + GCD) - CT.currentDB.start
 --           self:refresh()
 --         end
 --

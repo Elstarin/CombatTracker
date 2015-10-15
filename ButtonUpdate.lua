@@ -626,7 +626,11 @@ local function updateResourceSpellText(power)
 end
 
 local function updateAllCastsTooltip(fontString, text) -- TODO: This is very inefficient, creates loads of garbage... Can't think of a better way though
-  local timer = (CT.combatStop or GetTime()) - CT.combatStart
+  local timer = 0
+  if CT.displayedDB then
+    timer = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
+  end
+
   local spell = text.spell
 
   local s = ""
@@ -848,7 +852,11 @@ local function updateAllCastsSpellText(spells)
 end
 
 local function updateAllDamageTooltip(fontString, text) -- TODO: This is very inefficient, creates loads of garbage... Can't think of a better way though
-  local timer = (CT.combatStop or GetTime()) - CT.combatStart
+  local timer = 0
+  if CT.displayedDB then
+    timer = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
+  end
+  
   local spell = text.spell
 
   local s = ""
@@ -1392,7 +1400,7 @@ end
 
 function func:expanderShortCD(time, timer)
   local spell = CT.displayed.spells[self.spellID]
-  
+
   if spell then
     self.hasDisplayedText = true
 

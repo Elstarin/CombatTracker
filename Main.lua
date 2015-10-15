@@ -281,6 +281,7 @@ end
 local CT = CombatTracker
 local baseFrame = CreateFrame("Frame", "CT_Base", UIParent) -- Have to do this early so that the position will be saved
 baseFrame:SetMovable(true)
+baseFrame:SetFrameStrata("HIGH")
 CT.__index = CT
 CT.settings = {}
 CT.settings.buttonSpacing = 2
@@ -452,7 +453,8 @@ local strfind, strmatch, format, gsub, gmatch, strsub, strtrim, strsplit, strlow
         strfind, strmatch, format, gsub, gmatch, strsub, strtrim, strsplit, strlower, strrep, strchar, strconcat, strjoin, max, ceil, floor, random
 local _G, coroutine, table, GetTime, CopyTable =
         _G, coroutine, table, GetTime, CopyTable
-local after, newTicker, getNumWorldFrameChildren = C_Timer.After, C_Timer.NewTicker, WorldFrame.GetNumChildren -- Used for finding first nameplate, it's a tiny efficiency gain
+local after, newTicker, getNumWorldFrameChildren =
+        C_Timer.After, C_Timer.NewTicker, WorldFrame.GetNumChildren -- Used for finding first nameplate, it's a tiny efficiency gain
 
 local anchorTable = {"TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT"}
 local cornerAnchors = {"TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"}
@@ -739,11 +741,10 @@ do -- Register events
   end
 end
 
-local lastEventTime = GetTime()
 CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
   local timer = 0
-  if CT.displayedDB then
-    timer = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
+  if CT.currentDB then
+    timer = (CT.currentDB.stop or GetTime()) - CT.currentDB.start
   end
 
   if not CT.tracking then -- Anything that happens out of combat or related to early combat detection
@@ -876,7 +877,7 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
     -- local index = GetShapeshiftFormID()
     -- local icon, name, active, castable = GetShapeshiftFormInfo(stanceNum)
   elseif event == "UPDATE_SHAPESHIFT_FORM" then
-    if CT.current and GetTime() > lastEventTime then
+    if CT.current and GetTime() > (self.lastStanceUpdate or 0) then
       CT.current.stance.num = GetShapeshiftForm()
       local uptimeGraphs = CT.current.uptimeGraphs
 
@@ -886,6 +887,11 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
         CT.current.stance.name = stanceName
         CT.current.stanceID = stanceID
         CT.current.stanceSwitchTime = GetTime()
+
+        local timer = 0
+        if CT.currentDB then
+          timer = (CT.currentDB.stop or GetTime()) - CT.currentDB.start
+        end
 
         if uptimeGraphs.misc["Stance"] and CT.combatStart then -- TODO: Fix stance
           local self = uptimeGraphs.misc["Stance"]
@@ -907,10 +913,15 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
         end
       end
 
-      lastEventTime = GetTime() + 0.1
+      self.lastStanceUpdate = GetTime() + 0.1
     end
   elseif event == "PET_ATTACK_START" then
     if uptimeGraphs.misc["Pet"] then
+      local timer = 0
+      if CT.currentDB then
+        timer = (CT.currentDB.stop or GetTime()) - CT.currentDB.start
+      end
+
       local self = uptimeGraphs.misc["Pet"]
       local num = #self.data + 1
       self.data[num] = GetTime() - CT.combatStart
@@ -922,6 +933,11 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
     CT.current.pet.active = true
   elseif event == "PET_ATTACK_STOP" then
     if uptimeGraphs.misc["Pet"] then
+      local timer = 0
+      if CT.currentDB then
+        timer = (CT.currentDB.stop or GetTime()) - CT.currentDB.start
+      end
+
       local self = uptimeGraphs.misc["Pet"]
       local num = #self.data + 1
       self.data[num] = GetTime() - CT.combatStart
@@ -1121,7 +1137,6 @@ local function profileCode()
   local t = {}
   local func = CT.mainUpdate.graphUpdate
   local time = GetTime()
-  -- local timer = time - CT.combatStart
   local data = CT.current
   local infinity = math.huge
 
@@ -2367,7 +2382,6 @@ function CT:expanderFrame(command)
   if not CT.base then CT:OnEnable("load") end
 
   local f = CT.base.expander
-
   if not f then
     f = CreateFrame("Frame", nil, CT.base)
     f.anchor = CreateFrame("ScrollFrame", nil, CT.base)
@@ -2628,42 +2642,114 @@ function CT:expanderFrame(command)
     end
   end
 
-  local uptimeGraph = f.uptimeGraph
-  if not uptimeGraph then
-    f.uptimeGraph = CT.buildUptimeGraph(f)
-    uptimeGraph = f.uptimeGraph
+  if not f.resetAnchors then
+    function f.resetAnchors()
+      local uptimeGraphs, normalGraphs = f.uptimeGraphs, f.normalGraphs
 
-    uptimeGraph:ClearAllPoints()
-    uptimeGraph:SetParent(f)
-    uptimeGraph:SetPoint("LEFT", f.dataFrames[3], 0, 0)
-    uptimeGraph:SetPoint("RIGHT", f.dataFrames[4], 0, 0)
-    uptimeGraph:SetPoint("TOP", f.dataFrames[4], "BOTTOM", 0, -10)
-    uptimeGraph:SetHeight(25)
-    uptimeGraph.defaultHeight = uptimeGraph:GetHeight()
+      do -- Uptime graph anchors
+        for i = 1, #uptimeGraphs do
+          local uptimeGraph = uptimeGraphs[i]
+
+          uptimeGraph:ClearAllPoints()
+          uptimeGraph.defaultHeight = uptimeGraph:GetHeight()
+
+          if i == 1 then
+            uptimeGraph:SetPoint("LEFT", f.dataFrames[3], 0, 0)
+            uptimeGraph:SetPoint("RIGHT", f.dataFrames[4], 0, 0)
+            uptimeGraph:SetPoint("TOP", f.dataFrames[4], "BOTTOM", 0, -10)
+          else
+            local anchor = uptimeGraphs[i - 1]
+            uptimeGraph:SetPoint("LEFT", anchor, 0, 0)
+            uptimeGraph:SetPoint("RIGHT", anchor, 0, 0)
+            uptimeGraph:SetPoint("TOP", anchor, "BOTTOM", 0, 0)
+          end
+        end
+      end
+
+      do -- Normal graph anchors
+        for i = 1, #normalGraphs do
+          local normalGraph = normalGraphs[i]
+
+          normalGraph:ClearAllPoints()
+
+          if i == 1 then
+            local anchor = uptimeGraphs[#uptimeGraphs] -- Lowest uptime graph
+            normalGraph:SetPoint("LEFT", anchor, 0, 0)
+            normalGraph:SetPoint("RIGHT", anchor, 0, 0)
+            normalGraph:SetPoint("TOP", anchor, "BOTTOM", 0, -10)
+          else
+            local anchor = normalGraphs[i - 1]
+            normalGraph:SetPoint("LEFT", anchor, 0, 0)
+            normalGraph:SetPoint("RIGHT", anchor, 0, 0)
+            normalGraph:SetPoint("TOP", anchor, "BOTTOM", 0, -10)
+          end
+        end
+      end
+    end
   end
 
-  local graphFrame = f.graphFrame
-  if not graphFrame then
-    f.graphFrame = CT.buildGraph(f)
-    graphFrame = f.graphFrame
+  local uptimeGraphs = f.uptimeGraphs
+  if not uptimeGraphs then
+    uptimeGraphs = {}
 
-    graphFrame:ClearAllPoints()
-    graphFrame:SetParent(f)
-    graphFrame:SetPoint("LEFT", uptimeGraph, 0, 0)
-    graphFrame:SetPoint("RIGHT", uptimeGraph, 0, 0)
-    graphFrame:SetPoint("TOP", uptimeGraph, "BOTTOM", 0, -10)
-    graphFrame:SetPoint("BOTTOM", f, 0, 10)
+    function f.addUptimeGraph()
+      local num = #uptimeGraphs + 1
+      uptimeGraphs[num] = CT.buildUptimeGraph(f)
+      uptimeGraphs[num]:SetHeight(25)
+      uptimeGraphs[num]:SetParent(f)
+
+      debug("Adding one uptime graph and anchoring them all.")
+
+      return uptimeGraphs[num]
+    end
+
+    f.uptimeGraphs = uptimeGraphs
   end
+
+  local normalGraphs = f.normalGraphs
+  if not normalGraphs then
+    normalGraphs = {}
+
+    function f.addNormalGraph()
+      local num = #normalGraphs + 1
+      normalGraphs[num] = CT.buildGraph(f)
+      normalGraphs[num]:SetParent(f)
+      normalGraphs[num]:SetHeight(150)
+
+      debug("Adding one NORMAL graph.")
+
+      return normalGraphs[num]
+    end
+
+    function f.removeNormalGraph(graph)
+      local num = #normalGraphs + 1
+      normalGraphs[num] = CT.buildGraph(f)
+      normalGraphs[num]:SetParent(f)
+      normalGraphs[num]:SetHeight(150)
+
+      debug("REMOVING normal graph.")
+
+      return normalGraphs[num]
+    end
+
+    f.normalGraphs = normalGraphs
+  end
+
+  f.addUptimeGraph()
+  f.addNormalGraph()
+  f.resetAnchors()
 
   if f.shown and (command and command == "hide") or (not command and f:IsShown()) then
     f:Hide()
+    f.anchor:Hide()
     f.shown = false
   elseif not f.shown and (command and command == "show") or (not command and not f:IsShown()) then
     f:Show()
+    f.anchor:Show()
     f.shown = true
   end
 
-  if f.shown then
+  if f.shown and self ~= CombatTracker then
     if self and self.name then
       f.currentButton = self
 
@@ -2677,27 +2763,86 @@ function CT:expanderFrame(command)
       local buttonName = self.name
 
       if CT.displayed then
-        local uptimeGraphs = CT.displayed.uptimeGraphs
-        local graphs = CT.displayed.graphs
+        -- do -- Try to find default graphs related to this particular button
+        --   local spellName = self.spellName or GetSpellInfo(self.spellID) or GetSpellInfo(self.name) or self.name
+        --
+        --   debug("Trying to match graph with:", spellName)
+        --
+        --   if spellName then
+        --     local matchedGraph
+        --
+        --     for i = 1, #CT.graphList do
+        --       if spellName:match(CT.graphList[i]) then
+        --         matchedGraph = CT.graphList[i]
+        --       end
+        --     end
+        --
+        --     if matchedGraph then
+        --       debug("Found a graph to go with this button.")
+        --       CT.displayed.graphs[matchedGraph]:toggle("show")
+        --     else
+        --       debug("Failed to find a graph to go with this button.")
+        --     end
+        --   end
+        -- end
 
-        for i = 1, #CT.displayed.power do
-          local power = CT.displayed.power[i]
+        do -- Try to match an uptime graph with this button
+          local spellName = self.spellName or GetSpellInfo(self.spellID) or GetSpellInfo(self.name) or self.name
+          local spellID = self.spellID or select(7, GetSpellInfo(self.name))
 
-          if power.costFrames then
-            if self.powerNum and self.powerNum == i then
-              for i = 1, #power.costFrames do
-                power.costFrames[i]:Show()
+          local uptimeGraphs = CT.displayed.uptimeGraphs
+          local matchedGraph, activityGraph
+
+          for index = 1, #CT.uptimeCategories do -- Run through each type of uptime graph (ex: "buffs")
+            for graphIndex, setGraph in ipairs(uptimeGraphs[CT.uptimeCategories[index]]) do -- Run every graph in that type (ex: "Illuminated Healing")
+
+              if spellID and spellID == setGraph.spellID then
+                matchedGraph = setGraph
+              elseif spellName == setGraph.name then
+                matchedGraph = setGraph
+              elseif self.name == setGraph.name then
+                matchedGraph = setGraph
+              elseif self.name == setGraph.spellID then
+                matchedGraph = setGraph
               end
-            else
-              for i = 1, #power.costFrames do
-                power.costFrames[i]:Hide()
+
+              if setGraph.name == "Activity" then
+                activityGraph = setGraph
               end
             end
           end
+
+          if matchedGraph then
+            matchedGraph:toggle("show")
+          elseif CT.settings.hideUptimeGraph then
+            if CT.uptimeGraphFrame and CT.uptimeGraphFrame.displayed then
+              CT.uptimeGraphFrame.displayed:toggle("clear")
+            end
+          elseif activityGraph then
+            activityGraph:toggle("show")
+          end
         end
 
-        for k, v in pairs(CT.base.expander.spellFrames) do
-          v:Hide()
+        do -- Handles power and spell frames
+          for i = 1, #CT.displayed.power do
+            local power = CT.displayed.power[i]
+
+            if power.costFrames then
+              if self.powerNum and self.powerNum == i then
+                for i = 1, #power.costFrames do
+                  power.costFrames[i]:Show()
+                end
+              else
+                for i = 1, #power.costFrames do
+                  power.costFrames[i]:Hide()
+                end
+              end
+            end
+          end
+
+          for k, v in pairs(CT.base.expander.spellFrames) do
+            v:Hide()
+          end
         end
       end
     end
@@ -2708,7 +2853,7 @@ end
 
 function CT.createBaseFrame() -- Create Base Frame
   local f = CT.base
-  if not f then
+  if not f then -- NOTE: Base frame is created at the top so that its position gets saved properly.
     CT.base = baseFrame
     f = CT.base
     f:SetPoint("CENTER")
@@ -3209,13 +3354,13 @@ function CT.createBaseFrame() -- Create Base Frame
     expander:SetSize(width - 40, 15)
     expander:SetPoint("BOTTOM", f, 0, 7)
 
-    expander:SetScript("OnEnter", function(self)
-      after(0.3, function() -- Require the mouse to hover for X seconds before showing
-        if not (self.popup and self.popup:IsShown()) and MouseIsOver(self) then -- If hidden and mouse is still over
-          self:Click()
-        end
-      end)
-    end)
+    -- expander:SetScript("OnEnter", function(self)
+    --   after(0.3, function() -- Require the mouse to hover for X seconds before showing
+    --     if not (self.popup and self.popup:IsShown()) and MouseIsOver(self) then -- If hidden and mouse is still over
+    --       self:Click()
+    --     end
+    --   end)
+    -- end)
 
     expander:SetScript("OnClick", function(self, button)
       local cTime = GetTime()
@@ -3223,7 +3368,7 @@ function CT.createBaseFrame() -- Create Base Frame
       if cTime >= (self.lastClick or 0) then -- Block rapid clicks
         if not self.popup then
           self.popup = CreateFrame("Frame", nil, self)
-          self.popup:SetFrameStrata("HIGH")
+          self.popup:SetFrameStrata("TOOLTIP")
           self.popup:SetSize(width - 10, 120)
           self.popup:SetPoint("BOTTOM", self, 0, 0)
           self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")

@@ -86,13 +86,8 @@ function CT.startTracking(message)
     db.stop = nil
   end
 
-  CT.combatStart = GetTime()
-  CT.current.startTime = GetTime()
-  CT.current.stopTime = nil
-
   CT.tracking = true
   CT.inCombat = true
-  CT.combatStop = nil
 
   CT.iterateAuras()
   CT.iterateCooldowns()
@@ -104,7 +99,6 @@ end
 
 function CT.stopTracking()
   debug("Stopping tracking.")
-  CT.combatStop = GetTime()
 
   CT.currentDB.stop = GetTime()
   saveDataSet(CT.currentDB)
@@ -262,9 +256,10 @@ local function basicGraphData(set, db, role)
 
   set.graphs.updateDelay = 0.2
   set.graphs.lastUpdate = 0
-  -- set.graphs.splitAmount = 500
 
-  for index, name in ipairs(CT.graphList) do
+  for index = 1, #CT.graphList do
+    local name = CT.graphList[index]
+
     set.graphs[name] = {}
     local setGraph = set.graphs[name]
 
@@ -286,12 +281,15 @@ local function basicGraphData(set, db, role)
     setGraph.splitCount = 1
     setGraph.startX = 10
     setGraph.startY = dbGraph.YMax
-    setGraph.fill = true
-    setGraph.bars = {}
-    setGraph.triangles = {}
     setGraph.toggle = CT.toggleNormalGraph
     setGraph.refresh = CT.refreshNormalGraph
     setGraph.update, setGraph.color = CT.getGraphUpdateFunc(setGraph, set, db, name)
+
+    if CT.settings.graphFilling then
+      setGraph.fill = true
+      setGraph.bars = {}
+      setGraph.triangles = {}
+    end
   end
 end
 
@@ -533,7 +531,6 @@ local function registerDefaultGraphs(set, db) -- TODO: Pet uptime, stances, etc
         ["color"] = false,
       }
       setGraph = set.addMisc("Activity", CT.colors.orange, flags)
-      flags = nil
 
       setGraph.addNewLine(GUID, playerName)
     end
