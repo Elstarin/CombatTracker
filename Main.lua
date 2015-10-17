@@ -101,7 +101,7 @@ if not profile then
   CombatTracker = LibStub("AceAddon-3.0"):NewAddon("CombatTracker", "AceConsole-3.0")
 else -- profile code in here
   local infinity = math.huge
-  function round(num, decimals)
+  local function round(num, decimals)
     if (num == infinity) or (num == -infinity) then num = 0 end
 
     if decimals == 0 then
