@@ -294,7 +294,7 @@ local function addSpell(spellID, spellName, school)
     spell.icon = GetSpellTexture(spell.name)
     data.spells[#data.spells + 1] = spell
 
-    spell.cooldownHandler = function(ticker)
+    function spell.cooldownHandler(ticker)
       local cTime = GetTime()
 
       if not spell.endCD then
@@ -318,7 +318,7 @@ local function addSpell(spellID, spellName, school)
       end
     end
 
-    spell.stopCooldown = function() -- Finish the cooldown
+    function spell.stopCooldown() -- Finish the cooldown
       -- if not spell.ticker then return end
 
       -- if spell.ticker then spell.ticker:Cancel() end
@@ -490,13 +490,13 @@ end
 --------------------------------------------------------------------------------
 local function spellHeal(timer, time, event, _, srcGUID, srcName, srcFlags, _, dstGUID, dstName, dstFlags, _, spellID, spellName, school, amount, overheal, absorb, crit, MS)
   -- If it isn't done by me or my pet or done to me or my pet, then return
-  if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
+  if (srcName ~= data.petName) and (srcName ~= data.playerName) and (dstName ~= data.petName) and (dstName ~= data.playerName) then return end
 
   if not CT.tracking then
     CT.startTracking("Beginning tracking from HEAL. Source: " .. srcName .. " Spell: " .. spellName .. ".")
   end
 
-  if srcName == data.name then -- From player
+  if srcName == data.playerName then -- From player
 
     if data.casting then -- Some spellIDs are specific to healing, not the cast, this should transform them into the cast ID
       spellName = GetSpellInfo(spellID)
@@ -553,7 +553,7 @@ local function spellHeal(timer, time, event, _, srcGUID, srcName, srcFlags, _, d
     end
   end
 
-  if dstName == data.name then -- To player
+  if dstName == data.playerName then -- To player
     local healTaken = data.healingTaken
 
     healTaken.total = (healTaken.total or 0) + amount
@@ -567,13 +567,13 @@ end
 
 local function spellDamage(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, amount, overkill, school2, resist, block, absorb, crit, glance, crush, offHand, MS)
   -- If it isn't done by me or my pet or done to me or my pet, then return
-  if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
+  if (srcName ~= data.petName) and (srcName ~= data.playerName) and (dstName ~= data.petName) and (dstName ~= data.playerName) then return end
 
   if not CT.tracking then
     CT.startTracking("Beginning tracking from DAMAGE. Source: " .. srcName .. " Spell: " .. spellName .. ".")
   end
 
-  if (srcName == data.petName) or (srcName == data.name) then -- From player or player's pet
+  if (srcName == data.petName) or (srcName == data.playerName) then -- From player or player's pet
 
     if data.casting then -- Some spellIDs are specific to damage, not the cast, this should transform them into the cast ID
       spellName = GetSpellInfo(spellID)
@@ -620,7 +620,7 @@ local function spellDamage(timer, time, event, _, srcGUID, srcName, _, _, dstGUI
     if offHand then spell.offHand = (spell.offHand or 0) + 1 end
     if MS then spell.MSDamage = (spell.MSDamage or 0) + 1 end
 
-    if (srcName == data.name) then -- From player
+    if (srcName == data.playerName) then -- From player
       local damage = data.damage
 
       damage.total = (damage.total or 0) + amount
@@ -653,7 +653,7 @@ local function spellDamage(timer, time, event, _, srcGUID, srcName, _, _, dstGUI
       if offHand then petDamage.offHand = (petDamage.offHand or 0) + 1 end
       if MS then petDamage.MS = (petDamage.MS or 0) + 1 end
     end
-  elseif (dstName == data.name) then -- To player
+  elseif (dstName == data.playerName) then -- To player
     local damageTaken = data.damageTaken
 
     damageTaken.total = (damageTaken.total or 0) + amount
@@ -673,13 +673,13 @@ end
 
 local function spellMissed(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, spellID, spellName, school, missType, offHand, MS, amount)
   -- If it isn't done by me or my pet or done to me or my pet, then return
-  if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
+  if (srcName ~= data.petName) and (srcName ~= data.playerName) and (dstName ~= data.petName) and (dstName ~= data.playerName) then return end
 
   if not CT.tracking then
     CT.startTracking("Beginning tracking from MISSED. Source: " .. srcName .. " Spell: " .. spellName .. ".")
   end
 
-  if (srcName == data.petName) or (srcName == data.name) then -- From player or player's pet
+  if (srcName == data.petName) or (srcName == data.playerName) then -- From player or player's pet
 
     if data.casting then -- Some spellIDs are specific to damage, not the cast, this should transform them into the cast ID
       spellName = GetSpellInfo(spellID)
@@ -718,7 +718,7 @@ local function spellMissed(timer, time, event, _, srcGUID, srcName, _, _, dstGUI
     if offHand then spell.offHand = (spell.offHand or 0) + 1 end
     if MS then spell.MSMissed = (spell.MSMissed or 0) + 1 end
 
-    if (srcName == data.name) then -- From player
+    if (srcName == data.playerName) then -- From player
       local damage = data.damage
 
       damage[missType] = (damage[missType] or 0) + 1
@@ -739,7 +739,7 @@ local function spellMissed(timer, time, event, _, srcGUID, srcName, _, _, dstGUI
       if offHand then petDamage.offHand = (petDamage.offHand or 0) + 1 end
       if MS then petDamage.MS = (petDamage.MS or 0) + 1 end
     end
-  elseif (dstName == data.name) then -- To player
+  elseif (dstName == data.playerName) then -- To player
     local damageTaken = data.damageTaken
 
     damageTaken[missType] = (damageTaken[missType] or 0) + 1
@@ -753,14 +753,14 @@ end
 
 local function swingDamage(timer, time, event, _, srcGUID, srcName, _, _, dstGUID, dstName, _, _, amount, overkill, school2, resist, block, absorb, crit, glance, crush, offHand, MS)
   -- If it isn't done by me or my pet or done to me or my pet, then return
-  if (srcName ~= data.petName) and (srcName ~= data.name) and (dstName ~= data.petName) and (dstName ~= data.name) then return end
+  if (srcName ~= data.petName) and (srcName ~= data.playerName) and (dstName ~= data.petName) and (dstName ~= data.playerName) then return end
 
   if not CT.tracking then
     CT.startTracking("Beginning tracking from swing damage. Source:", srcName .. ".")
   end
 
-  if (srcName == data.petName) or (srcName == data.name) then
-    if (srcName == data.name) then
+  if (srcName == data.petName) or (srcName == data.playerName) then
+    if (srcName == data.playerName) then
       local damage = data.damage
 
       damage.total = (damage.total or 0) + amount
@@ -793,7 +793,7 @@ local function swingDamage(timer, time, event, _, srcGUID, srcName, _, _, dstGUI
       if offHand then petDamage.offHand = (petDamage.offHand or 0) + 1 end
       if MS then petDamage.MS = (petDamage.MS or 0) + 1 end
     end
-  elseif (dstName == data.name) then
+  elseif (dstName == data.playerName) then
     local damageTaken = data.damageTaken
 
     damageTaken.total = (damageTaken.total or 0) + amount
@@ -834,7 +834,7 @@ local function castSent(timer, unit, spellName, rank, dstName, lineID)
   if not CT.tracking then
     if IsHarmfulSpell(spellName) then
       CT.startTracking("Starting tracking from harmful spell cast.")
-    elseif data and data.name ~= dstName then -- Make sure I didn't cast it on myself
+    elseif data and data.playerName ~= dstName then -- Make sure I didn't cast it on myself
       local dstUnitID
 
       -- Find unitID by name
@@ -2200,7 +2200,7 @@ function CT.iterateCooldowns()
           local start, duration, enable = GetSpellCooldown(spellID)
 
           if duration > 0 then
-            castSucceeded(nil, nil, nil, data.playerGUID, data.name, _, _, data.playerGUID, data.name, _, _, spellID, spellName, nil)
+            castSucceeded(nil, nil, nil, data.playerGUID, data.playerName, _, _, data.playerGUID, data.playerName, _, _, spellID, spellName, nil)
           end
         end
       end

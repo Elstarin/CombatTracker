@@ -1,70 +1,7 @@
---[[ STUFF FOR LATER
-Tooltip Scanning? TMW has section on it in DogTag Categories
-local checks = {
-     _G.UNITNAME_TITLE_CHARM:gsub("%%s", "(.+)"),
-     _G.UNITNAME_TITLE_COMPANION:gsub("%%s", "(.+)"),
-     _G.UNITNAME_TITLE_CREATION:gsub("%%s", "(.+)"),
-     _G.UNITNAME_TITLE_GUARDIAN:gsub("%%s", "(.+)"),
-     _G.UNITNAME_TITLE_MINION:gsub("%%s", "(.+)"),
-     _G.UNITNAME_TITLE_PET:gsub("%%s", "(.+)")
-}
-  local tformat1 = "%d:%02d"
-  local tformat2 = "%1.1f"
-  local tformat3 = "%.0f"
-  local function timeDetails(t)
-    if t >= 3600 then -- > 1 hour
-      local h = floor(t/3600)
-      local m = t - (h*3600)
-      return tformat1:format(h, m)
-    elseif t >= 60 then -- 1 minute to 1 hour
-      local m = floor(t/60)
-      local s = t - (m*60)
-      return tformat1:format(m, s)
-    elseif t < 10 then -- 0 to 10 seconds
-      return tformat2:format(t)
-    else -- 10 seconds to one minute
-      return tformat3:format(floor(t + .5))
-    end
-  end
-  local function onDragHandleMouseDown(self) self:GetParent():StartSizing("BOTTOMRIGHT") end
-  local function onDragHandleMouseUp(self, button) self:GetParent():StopMovingOrSizing() end
-  local function onResize(self, width)
-       db[self.w] = width
-       rearrangeBars(self)
-  end
-  local function onDragStart(self) self:StartMoving() end
-  local function onDragStop(self)
-       self:StopMovingOrSizing()
-       local s = self:GetEffectiveScale()
-       db[self.x] = self:GetLeft() * s
-       db[self.y] = self:GetTop() * s
-       plugin:UpdateGUI() -- Update X/Y if GUI is open.
-  end
-  display:SetScript("OnSizeChanged", onResize)
-  display:SetScript("OnDragStart", onDragStart)
-  display:SetScript("OnDragStop", onDragStop)
-  display:SetScript("OnMouseUp", function(self, button)
-    if button ~= "LeftButton" then return end
-    plugin:SendMessage("BigWigs_SetConfigureTarget", plugin)
-  end)
-  RE.TooltipBackdrop = {
-      ["bgFile"] = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark";
-      ["tileSize"] = 0;
-      ["edgeFile"] = "Interface\\DialogFrame\\UI-DialogBox-Border";
-      ["edgeSize"] = 16;
-      ["insets"] = {
-          ["top"] = 3.4999997615814;
-          ["right"] = 3.4999997615814;
-          ["left"] = 3.4999997615814;
-          ["bottom"] = 3.4999997615814;
-      };
-  };
-]]--
 --------------------------------------------------------------------------------
 -- Notes and Changes
 --------------------------------------------------------------------------------
 
--- Should restore saved settings OnInitialize instead of OnEnable
 -- For sorting, store the old order in a table, and bring it back on a second press.
 
 -- Destruction definitely needs a good way to track ember use. Obviously wasted embers
@@ -311,6 +248,7 @@ do -- Debugging stuff
   local start = debugprofilestop() / 1000
   local printFormat = "|cFF9E5A01(|r|cFF00CCFF%.3f|r|cFF9E5A01)|r |cFF00FF00CT|r: %s"
   local debugMode = false
+  local t = {}
 
   if GetUnitName("player") == "Elstari" and GetRealmName() == "Drak'thul" then
     debugMode = true
@@ -327,102 +265,48 @@ do -- Debugging stuff
 
   function CT.debug(...)
     if debugMode then
-      local cTime = GetTime()
-      local t = {...}
+      wipe(t)
+      local num = select("#", ...)
 
-      for i = 1, #t do
-        local obj = type(t[i])
+      for i = 1, num do
+        local var = select(i, ...)
+        local obj = type(var)
 
         if obj == "table" then
-          t[i] = "|cFF888888" .. tostring(t[i]) .. "|r"
+          t[i] = "|cFF888888" .. tostring(var) .. "|r"
         elseif obj == "function" then
-          t[i] = "|cFFDA70D6" .. tostring(t[i]) .. "|r"
+          t[i] = "|cFFDA70D6" .. tostring(var) .. "|r"
         elseif obj == "nil" then
-          t[i] = "|cffFF4500nil|r"
+          t[i] = "|cFFFA6022nil|r"
         elseif obj == "boolean" then
-          if t[i] == true then
+          if var == true then
             t[i] = "|cFF4B6CD7true|r"
-          elseif t[i] == false then
+          elseif var == false then
             t[i] = "|cFFFF9B00false|r"
           end
         elseif obj == "userdata" then
-          t[i] = "|cFF888888" .. tostring(t[i]) .. "|r"
+          t[i] = "|cFF888888" .. tostring(var) .. "|r"
         elseif obj == "number" or type(tonumber(obj)) == "number" then
-          t[i] = "|cFF00CCFF" .. t[i] .. "|r"
+          t[i] = "|cFF00CCFF" .. var .. "|r"
         elseif obj == "string" then
-          local str = t[i]
-
-          -- local powerType, powerToken, altR, altG, altB = UnitPowerType("player")
-
-          if CT.powerTypes then
-            for powerIndex = 0, #CT.powerTypes do
-              local maxPower = UnitPowerMax("player", powerIndex)
-
-              if maxPower > 0 then
-                local powerName = CT.powerTypesFormatted[powerIndex]
-
-                if powerName:match(str) then
-                  local color = "|cFFFFFFFF"
-
-                  if powerName == "Mana" then color = "|cFF0000FF"
-                  elseif powerName == "Rage" then color = "|cFFFF0000"
-                  elseif powerName == "Focus" then color = "|cFFFF8040"
-                  elseif powerName == "Energy" then color = "|cFFFFFF00"
-                  elseif powerName == "Combo Points" then color = "|cFFFFFFFF"
-                  elseif powerName == "Chi" then color = "|cFFB5FFEB"
-                  elseif powerName == "Runes" then color = "|cFF808080"
-                  elseif powerName == "Runic Power" then color = "|cFF00D1FF"
-                  elseif powerName == "Soul Shards" then color = "|cFF80528C"
-                  elseif powerName == "Eclipse" then color = "|cFF4D85E6"
-                  elseif powerName == "Holy Power" then color = "|cFFF2E699"
-                  elseif powerName == "Demonic Fury" then color = "|cFF80528C"
-                  elseif powerName == "Burning Embers" then color = "|cFFBF6B02" end
-
-                  t[i] = ("%s%s|r"):format(color, powerName)
-                end
-              end
-            end
-          end
-
-          local spellName, rank, icon, castTime, minRange, maxRange, spellID = GetSpellInfo(str)
-
-          if t[i] == str and spellName then
-            t[i] = "|cFFF48CBA" .. t[i] .. "|r"
-          end
+          t[i] = var
         end
       end
 
-      local string = table.concat(t, " ")
+      local string = table.concat(t, ", ")
 
       if string then
-        if not string:find("%.$") and not string:find("%!$") and not string:find("%)$") then
-          string = string .. "."
-        end
+        string = string:gsub("(%a+), (|%x*%d+|r)", "%1 %2") -- Remove any commas after a string when it's followed by a number
+        string = string:gsub("(%a+), (%a+)", "%1 %2") -- Remove any commas after a string when it's followed by a string
+        string = string:gsub("(|%x*%d+|r), %a+", "%1") -- Remove any commas after a number when it's followed by a string
+        string = string:gsub("(%p),", "%1") -- Remove any commas after a punctuation character
+        string = string:gsub("(%()(.*)(%))", "|cFF9E5A01%1|r|cFF00CCFF%2|r|cFF9E5A01%3|r") -- Make ( and ) orange and anything inside them blue
+        string = string:gsub("(%w: )(.+)%p*", "%1|cFFFFCC00%2|r") -- Make any letters after a: gold until next punctuation mark
+				string = string:trim() -- Get rid of useless whitespace
+        if not string:match("[|r]*(%p)[|r]*$") then string = string .. "." end -- If it doesn't end with a puncuation character, add a period
 
-        if string:find("%(.*%)") then
-          string = string:gsub("(%()(.*)(%))", "|cFF9E5A01%1|r|cFF00CCFF%2|r|cFF9E5A01%3|r")
-        end
-
-        if string:find("%[.*%]") then
-          local command, number = string:match("%[(.*): (%d*%.?%d*)%]")
-          local command = command and strupper(command)
-          local number = tonumber(number)
-
-          string = string:gsub("%[.*%]%s?", "")
-
-          if command and number and command == "DELAY" then
-            if not blocked[string] then
-              blocked[string] = cTime + number
-            elseif cTime >= blocked[string] then
-              blocked[string] = nil
-            else
-              return
-            end
-          end
-        end
+        print(printFormat:format((debugprofilestop() / 1000) - start, string))
       end
-
-      print(printFormat:format((debugprofilestop() / 1000) - start, string))
     end
   end
 
@@ -439,22 +323,22 @@ CT.eventFrame = CreateFrame("Frame")
 --------------------------------------------------------------------------------
 -- Upvalues
 --------------------------------------------------------------------------------
-local GetSpellCooldown, GetSpellInfo, GetSpellTexture, IsUsableSpell =
-        GetSpellCooldown, GetSpellInfo, GetSpellTexture, IsUsableSpell
-local InCombatLockdown, GetTalentInfo, GetActiveSpecGroup =
-        InCombatLockdown, GetTalentInfo, GetActiveSpecGroup
-local UnitPower, UnitClass, UnitName, UnitAura =
-        UnitPower, UnitClass, UnitName, UnitAura
-local IsInGuild, IsInGroup, IsInInstance =
-        IsInGuild, IsInGroup, IsInInstance
-local tonumber, tostring, type, pairs, ipairs, tinsert, tremove, sort, select, wipe, rawget, rawset, assert, pcall, error, getmetatable, setmetatable, loadstring, unpack, debugstack =
-        tonumber, tostring, type, pairs, ipairs, tinsert, tremove, sort, select, wipe, rawget, rawset, assert, pcall, error, getmetatable, setmetatable, loadstring, unpack, debugstack
-local strfind, strmatch, format, gsub, gmatch, strsub, strtrim, strsplit, strlower, strrep, strchar, strconcat, strjoin, max, ceil, floor, random =
-        strfind, strmatch, format, gsub, gmatch, strsub, strtrim, strsplit, strlower, strrep, strchar, strconcat, strjoin, max, ceil, floor, random
-local _G, coroutine, table, GetTime, CopyTable =
-        _G, coroutine, table, GetTime, CopyTable
-local after, newTicker, getNumWorldFrameChildren =
-        C_Timer.After, C_Timer.NewTicker, WorldFrame.GetNumChildren -- Used for finding first nameplate, it's a tiny efficiency gain
+local GetSpellCooldown, GetSpellInfo, GetSpellTexture, IsUsableSpell
+      = GetSpellCooldown, GetSpellInfo, GetSpellTexture, IsUsableSpell
+local InCombatLockdown, GetTalentInfo, GetActiveSpecGroup
+      = InCombatLockdown, GetTalentInfo, GetActiveSpecGroup
+local UnitPower, UnitClass, UnitName, UnitAura
+      = UnitPower, UnitClass, UnitName, UnitAura
+local IsInGuild, IsInGroup, IsInInstance
+      = IsInGuild, IsInGroup, IsInInstance
+local tonumber, tostring, type, pairs, ipairs, tinsert, tremove, sort, select, wipe, rawget, rawset, assert, pcall, error, getmetatable, setmetatable, loadstring, unpack, debugstack
+      = tonumber, tostring, type, pairs, ipairs, tinsert, tremove, sort, select, wipe, rawget, rawset, assert, pcall, error, getmetatable, setmetatable, loadstring, unpack, debugstack
+local strfind, strmatch, format, gsub, gmatch, strsub, strtrim, strsplit, strlower, strrep, strchar, strconcat, strjoin, max, ceil, floor, random
+      = strfind, strmatch, format, gsub, gmatch, strsub, strtrim, strsplit, strlower, strrep, strchar, strconcat, strjoin, max, ceil, floor, random
+local _G, coroutine, table, GetTime, CopyTable
+      = _G, coroutine, table, GetTime, CopyTable
+local after, newTicker, getNumWorldFrameChildren
+      = C_Timer.After, C_Timer.NewTicker, WorldFrame.GetNumChildren -- Used for finding first nameplate, it's a tiny efficiency gain
 
 local anchorTable = {"TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT"}
 local cornerAnchors = {"TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"}
@@ -515,6 +399,7 @@ end
 --------------------------------------------------------------------------------
 local plateIndex, nextPlate
 local index = 2
+local success = true
 CT.update = {}
 CT.settings.updateDelay = 0.1
 CT.settings.auraUpdateDelay = 0.05
@@ -523,6 +408,13 @@ CT.settings.uptimeGraphUpdateDelay = 0.05
 
 CT.mainUpdate = CreateFrame("Frame")
 CT.mainUpdate:SetScript("OnUpdate", function(self, elsapsed)
+  if not success then
+    self:SetScript("OnUpdate", nil)
+    return debug("Success is false, stopping main on update engine.")
+  end
+
+  success = nil
+
   local time = GetTime()
 
   local timer = 0
@@ -648,6 +540,7 @@ CT.mainUpdate:SetScript("OnUpdate", function(self, elsapsed)
   end
 
   if CT.forceUpdate then CT.forceUpdate = false end
+  success = true -- Reached the end, in theory this means there were no errors
 end)
 --------------------------------------------------------------------------------
 -- Main Event Handler
@@ -1288,17 +1181,20 @@ local function findInfoText(self, s)
   local sName = self.spellName or self.name or s
   local pName = self.powerIndex and CT.powerTypesFormatted[self.powerIndex]
 
+  local pNameColored
   if pName then
-    pName = CT.getPowerColor(pName) .. pName .. "|r"
+    pNameColored = CT.getPowerColor(pName) .. pName .. "|r"
   else
     for i = 0, #CT.powerTypesFormatted do -- Check if the passed name is a power type
       if CT.powerTypesFormatted[i] == s then
-        pName = CT.getPowerColor(s) .. s .. "|r"
+        pName = s
+        pNameColored = CT.getPowerColor(s) .. s .. "|r"
       end
     end
 
     if not pName then -- Still nothing
-      pName = "|cFF9E5A01Unknown Power|r"
+      pName = "Unknown Power"
+      pNameColored = "|cFF9E5A01Unknown Power|r"
     end
   end
 
@@ -1310,19 +1206,19 @@ local function findInfoText(self, s)
 
   do -- Power
     if s == pName.." Gained:" then
-      return "The total amount of "..pName.." generated by this spell."
+      return "The total amount of "..pNameColored.." generated by this spell."
     elseif s == pName.." Wasted:" then
-      return "An estimate of the total "..pName.." wasted. This is just from checking your default regen and the total time at max." ..
+      return "An estimate of the total "..pNameColored.." wasted. This is just from checking your default regen and the total time at max." ..
               "\n\n|cFF00FF00BETA NOTE:|r |cFF4B6CD7When your regen rate varies, this will give screwed up numbers. Making this far more accurate is on my to do list," ..
               " but there are a ton of things to do, so it may be a while.|r"
     elseif s == pName.." Spent:" then
-      return "The total amount of "..pName.." spent by this spell."
+      return "The total amount of "..pNameColored.." spent by this spell."
     elseif s == "Effective Gain:" then
-      return "Total "..pName.." gained minus the wasted amount."
+      return "Total "..pNameColored.." gained minus the wasted amount."
     elseif s == "Times Capped:" then
-      return "The number of different times you hit maximum "..pName..".\n\nTry to avoid this, because anything you generate while at the cap goes to waste."
+      return "The number of different times you hit maximum "..pNameColored..".\n\nTry to avoid this, because anything you generate while at the cap goes to waste."
     elseif s == "Seconds Capped:" then
-      return "The total number of seconds you spent at maximum "..pName..".\n\nKeep this as low as possible, because anything generated while at max is wasted."
+      return "The total number of seconds you spent at maximum "..pNameColored..".\n\nKeep this as low as possible, because anything generated while at max is wasted."
     end
   end
 
@@ -2422,14 +2318,14 @@ function CT:expanderFrame(command)
       if CT.displayed then
         CT.base.expander.titleData.rightText1:SetText(CT.displayedDB.setName or "None loaded.")
 
-        if not self.graphFrame.displayed[1] then -- No regular graph is loaded
+        if self.graphFrame and not self.graphFrame.displayed[1] then -- No regular graph is loaded
           debug("No regular graph, loading default.")
 
           CT.loadDefaultGraphs()
           CT.finalizeGraphLength("line")
         end
 
-        if not self.uptimeGraph.displayed then -- No uptime graph is loaded
+        if self.uptimeGraph and not self.uptimeGraph.displayed then -- No uptime graph is loaded
           debug("No uptime graph, loading default.")
 
           CT.loadDefaultUptimeGraph()
@@ -2703,6 +2599,8 @@ function CT:expanderFrame(command)
       return uptimeGraphs[num]
     end
 
+    f.addUptimeGraph()
+
     f.uptimeGraphs = uptimeGraphs
   end
 
@@ -2721,7 +2619,7 @@ function CT:expanderFrame(command)
       return normalGraphs[num]
     end
 
-    function f.removeNormalGraph(graph)
+    function f.removeNormalGraph()
       local num = #normalGraphs + 1
       normalGraphs[num] = CT.buildGraph(f)
       normalGraphs[num]:SetParent(f)
@@ -2732,11 +2630,11 @@ function CT:expanderFrame(command)
       return normalGraphs[num]
     end
 
+    f.addNormalGraph()
+
     f.normalGraphs = normalGraphs
   end
 
-  f.addUptimeGraph()
-  f.addNormalGraph()
   f.resetAnchors()
 
   if f.shown and (command and command == "hide") or (not command and f:IsShown()) then
@@ -2763,28 +2661,25 @@ function CT:expanderFrame(command)
       local buttonName = self.name
 
       if CT.displayed then
-        -- do -- Try to find default graphs related to this particular button
-        --   local spellName = self.spellName or GetSpellInfo(self.spellID) or GetSpellInfo(self.name) or self.name
-        --
-        --   debug("Trying to match graph with:", spellName)
-        --
-        --   if spellName then
-        --     local matchedGraph
-        --
-        --     for i = 1, #CT.graphList do
-        --       if spellName:match(CT.graphList[i]) then
-        --         matchedGraph = CT.graphList[i]
-        --       end
-        --     end
-        --
-        --     if matchedGraph then
-        --       debug("Found a graph to go with this button.")
-        --       CT.displayed.graphs[matchedGraph]:toggle("show")
-        --     else
-        --       debug("Failed to find a graph to go with this button.")
-        --     end
-        --   end
-        -- end
+        do -- Try to find default graphs related to this particular button
+          local spellName = self.spellName or GetSpellInfo(self.spellID) or GetSpellInfo(self.name) or self.name
+
+          if spellName then
+            local matchedGraph
+
+            for i = 1, #CT.graphList do
+              if spellName:match(CT.graphList[i]) then
+                matchedGraph = CT.graphList[i]
+                break
+              end
+            end
+
+            if matchedGraph then
+              CT.graphFrame:hideAllGraphs()
+              CT.displayed.graphs[matchedGraph]:toggle("show")
+            end
+          end
+        end
 
         do -- Try to match an uptime graph with this button
           local spellName = self.spellName or GetSpellInfo(self.spellID) or GetSpellInfo(self.name) or self.name

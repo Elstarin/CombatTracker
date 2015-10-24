@@ -20,14 +20,14 @@ CT.uptimeCategories = {
   "misc",
 }
 
-local SetTexCoord, SetPoint, SetTexture, SetVertexColor =
-        SetTexCoord, SetPoint, SetTexture, SetVertexColor
-local SetPoint, SetSize, SetVertexColor, SetTexCoords, CreateTexture =
-        SetPoint, SetSize, SetVertexColor, SetTexCoords, CreateTexture
-local debug, colors, GetTime, round, after, newTicker =
-        CT.debug, CT.colors, GetTime, CT.round, C_Timer.After, C_Timer.NewTicker
-local wrap, yield, after =
-        coroutine.wrap, coroutine.yield, C_Timer.After
+local SetTexCoord, SetPoint, SetTexture, SetVertexColor
+      = SetTexCoord, SetPoint, SetTexture, SetVertexColor
+local SetPoint, SetSize, SetVertexColor, SetTexCoords, CreateTexture
+      = SetPoint, SetSize, SetVertexColor, SetTexCoords, CreateTexture
+local debug, colors, GetTime, round, after, newTicker
+      = CT.debug, CT.colors, GetTime, CT.round, C_Timer.After, C_Timer.NewTicker
+local wrap, yield, after
+      = coroutine.wrap, coroutine.yield, C_Timer.After
 --------------------------------------------------------------------------------
 -- Graph Plot Functions
 --------------------------------------------------------------------------------
@@ -269,7 +269,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
   if name == "Healing" then
     local function func(graph, timer)
       local value = (set.healing.total or 0) / timer
-      if (value == infinity) or (value == -infinity) then value = 0 end
 
       handleGraphData(set, db, graph, graph.data, name, timer, value)
     end
@@ -283,7 +282,7 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
       name,
       "|r ",
       "",
-      "%",
+      " HPS",
     }
 
     return func, color
@@ -304,7 +303,7 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
       name,
       "|r ",
       "",
-      "%",
+      " DPS",
     }
 
     return func, color
@@ -1671,7 +1670,8 @@ function CT:refreshNormalGraph(reset, routine)
     end
 
     if stopY > graphHeight then -- Graph is too tall, squish it
-      dbGraph.YMax = dbGraph.YMax + (dbGraph.YMax * 0.12) -- 90%
+      local percent = (dbGraph.data[-num] - dbGraph.YMin - (dbGraph.data[-(num - 1)] - dbGraph.YMin)) / (dbGraph.YMax - dbGraph.YMin) * dbGraph.YMax
+      dbGraph.YMax = dbGraph.YMax + max(percent, (dbGraph.YMax * 0.12)) -- 90%
       reset = true
     end
   end
@@ -2371,7 +2371,7 @@ function CT.loadDefaultGraphs()
     end
 
     -- name = "Mana" -- NOTE: Testing only
-    name = "Holy Power" -- NOTE: Testing only
+    -- name = "Holy Power" -- NOTE: Testing only
 
     if name and set.graphs[name] then
       return set.graphs[name]:toggle("show")
@@ -2452,7 +2452,7 @@ local function addGraphDropDownButtons(parent)
             debug("Shift is down, adding new window.")
             local graphFrame = CT.base.expander.addNormalGraph()
             CT.base.expander.resetAnchors()
-            
+
             self:toggle("show", graphFrame)
           else
             self:toggle("show")
@@ -2644,6 +2644,8 @@ function CT:buildGraph()
   local UIScale = UIParent:GetEffectiveScale()
   local YELLOW = "|cFFFFFF00"
   local mouseLines = {}
+  local tempLines = {}
+  local lineHeight = {}
 
   -- mouseOver:SetScript("OnUpdate", function(mouseOver, elapsed)
   --   local mouseX, mouseY = GetCursorPosition()
@@ -2706,58 +2708,131 @@ function CT:buildGraph()
 
     mouseOver:SetPoint("LEFT", UIParent, mouseX, 0)
 
-    if not graphFrame.displayed[1] then return end -- No displayed graphs
+    if not graphFrame.displayed[1] then -- No displayed graphs
+      mouseOver.info = ""
+      mouseOver.tooltipTitle = ""
+      dot:Hide()
+      CT.infoTooltip:Hide()
+      return
+    end
 
     local active1 = graphFrame.displayed[1]
 
     local count = 0
     local mouseOverCenter = mouseOver:GetCenter()
 
-    wipe(mouseLines)
-    for i = 1, #active1.data do -- Has to be data, lines isn't indexed
-      line = active1.lines[i]
+    local graphWidth, graphHeight = graphFrame:GetSize()
+    local graphLeft = graphFrame:GetLeft()
 
-      if line then
-        if line:GetRight() > mouseX then
-          if line:GetLeft() < mouseX then
-            count = count + 1
-            mouseLines[i] = line
-          elseif count > 0 then
-            break
+    wipe(tempLines)
+    for index = 1, #graphFrame.displayed do
+      local graph = graphFrame.displayed[index]
+      local data = graph.data
+      local maxX = graph.XMax
+      local minX = graph.XMin
+      local maxY = graph.YMax
+      local minY = graph.YMin
+      local fromGraphLeft = mouseX - graphLeft
+
+      local c1, c2, c3, c4 = unpack(graph.color)
+
+      for i = 1, #graph.data do
+        local line = graph.lines[i]
+
+        if line then -- Remove the highlight by setting it back to its default color
+          line:SetVertexColor(c1, c2, c3, c4 - 0.3)
+
+          if not graph.mouseOverIndex then -- It won't be broken if it's removing highlight, so it needs second check to stop it from changing the line again
+            tempLines[index] = i
           end
+        end
+
+        if data[i - 1] then
+          local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX)
+          local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+
+          local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+          local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+
+          if ((fromGraphLeft > startX) and (fromGraphLeft <= stopX)) and (not graph.mouseOverIndex) then
+            graph.mouseOverIndex = i
+
+            graph.mouseOverStartX = startX
+            graph.mouseOverStopX = stopX
+
+            graph.mouseOverStartY = startY
+            graph.mouseOverStopY = stopY
+          end
+        end
+      end
+
+      graph.highlighted = false -- Remove the highlight flag, now none of the lines should be highlighted
+    end
+
+    local graph = nil
+    local closest = 100000
+    local num, line
+    for index, lineNum in pairs(tempLines) do
+      local _, lineY = graphFrame.displayed[index].lines[lineNum]:GetCenter()
+
+      local distance = mouseY - lineY
+      if 0 > distance then distance = -distance end -- Make sure it's positive, so right at the line will be 0 and it will get higher in either direction
+
+      if closest > distance then
+        closest = distance
+        graph = graphFrame.displayed[index]
+        num = lineNum
+        line = graphFrame.displayed[index].lines[lineNum]
+
+        if not line then graph = nil end
+      end
+    end
+
+    if (not graph) or (not graph.mouseOverStartX) then
+      mouseOver.info = ""
+      mouseOver.tooltipTitle = ""
+      dot:Hide()
+      CT.infoTooltip:Hide()
+      return
+    else
+      dot:Show()
+      CT.infoTooltip:Show()
+    end
+
+    if not graph.highlighted then -- Set the highlight color
+      local c1, c2, c3, c4 = unpack(graph.color)
+
+      for i = 1, #graph.data do
+        local line = graph.lines[i]
+        graph.highlighted = true
+
+        if line then
+          line:SetVertexColor(c1, c2, c3, c4)
         end
       end
     end
 
-    local num, line = nearestValue(mouseLines, mouseOverCenter)
+    local startX = graph.mouseOverStartX
+    local stopX = graph.mouseOverStopX
 
-    if num and active1.data[-num] then -- Handle the dot's position
-      local y = graphFrame:GetHeight() * (active1.data[-num] - active1.YMin) / (active1.YMax - active1.YMin)
+    local startY = graph.mouseOverStartY
+    local stopY = graph.mouseOverStopY
 
-      dot:Show()
-      dot:SetPoint("BOTTOM", mouseOver, 0, y - 5)
-    else
-      dot:Hide()
+    do -- Handle the dot's Y point
+      dot:SetPoint("BOTTOM", mouseOver, 0, stopY - 3)
     end
 
-    if num and active1.data[num] then
-      local startX = active1.data[num]
-      local startY = active1.data[-num]
+    do -- Calculate timer and set it as the tooltip's title
+      local timer = graphFrame.zoomed or ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start)
+      local current = mouseOverCenter - graph.lines[2]:GetLeft()
+      local total = graph.lastLine:GetRight() - graph.lines[2]:GetLeft()
+      local displayTimer = floor(timer * (current / total) + 0.5)
 
-      local timer = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
-      if active1.frame and active1.frame.zoomed then
-        timer = active1.frame.zoomed
-      elseif not active1.frame then
-        debug("[DELAY: 0.3]", "No frame for", active1.name)
-      end
+      mouseOver.tooltipTitle = YELLOW .. formatTimer(displayTimer) .. "|r\n"
+    end
 
-      local current = mouseOverCenter - active1.lines[2]:GetLeft()
-      local total = active1.lastLine:GetRight() - active1.lines[2]:GetLeft()
-
-      local displayTimer = floor(timer * (current / total))
-
-      local text = "Time: " .. YELLOW .. formatTimer(displayTimer) .. "|r\n"
-
+    if num and graph.data[num] then
+      local text = ""
       for i = 1, #graphFrame.displayed do
         local graph = graphFrame.displayed[i]
         local startY = graph.data[-num]
@@ -2766,9 +2841,25 @@ function CT:buildGraph()
         text = text .. table.concat(graph.displayText)
       end
 
+      graph.displayText[5] = floor(graph.data[-graph.mouseOverIndex])
+      local text = table.concat(graph.displayText)
+
       mouseOver.info = text
-    elseif not num then
+    else
       mouseOver.info = ""
+      mouseOver.tooltipTitle = ""
+    end
+
+    for index = 1, #graphFrame.displayed do -- Remove these values from graphs
+      local graph = graphFrame.displayed[index]
+
+      graph.mouseOverIndex = nil
+
+      graph.mouseOverStartX = nil
+      graph.mouseOverStopX = nil
+
+      graph.mouseOverStartY = nil
+      graph.mouseOverStopY = nil
     end
   end)
 
@@ -2783,6 +2874,23 @@ function CT:buildGraph()
     CT.mouseFrameBorder()
     mouseOver:Hide()
     CT.createInfoTooltip()
+
+
+    for index = 1, #graphFrame.displayed do -- Make sure none are highlighted
+      local graph = graphFrame.displayed[index]
+
+      local c1, c2, c3, c4 = unpack(graph.color)
+
+      for i = 1, #graph.data do
+        local line = graph.lines[i]
+
+        if line then
+          line:SetVertexColor(c1, c2, c3, c4)
+        end
+      end
+
+      graph.highlighted = false
+    end
   end)
 
   graphFrame:SetScript("OnMouseDown", function(self, button)
@@ -2918,3 +3026,77 @@ function CT:buildGraph()
   self.graphCreated = true
   return graphFrame
 end
+
+-- mouseOver:SetScript("OnUpdate", function(mouseOver, elapsed)
+--   local mouseX, mouseY = GetCursorPosition()
+--   local mouseX = (mouseX / UIScale)
+--   local mouseY = (mouseY / UIScale)
+--   local line, num, text
+--
+--   mouseOver:SetPoint("LEFT", UIParent, mouseX, 0)
+--
+--   if not graphFrame.displayed[1] then return end -- No displayed graphs
+--
+--   local active1 = graphFrame.displayed[1]
+--
+--   local count = 0
+--   local mouseOverCenter = mouseOver:GetCenter()
+--
+--   wipe(mouseLines)
+--   for i = 1, #active1.data do -- Has to be data, lines isn't indexed
+--     line = active1.lines[i]
+--
+--     if line then
+--       if line:GetRight() > mouseX then
+--         if line:GetLeft() < mouseX then
+--           count = count + 1
+--           mouseLines[i] = line
+--         elseif count > 0 then
+--           break
+--         end
+--       end
+--     end
+--   end
+--
+--   local num, line = nearestValue(mouseLines, mouseOverCenter)
+--
+--   if num and active1.data[-num] then -- Handle the dot's position
+--     local y = graphFrame:GetHeight() * (active1.data[-num] - active1.YMin) / (active1.YMax - active1.YMin)
+--
+--     dot:Show()
+--     dot:SetPoint("BOTTOM", mouseOver, 0, y - 5)
+--   else
+--     dot:Hide()
+--   end
+--
+--   if num and active1.data[num] then
+--     local startX = active1.data[num]
+--     local startY = active1.data[-num]
+--
+--     local timer = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
+--     if active1.frame and active1.frame.zoomed then
+--       timer = active1.frame.zoomed
+--     elseif not active1.frame then
+--       debug("[DELAY: 0.3]", "No frame for", active1.name)
+--     end
+--
+--     local current = mouseOverCenter - active1.lines[2]:GetLeft()
+--     local total = active1.lastLine:GetRight() - active1.lines[2]:GetLeft()
+--
+--     local displayTimer = floor(timer * (current / total))
+--
+--     local text = "Time: " .. YELLOW .. formatTimer(displayTimer) .. "|r\n"
+--
+--     for i = 1, #graphFrame.displayed do
+--       local graph = graphFrame.displayed[i]
+--       local startY = graph.data[-num]
+--
+--       graph.displayText[5] = floor(startY)
+--       text = text .. table.concat(graph.displayText)
+--     end
+--
+--     mouseOver.info = text
+--   elseif not num then
+--     mouseOver.info = ""
+--   end
+-- end)
