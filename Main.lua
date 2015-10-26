@@ -216,7 +216,7 @@ else -- profile code in here
 end
 
 local CT = CombatTracker
-local baseFrame = CreateFrame("Frame", "CT_Base", UIParent) -- Have to do this early so that the position will be saved
+local baseFrame = CreateFrame("Frame", "CombatTracker_Base", UIParent) -- Have to do this early so that the position will be saved
 baseFrame:SetMovable(true)
 baseFrame:SetFrameStrata("HIGH")
 CT.__index = CT
@@ -2594,8 +2594,6 @@ function CT:expanderFrame(command)
       uptimeGraphs[num]:SetHeight(25)
       uptimeGraphs[num]:SetParent(f)
 
-      debug("Adding one uptime graph and anchoring them all.")
-
       return uptimeGraphs[num]
     end
 
@@ -2614,12 +2612,10 @@ function CT:expanderFrame(command)
       normalGraphs[num]:SetParent(f)
       normalGraphs[num]:SetHeight(150)
 
-      debug("Adding one NORMAL graph.")
-
       return normalGraphs[num]
     end
 
-    function f.removeNormalGraph()
+    function f.removeNormalGraph() -- TODO: Set this up, and for uptime as well
       local num = #normalGraphs + 1
       normalGraphs[num] = CT.buildGraph(f)
       normalGraphs[num]:SetParent(f)
@@ -2836,10 +2832,16 @@ function CT.createBaseFrame() -- Create Base Frame
     end)
 
     f:SetScript("OnShow", function(self)
+      self.shown = true
+      
       if not CT.current and not CT.displayed then
-        debug("No current set, so trying to load the last saved set.")
+        debug("CT.base (OnShow): No current set, so trying to load the last saved set.")
         CT.loadSavedSet() -- Load the most recent set as default
       end
+    end)
+    
+    f:SetScript("OnHide", function(self)
+      self.shown = false
     end)
 
     function CT.base:cycleMainButtons() -- NOTE: If order is changed, this gets all messed up. Also it revers to the old order.
@@ -3391,7 +3393,7 @@ function CT.createBaseFrame() -- Create Base Frame
     f.bottomExpander = expander
   end
 
-  tinsert(UISpecialFrames, CT.base:GetName())
+  tinsert(UISpecialFrames, f:GetName())
 end
 --------------------------------------------------------------------------------
 -- Utility Functions

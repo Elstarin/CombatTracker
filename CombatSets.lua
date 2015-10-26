@@ -283,13 +283,14 @@ local function basicGraphData(set, db, role)
     setGraph.startY = dbGraph.YMax
     setGraph.toggle = CT.toggleNormalGraph
     setGraph.refresh = CT.refreshNormalGraph
-    setGraph.update, setGraph.color = CT.getGraphUpdateFunc(setGraph, set, db, name)
 
     if CT.settings.graphFilling then
       setGraph.fill = true
       setGraph.bars = {}
       setGraph.triangles = {}
     end
+    
+    setGraph.update, setGraph.color = CT.getGraphUpdateFunc(setGraph, set, db, name) -- Make sure this happens last, because I can set things for specific graphs here
   end
 end
 
@@ -589,6 +590,8 @@ end
 
 function CT.loadSavedSet(db)
   local _, specName, description, specIcon, background, role, primaryStat = GetSpecializationInfo(GetSpecialization())
+  
+  if not specName then return debug("Called loadSavedSet before player data (spec name) was available") end
 
   if not db then -- If a db table wasn't passed, load the most recent
     if specName and CombatTrackerCharDB[specName] and CombatTrackerCharDB[specName].sets then
@@ -606,7 +609,16 @@ function CT.loadSavedSet(db)
     if not db then return debug("Didn't pass a DB table, and failed to find db[1] to load.") end
   end
 
-  if CT.graphFrame then CT.graphFrame:hideAllGraphs() end
+  if CT.graphFrame then
+    if CT.graphFrame[1] then
+      for i = 1, #CT.graphFrame do -- If there are multiple frames, iterate through all of them
+        local frame = CT.graphFrame[i]
+        frame:hideAllGraphs()
+      end
+    else
+      CT.graphFrame:hideAllGraphs()
+    end
+  end
 
   local set = {}
 

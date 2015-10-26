@@ -241,25 +241,10 @@ local function handleGraphData(set, db, graph, data, name, timer, value, prev)
   data[num] = timer -- X coords
   data[-num] = value -- Y coords
 
-  if CT.base then -- These updates should only need to happen if it's actually visible
-    if graph.frame and graph.frame.zoomed then return end -- Refreshing when zoomed makes it look weird, but we still need to let it create data points if it's active
-
-    local refresh
-
-    -- if value >= graph.YMax and CT.base.expander.shown then
-    --   db.graphs[name].YMax = graph.YMax + max(value - graph.YMax, 5)
-    --   refresh = true
-    -- end
-
-    -- if timer > graph.XMax and CT.base.expander and CT.base.expander.shown and graph.frame and not graph.frame.zoomed then
-    --   db.graphs[name].XMax = graph.XMax + max(timer - graph.XMax, graph.startX * graph.splitCount)
-    --   refresh = true
-    -- end
-
-    if graph.shown then
+  if CT.base and CT.base.shown then -- These updates should only need to happen if it's actually visible
+    if graph.shown and (graph.frame and not graph.frame.zoomed) then -- Refreshing when zoomed makes it look weird, but we still need to let it create data points if it's active
       if not graph.updating then
-        graph.lastUpdate = timer
-        graph:refresh(refresh)
+        graph:refresh()
       end
     end
   end
@@ -277,7 +262,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -298,7 +282,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -319,12 +302,10 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
       "",
-      "%",
     }
 
     return func, color
@@ -340,12 +321,11 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
       "",
-      "%",
+      " Damage",
     }
 
     return func, color
@@ -361,12 +341,10 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
       "",
-      "%",
     }
 
     return func, color
@@ -388,7 +366,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -409,7 +386,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -427,7 +403,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -448,7 +423,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -469,7 +443,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -487,7 +460,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -507,13 +479,13 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
-      "|r ",
+      "|r: ",
       "",
-      "%",
     }
+    
+    graph.displayText.math = "/ 20"
 
     return func, color
   elseif name == "Shadow Orbs" then -- TODO: Set up
@@ -525,7 +497,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -553,7 +524,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -574,7 +544,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -595,7 +564,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -616,7 +584,6 @@ function CT.getGraphUpdateFunc(graph, set, db, name)
     local colorString = CT.convertColor(color[1], color[2], color[3])
 
     graph.displayText = {
-      "\n",
       colorString,
       name,
       "|r ",
@@ -1269,92 +1236,44 @@ function CT:toggleNormalGraph(command, frame)
 
   local frame = frame or CT.graphFrame
   local found = nil
-  local dbGraph = CT.displayedDB and CT.displayedDB.graphs[self.name]
+  local dbGraph = self.__index
 
   for i = 1, #frame.displayed do
-    local graph = frame.displayed[i]
-    if graph == self then -- Graph is currently displayed
-      found = i
-    elseif graph.anchor then -- Reset them all to background
-      graph.anchor:SetDrawLayer("BACKGROUND")
+    if frame.displayed[i] == self then -- Graph is currently displayed
+      found = i -- The index for removal
     end
-
-    graph.drawLayer = "BACKGROUND"
-    if graph.bars then graph.bars.alpha = 0.2 end
   end
 
   if found or (command and command == "hide") then -- Hide graph
     -- debug("Hiding:", self.name)
-
-    if self.anchor then
-      self.anchor:ClearAllPoints()
-    end
 
     tremove(frame.displayed, found) -- Remove it from list
     self.frame = nil
     dbGraph.shown = false
 
     local lines, bars, triangles = self.lines, self.bars, self.triangles
-    for i = 1, #self.data do -- Hide all the lines
-      if lines[i] then
-        lines[i]:Hide()
-      end
-
-      if bars and bars[i] then
-        bars[i]:Hide()
-
-        self.status = "hidden"
-      end
-
-      if triangles and triangles[i] then
-        triangles[i]:Hide()
-      end
+    for i = 1, #self.data do
+      if lines and lines[i] then lines[i]:Hide() end
+      if bars and bars[i] then bars[i]:Hide() end
+      if triangles and triangles[i] then triangles[i]:Hide() end
     end
   elseif not dbGraph.shown and not found or (command and command == "show") then -- Show graph
     -- debug("Showing:", self.name)
 
-    if not self.anchor then
-      self.anchor = frame:CreateTexture("CT_Graph_Frame_Anchor_" .. self.name, "OVERLAY")
-    end
-
     tinsert(frame.displayed, 1, self) -- Add it to list
     self.frame = frame
-    self.anchor:SetAllPoints(frame.anchor)
-    self.anchor:SetDrawLayer("OVERLAY")
-    self.drawLayer = "OVERLAY"
     dbGraph.shown = true
 
     if self.bars then self.bars.alpha = 0.5 end
+    
+    local lines, bars, triangles = self.lines, self.bars, self.triangles
+    for i = 1, #self.data do
+      if lines and lines[i] then lines[i]:Show() end
+      if bars and bars[i] then bars[i]:Show() end
+      if triangles and triangles[i] then triangles[i]:Show() end
+    end
 
     if not self.updating then self:refresh(true) end -- Create/update lines
-  end
-
-  for index = 1, #frame.displayed do
-    local graph = frame.displayed[index]
-    local lines, bars, triangles = graph.lines, graph.bars, graph.triangles
-    local layer = graph.drawLayer
-    local alpha = graph.bars and graph.bars.alpha
-
-    for i = 1, #graph.data do -- Show all the lines
-      if lines[i] then
-        lines[i]:Show()
-        lines[i]:SetDrawLayer(layer)
-      end
-
-      if bars and bars[i] then
-        bars[i]:Show()
-        bars[i]:SetAlpha(alpha)
-        bars[i]:SetDrawLayer(layer)
-
-        graph.status = "shown"
-      end
-
-      if triangles and triangles[i] then
-        triangles[i]:Show()
-        triangles[i]:SetAlpha(alpha)
-        triangles[i]:SetDrawLayer(layer)
-      end
-    end
   end
 end
 
@@ -1647,42 +1566,22 @@ end
 -- end
 
 function CT:refreshNormalGraph(reset, routine)
+  if not CT.base.shown then return debug("Refresh got called when base was hidden!", self.name) end
+  if not CT.base.expander then return debug("Refresh got called before the expander was created!", self.name) end
+  if not CT.base.expander.shown then return debug("Refresh got called when the expander was not flagged as shown!", self.name) end
+  if not self.shown then return debug("Refresh got called when graph was not flagged as shown!", self.name) end
+  if not self.frame then return debug("Refresh got called when graph had no frame!", self.name) end -- Happened once, was related to loading a saved fight or returning from one
+  if self.updating then return debug("Refresh got called when graph was flagged as updating!", self.name) end
+  
   local cTime = GetTime()
   local num = #self.data
-  local graphWidth, graphHeight = self.frame:GetSize() -- TODO: Was no frame
-
-  if not self.frame.zoomed and num > 1 then -- Make sure graph is in bounds, if it isn't zoomed
-    local dbGraph = self.__index
-
-    local startX = graphWidth * (dbGraph.data[1] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin)
-    local startY = graphHeight * (dbGraph.data[-(num - 1)] - dbGraph.YMin) / (dbGraph.YMax - dbGraph.YMin)
-
-    local stopX = graphWidth * (dbGraph.data[num] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin)
-    local stopY = graphHeight * (dbGraph.data[-num] - dbGraph.YMin) / (dbGraph.YMax - dbGraph.YMin)
-
-    if 0 > startY then -- Graph is too short, raise it
-      dbGraph.YMin = (dbGraph.YMin + startY) - 20
-      reset = true
-    end
-
-    if stopX > graphWidth then -- Graph is too long, squish it
-      dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.333 -- 75%
-      reset = true
-    end
-
-    if stopY > graphHeight then -- Graph is too tall, squish it
-      dbGraph.YMax = dbGraph.YMax * (stopY / graphHeight) * 1.12 -- 90%
-      reset = true
-    end
-  end
-
-  if not CT.base:IsShown() then return end
+  local graphWidth, graphHeight = self.frame:GetSize()
 
   if reset then
     self.endNum = 2
     self.lastRefresh = cTime
 
-    if num >= 1000 then -- The comparison number is after how many lines do we want to switch to a coroutine (default 500)
+    if num >= (CT.settings.graphCoroutineNum or 2000) then -- The comparison number is after how many points do we want to switch to a coroutine (default 2000)
       self.refresh = wrap(CT.refreshNormalGraph)
 
       debug(num, self.totalLines, "Refreshing with coroutine:", self.name)
@@ -1708,319 +1607,344 @@ function CT:refreshNormalGraph(reset, routine)
   local triangles = self.triangles
   local frame = self.frame.anchor or self.frame
   local anchor = self.anchor or self.frame.anchor or self.frame
+  local zoomed = self.frame.zoomed
+  local blocked, blockedX, blockedY = nil, 0, 0
 
   local c1, c2, c3, c4 = 0.0, 0.0, 1.0, 1.0 -- Default to blue
-  if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.color[4] end
+  if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.overrideAlpha or self.color[4] end
 
   for i = (self.endNum or 2), num do
-    local lastLine
-
-    local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX)
-    local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
-
     local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
     local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
-
-    local w = 32
-    local dx, dy = stopX - startX, stopY - startY -- This is about the change
-    local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
-
-    if startX ~= stopX then -- If they match, this can break
-      -- NOTE: is it if they match and if the y points are the same? Then it would be drawing a point that doesn't take any space
-      local line = lines[i]
-
-      if self.prevDY and dy == self.prevDY then
-        local lastIndex
-
-        if lines[i - 1] then
-          lastLine = lines[i - 1]
-          lastIndex = i - 1
-        elseif lines[i - 2] then
-          lastLine = lines[i - 2]
-          lastIndex = i - 2
-        else
-          for index = (i - 2), 1, -1 do
-            if lines[index] then
-              lastIndex = index
-              lastLine = lines[index]
-              break
-            end
-          end
+    
+    if not zoomed then -- Update maxX and maxY values if necessary, just not while zoomed
+      if stopX > graphWidth then -- Graph is too long
+        blocked = true
+        
+        if (stopX / graphWidth) > blockedX then
+          blockedX = stopX
         end
-
-        startX = graphWidth * (data[(lastIndex or 2) - 1] - minX) / (maxX - minX)
-        line = lastLine or lines[2] -- NOTE: or line
-        dx, dy = stopX - startX, stopY - startY
-        cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
       end
-
-      if (dx < 0) then -- Normalize direction if necessary
-        dx, dy = -dx, -dy
+  
+      if stopY > graphHeight then -- Graph is too tall
+        blocked = true
+        
+        if (stopY / graphHeight) > blockedY then
+          blockedY = stopY
+        end
       end
-
-      local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
-
-      local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
-      local sc = s * c
-
-      local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
-      if dy >= 0 then
-        Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
-        Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
-        BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
-        BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
-        TRy = BRx
-      else
-        Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
-        Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
-        BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
-        BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
-        TRx = TLy
-      end
-
-      if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
-      if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
-      if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
-      if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
-      if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
-      if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
-      if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
-      if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
-
-      if not line then
-        line = frame:CreateTexture("CT_Graph_Line" .. i, self.drawLayer or "ARTWORK")
-        line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
-        line:SetVertexColor(c1, c2, c3, c4)
-
-        lastLine = line
-        self.lastLine = line -- Easy access to most recent
-        self.totalLines = (self.totalLines or 0) + 1
-
-        lines[i] = line
-      end
-
-      line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
-      line:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
-      line:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
     end
 
-    if bars then
-      if self.fill then -- and (stopX - startX) > 1 -- Draw bars if fill is true
-        if startX > stopX then -- Want startX <= stopX, if not then flip them
-          startX, stopX = stopX, startX
-          startY, stopY = stopY, startY
+    if not blocked then -- If out of bounds, finish looping to find the most out of bounds point, but don't waste time calculating everything
+      local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- startX and startY aren't needed of out of bounds check
+      local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+      
+      local lastLine
+      local w = 32
+      local dx, dy = stopX - startX, stopY - startY -- This is about the change
+      local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
+
+      if startX ~= stopX then -- If they match, this can break
+        -- NOTE: is it if they match and if the y points are the same? Then it would be drawing a point that doesn't take any space
+        local line = lines[i]
+
+        if self.prevDY and dy == self.prevDY then
+          local lastIndex
+
+          if lines[i - 1] then
+            lastLine = lines[i - 1]
+            lastIndex = i - 1
+          elseif lines[i - 2] then
+            lastLine = lines[i - 2]
+            lastIndex = i - 2
+          else
+            for index = (i - 2), 1, -1 do
+              if lines[index] then
+                lastIndex = index
+                lastLine = lines[index]
+                break
+              end
+            end
+          end
+
+          startX = graphWidth * (data[(lastIndex or 2) - 1] - minX) / (maxX - minX)
+          line = lastLine or lines[2] -- NOTE: or line
+          dx, dy = stopX - startX, stopY - startY
+          cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
         end
 
-        local minY, maxY
-        if startY < stopY then
-          minY = startY
-          maxY = stopY
+        if (dx < 0) then -- Normalize direction if necessary
+          dx, dy = -dx, -dy
+        end
+
+        local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
+
+        local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
+        local sc = s * c
+
+        local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
+        if dy >= 0 then
+          Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
+          Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
+          BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
+          BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
+          TRy = BRx
         else
-          minY = stopY
-          maxY = startY
+          Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
+          Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
+          BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
+          BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
+          TRx = TLy
         end
 
-        local width = stopX - startX
+        if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
+        if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
+        if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
+        if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
+        if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
+        if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
+        if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
+        if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
 
-        if width < 1 then width = 1 end
-        if 1 > minY then minY = 1 end -- Has to be at least 1 wide
+        if not line then
+          line = frame:CreateTexture("CT_Graph_Line" .. i, self.drawLayer or "ARTWORK")
+          line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
+          line:SetVertexColor(c1, c2, c3, c4)
 
-        do -- Handle the bar
-          local bar = bars[i]
+          lastLine = line
+          self.lastLine = line -- Easy access to most recent
+          self.totalLines = (self.totalLines or 0) + 1
 
-          if not bar and (not self.prevDY or dy ~= self.prevDY) then
-            bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, self.drawLayer or "ARTWORK")
-            bar:SetTexture(1, 1, 1, 1)
-            bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
-            bar:SetBlendMode("ADD")
+          lines[i] = line
+        end
 
-            bars.lastBar = bar
+        line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
+        line:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
+        line:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
+      end
 
-            self.totalBars = (self.totalBars or 0) + 1
-
-            bars[i] = bar
+      if bars then
+        if self.fill then -- and (stopX - startX) > 1 -- Draw bars if fill is true
+          if startX > stopX then -- Want startX <= stopX, if not then flip them
+            startX, stopX = stopX, startX
+            startY, stopY = stopY, startY
           end
 
-          if bar then
-            bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
-            bar:SetSize(width, minY)
+          local minY, maxY
+          if startY < stopY then
+            minY = startY
+            maxY = stopY
+          else
+            minY = stopY
+            maxY = startY
           end
 
-          if self.prevDY and dy == self.prevDY then
-            if bars[i - 1] then
-              bars[i - 1]:SetPoint("RIGHT", lastLine, 0, 0)
-            else
-              for index = (i - 2), 1, -1 do
-                if bars[index] then
-                  bars[index]:SetPoint("RIGHT", lastLine, 0, 0)
-                  break
+          local width = stopX - startX
+
+          if width < 1 then width = 1 end
+          if 1 > minY then minY = 1 end -- Has to be at least 1 wide
+
+          do -- Handle the bar
+            local bar = bars[i]
+
+            if not bar and (not self.prevDY or dy ~= self.prevDY) then
+              bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, self.drawLayer or "ARTWORK")
+              bar:SetTexture(1, 1, 1, 1)
+              bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
+              bar:SetBlendMode("ADD")
+
+              bars.lastBar = bar
+
+              self.totalBars = (self.totalBars or 0) + 1
+
+              bars[i] = bar
+            end
+
+            if bar then
+              bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
+              bar:SetSize(width, minY)
+            end
+
+            if self.prevDY and dy == self.prevDY then
+              if bars[i - 1] then
+                bars[i - 1]:SetPoint("RIGHT", lastLine, 0, 0)
+              else
+                for index = (i - 2), 1, -1 do
+                  if bars[index] then
+                    bars[index]:SetPoint("RIGHT", lastLine, 0, 0)
+                    break
+                  end
                 end
               end
-            end
-          elseif bar then
-            if bars[i - 1] then
-              bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-            else
-              for index = (i - 2), 1, -1 do
-                if bars[index] then
-                  bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-                  break
+            elseif bar then
+              if bars[i - 1] then
+                bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+              else
+                for index = (i - 2), 1, -1 do
+                  if bars[index] then
+                    bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+                    break
+                  end
                 end
               end
-            end
-          else
-            debug(i, "No bar, but does need to anchor!")
-          end
-        end
-
-        do -- Handle triangle stuff
-          local tri = triangles[i]
-          if not tri and (maxY - minY) >= 1 then
-            tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, self.drawLayer or "ARTWORK")
-            tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
-            tri:SetVertexColor(c1, c2, c3, triangles.alpha or bars.alpha or 0.3)
-            tri:SetBlendMode("ADD")
-
-            if startY < stopY then
-              tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
             else
-              tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
+              debug(i, "No bar, but does need to anchor!")
+            end
+          end
+
+          do -- Handle triangle stuff
+            local tri = triangles[i]
+            if not tri and (maxY - minY) >= 1 then
+              tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, self.drawLayer or "ARTWORK")
+              tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
+              tri:SetVertexColor(c1, c2, c3, triangles.alpha or bars.alpha or 0.3)
+              tri:SetBlendMode("ADD")
+
+              if startY < stopY then
+                tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
+              else
+                tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
+              end
+
+              self.totalTriangles = (self.totalTriangles or 0) + 1
+
+              triangles[i] = tri
             end
 
-            self.totalTriangles = (self.totalTriangles or 0) + 1
-
-            triangles[i] = tri
+            if tri and (maxY - minY) >= 1 then
+              tri:SetPoint("BOTTOMLEFT", anchor, startX, minY)
+              tri:SetSize(width, maxY - minY)
+              tri:Show()
+              -- print("Showing", i)
+            elseif tri then
+              -- print("Hiding", i)
+              tri:Hide()
+            else
+              -- print("Didn't create one", i)
+            end
           end
 
-          if tri and (maxY - minY) >= 1 then
-            tri:SetPoint("BOTTOMLEFT", anchor, startX, minY)
-            tri:SetSize(width, maxY - minY)
-            tri:Show()
-            -- print("Showing", i)
-          elseif tri then
-            -- print("Hiding", i)
-            tri:Hide()
-          else
-            -- print("Didn't create one", i)
-          end
-        end
+          if self.status and self.status ~= "shown" then
+            debug("Showing graph filling.")
+            for i = 1, num do
+              if bars[i] then
+                bars[i]:Show()
+              end
 
-        if self.status and self.status ~= "shown" then
-          debug("Showing graph filling.")
+              if triangles[i] then
+                triangles[i]:Show()
+              end
+            end
+
+            self.status = "shown"
+          end
+        elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
+          print("Hiding graph filling")
+
           for i = 1, num do
             if bars[i] then
-              bars[i]:Show()
+              bars[i]:Hide()
             end
 
             if triangles[i] then
-              triangles[i]:Show()
+              triangles[i]:Hide()
             end
           end
 
-          self.status = "shown"
+          self.status = "hidden"
         end
-      elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
-        print("Hiding graph filling")
-
-        for i = 1, num do
-          if bars[i] then
-            bars[i]:Hide()
-          end
-
-          if triangles[i] then
-            triangles[i]:Hide()
-          end
-        end
-
-        self.status = "hidden"
       end
-    end
 
-    self.prevDY = dy
+      self.prevDY = dy
 
-    if i == num then -- Done running the graph update
-      -- debug("Done running refresh:", debugprofilestop() - start)
-      self.refresh = CT.refreshNormalGraph
-      self.endNum = i + 1
-      self.updating = false
-      self.lastLine = lastLine or self.lastLine
-
-      -- debug("TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
-
-      if self.frame.zoomed then
-        local firstLine, lastLine = nil, nil
-
-        for i = 1, num do
-          if self.lines[i] then
-            firstLine = self.lines[i]
-            break
-          end
+      if i == num then -- Done running the graph update
+        -- debug("Done running refresh:", debugprofilestop() - start)
+        if routine then
+          self.refresh = CT.refreshNormalGraph
+          self.updating = false
         end
+        
+        self.endNum = i + 1
+        self.lastLine = lastLine or self.lastLine
 
-        for i = num, 1, -1 do
-          if self.lines[i] then
-            lastLine = self.lines[i]
-            break
+        -- debug("TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
+
+        if self.frame.zoomed then
+          local firstLine, lastLine = nil, nil
+
+          for i = 1, num do
+            if self.lines[i] then
+              firstLine = self.lines[i]
+              break
+            end
           end
+
+          for i = num, 1, -1 do
+            if self.lines[i] then
+              lastLine = self.lines[i]
+              break
+            end
+          end
+
+          local minimum = firstLine:GetLeft() - self.frame:GetLeft()
+          local maximum = lastLine:GetRight() - self.frame:GetRight()
+
+          if 0 < minimum then minimum = 0 end
+          if 0 > maximum then maximum = 0 end
+          
+          self.frame.slider:SetMinMaxValues(minimum, maximum)
+          self.frame.slider:SetValue(0)
         end
-
-        local minimum = firstLine:GetLeft() - self.frame:GetLeft()
-        local maximum = lastLine:GetRight() - self.frame:GetRight()
-
-        if 0 < minimum then minimum = 0 end
-        if 0 > maximum then maximum = 0 end
-        self.frame.slider:SetMinMaxValues(minimum, maximum)
-        self.frame.slider:SetValue(0)
+      elseif routine and (i % 1000) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
+        local delay = random(-3, 3) / 100 + 0.05 -- The random number is to reduce the chances of multiple graphs refreshing at the exact same time
+        after(delay, self.refresh)
+        self.updating = true
+        yield()
       end
-    elseif routine and (i % 1000) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
-      local delay = random(-3, 3) / 100 + 0.05 -- The random number is to reduce the chances of multiple graphs refreshing at the exact same time
-      after(delay, self.refresh)
-      self.updating = true
-      yield()
+    elseif blocked and i == num then -- It's done
+      if routine then
+        self.refresh = CT.refreshNormalGraph
+        self.updating = false
+      end
+      
+      local dbGraph = self.__index
+      
+      if blockedX > 0 then
+        dbGraph.XMax = maxX * (blockedX / graphWidth) * 1.333 -- 75%
+      end
+      
+      if blockedY > 0 then
+        dbGraph.YMax = maxY * (blockedY / graphHeight) * 1.12 -- 90%
+      end
+      
+      return self:refresh(true) -- Run agian with the new X/Y value
     end
   end
 end
 
-function CT:refreshNormalGraph_BACKUP_2(reset, routine)
-  if self.updating then return debug("Graph update called while still updating, returning") end
-
+function CT:refreshNormalGraph_BACKUP(reset, routine)
+  if not CT.base.shown then return debug("Refresh got called when base was hidden!", self.name) end
+  if not CT.base.expander then return debug("Refresh got called before the expander was created!", self.name) end
+  if not CT.base.expander.shown then return debug("Refresh got called when the expander was not flagged as shown!", self.name) end
+  if not self.shown then return debug("Refresh got called when graph was not flagged as shown!", self.name) end
+  if not self.frame then return debug("Refresh got called when graph had no frame!", self.name) end -- Happened once, was related to loading a saved fight or returning from one
+  if self.updating then return debug("Refresh got called when graph was flagged as updating!", self.name) end
+  
+  local cTime = GetTime()
   local num = #self.data
   local graphWidth, graphHeight = self.frame:GetSize()
 
-  if not self.frame.zoomed and num > 1 then -- Make sure graph is in bounds, if it isn't zoomed
-    local startX = graphWidth * (self.data[1] - self.XMin) / (self.XMax - self.XMin)
-    local startY = graphHeight * (self.data[-(num - 1)] - self.YMin) / (self.YMax - self.YMin)
-
-    local stopX = graphWidth * (self.data[num] - self.XMin) / (self.XMax - self.XMin)
-    local stopY = graphHeight * (self.data[-num] - self.YMin) / (self.YMax - self.YMin)
-
-    if 0 > startY then -- Graph is too short, raise it
-      self.YMin = (self.YMin + startY) - 20
-      reset = true
-    end
-
-    if stopX > graphWidth then -- Graph is too long, squish it
-      self.XMax = self.XMax + (self.XMax * 0.333) -- 75%
-      reset = true
-    end
-
-    if stopY > graphHeight then -- Graph is too tall, squish it
-      self.YMax = self.YMax + (self.YMax * 0.12) -- 90%
-      reset = true
-    end
-  end
-
   if reset then
     self.endNum = 2
+    self.lastRefresh = cTime
 
-    if self.fill and num > 3000 then -- The cut off for when to stop allowing bars to save textures
-      self.fill = false
-    end
-
-    if num > 500 then -- The comparison number is after how many lines do we want to switch to a coroutine (default 500)
+    if num >= (CT.settings.graphCoroutineNum or 2000) then -- The comparison number is after how many points do we want to switch to a coroutine (default 2000)
       self.refresh = wrap(CT.refreshNormalGraph)
 
+      debug(num, self.totalLines, "Refreshing with coroutine:", self.name)
       return self:refresh(nil, true) -- Call it again, but now as a coroutine
+    else
+      debug(num, self.totalLines, "Refreshing:", self.name)
     end
   end
 
@@ -2029,7 +1953,7 @@ function CT:refreshNormalGraph_BACKUP_2(reset, routine)
     if not self.triangles then self.triangles = {} end
   end
 
-  local start = GetTime()
+  local start = debugprofilestop()
   local maxX = self.XMax
   local minX = self.XMin
   local maxY = self.YMax
@@ -2039,291 +1963,319 @@ function CT:refreshNormalGraph_BACKUP_2(reset, routine)
   local bars = self.bars
   local triangles = self.triangles
   local frame = self.frame.anchor or self.frame
-  local anchor = self.frame.bg or self.frame
+  local anchor = self.anchor or self.frame.anchor or self.frame
+  local zoomed = self.frame.zoomed
+  local blocked, blockedX, blockedY = nil, 0, 0
 
   local c1, c2, c3, c4 = 0.0, 0.0, 1.0, 1.0 -- Default to blue
-  if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.color[4] end
-
-  for i = self.endNum or 2, num do
-    local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX)
-    local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
-
-    local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
-    local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
-
-    if startX ~= stopX then -- If they match, this can break
-      -- NOTE: is it if they match and if the y points are the same? Then it would be drawing a point that doesn't take any space
-      local w = 32
-      local dx, dy = stopX - startX, stopY - startY
-      local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
-
-      if (dx < 0) then -- Normalize direction if necessary
-        dx, dy = -dx, -dy
-      end
-
-      local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
-
-      local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
-      local sc = s * c
-
-      local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
-      if dy >= 0 then
-        Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
-        Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
-        BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
-        BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
-        TRy = BRx
-      else
-        Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
-        Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
-        BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
-        BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
-        TRx = TLy
-      end
-
-      if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
-      if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
-      if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
-      if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
-      if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
-      if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
-      if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
-      if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
-
-      local line = lines[i]
-      if not line then
-        line = frame:CreateTexture("CT_Graph_Line" .. i, "ARTWORK")
-        line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
-        line:SetVertexColor(c1, c2, c3, c4)
-
-        self.lastLine = line -- Easy access to most recent
-        lines[i] = line
-      end
-
-      line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
-      line:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
-      line:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
-    end
-
-    if bars then
-      if self.fill and (stopX - startX) > 1 then -- Draw bars if fill is true
-        if startX > stopX then -- Want startX <= stopX, if not then flip them
-          startX, stopX = stopX, startX
-          startY, stopY = stopY, startY
-        end
-
-        local bar, tri = bars[i], triangles[i]
-        if not bar then
-          bar = frame:CreateTexture(nil, "ARTWORK")
-          tri = frame:CreateTexture(nil, "ARTWORK")
-
-          bar:SetTexture(1, 1, 1, 1)
-          tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
-
-          bar:SetVertexColor(c1, c2, c3, 0.3)
-          tri:SetVertexColor(c1, c2, c3, 0.3)
-
-          bars[i] = bar
-          triangles[i] = tri
-        end
-
-        local minY, maxY
-        if startY < stopY then
-          tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
-          minY = startY
-          maxY = stopY
-        else
-          tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
-          minY = stopY
-          maxY = startY
-        end
-
-        if 1 > minY then minY = 1 end -- Has to be at least 1 wide
-
-        bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
-
-        local width = stopX - startX
-        if width < 1 then width = 1 end
-        bar:SetSize(width, minY)
-        bar:Show()
-
-        if (maxY - minY) >= 1 then
-          tri:SetPoint("BOTTOMLEFT", anchor, startX, minY)
-          tri:SetSize(width, maxY - minY)
-          tri:Show()
-        else
-          tri:Hide()
-        end
-
-        -- if self.status ~= "shown" then -- Make sure they are all visible
-        --   for i = 1, #bars do
-        --     if bars[i] and triangles[i] then
-        --       bars[i]:Show()
-        --       triangles[i]:Show()
-        --     end
-        --   end
-        -- end
-
-        self.status = "shown"
-      elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
-        print("Hiding graph filling")
-
-        for i = 1, #bars do
-          if bars[i] and triangles[i] then
-            bars[i]:Hide()
-            triangles[i]:Hide()
-          end
-        end
-
-        self.status = "hidden"
-      elseif bars[i] and triangles[i] then
-        bars[i]:Hide()
-        triangles[i]:Hide()
-
-        if bars[i - 1] then
-          bars[i - 1]:SetWidth(5)
-        end
-      end
-    end
-
-    if i == num then
-      -- debug("Done running refresh:", GetTime() - start)
-      self.refresh = CT.refreshNormalGraph
-      self.endNum = i
-      self.updating = false
-
-      if self.frame.zoomed then
-        self.frame.slider:SetMinMaxValues(self.lines[4]:GetLeft() - self.frame:GetLeft(), self.lastLine:GetRight() - self.frame:GetRight())
-        self.frame.slider:SetValue(0)
-      end
-    elseif routine and (i % 250) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
-      after(0.03, self.refresh)
-      self.updating = true
-      yield()
-    end
-  end
-end
-
-function CT:refreshNormalGraph_BACKUP(reset)
-  if not self.frame then debug("Tried to refresh graph without a frame set!") return end
-
-  local graphWidth, graphHeight = self.frame:GetSize()
-
-  local maxX = self.XMax
-  local minX = self.XMin
-  local maxY = self.YMax
-  local minY = self.YMin
-  local num = #self.data
-  local set = CT.displayed
-  local callback
-
-  if reset then
-    self.endNum = 2
-
-    if num > set.graphs.splitAmount then
-      local extraNum = num
-      local count = 1
-
-      -- If there are more than 500 CT.current points, it starts to stagger out the refresh
-      -- So if there are 1200, it'll do 500 then after a small delay, another 500
-      -- then again after a delay, do the remaining 200
-      -- With this, having 10,000 lines drawn (3 1 hour lines) there was no lag when they updated
-      while extraNum > set.graphs.splitAmount do
-        count = count + 1
-        extraNum = extraNum - set.graphs.splitAmount
-      end
-
-      self.splitsLeft = count
-      self.splitAmount = num / count
-    end
-  end
-
-  if (self.splitsLeft or 0) > 0 then
-    num = min(self.splitAmount + self.endNum, #self.data)
-    callback = true
-    self.splitsLeft = self.splitsLeft - 1
-  end
+  if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.overrideAlpha or self.color[4] end
 
   for i = (self.endNum or 2), num do
-    local startX = graphWidth * (self.data[i - 1] - minX) / (maxX - minX)
-    local startY = graphHeight * (self.data[-(i - 1)] - minY) / (maxY - minY)
-
-    local stopX = graphWidth * (self.data[i] - minX) / (maxX - minX)
-    local stopY = graphHeight * (self.data[-i] - minY) / (maxY - minY)
-
-    if startX ~= stopX then -- If they match, this can break
-      local w = 32 -- self.lineHeight
-      local dx, dy = stopX - startX, stopY - startY
-      local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
-
-      -- Normalize direction if necessary
-      if (dx < 0) then
-        dx, dy = -dx, -dy
+    local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+    local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+    
+    if not zoomed then -- Update maxX and maxY values if necessary, just not while zoomed
+      if stopX > graphWidth then -- Graph is too long
+        blocked = true
+        
+        if (stopX / graphWidth) > blockedX then
+          blockedX = stopX
+        end
       end
-
-      -- Calculate actual length of line
-      local l = sqrt((dx * dx) + (dy * dy))
-
-      -- Sin and Cosine of rotation, and combination (for later)
-      local s, c = -dy / l, dx / l
-      local sc = s * c
-
-      -- Calculate bounding box size and texture coordinates
-      local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy
-      if (dy >= 0) then
-        Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
-        Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
-        BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
-        BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
-        TRy = BRx
-      else
-        Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
-        Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
-        BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
-        BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
-        TRx = TLy
+  
+      if stopY > graphHeight then -- Graph is too tall
+        blocked = true
+        
+        if (stopY / graphHeight) > blockedY then
+          blockedY = stopY
+        end
       end
+    end
 
-      if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
-      if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
-      if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
-      if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
-      if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
-      if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
-      if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
-      if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
+    if not blocked then -- If out of bounds, finish looping to find the most out of bounds point, but don't waste time calculating everything
+      local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- startX and startY aren't needed of out of bounds check
+      local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+      
+      local lastLine
+      local w = 32
+      local dx, dy = stopX - startX, stopY - startY -- This is about the change
+      local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
 
-      local line = self.lines[i]
-      if not line then
-        self.lines[i] = self.frame.anchor:CreateTexture("_Line_" .. i, "ARTWORK")
-        line = self.lines[i]
-        line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
-        self.lastLine = line
+      if startX ~= stopX then -- If they match, this can break
+        -- NOTE: is it if they match and if the y points are the same? Then it would be drawing a point that doesn't take any space
+        local line = lines[i]
 
-        if self.color then
-          line:SetVertexColor(self.color[1], self.color[2], self.color[3], self.color[4])
+        if self.prevDY and dy == self.prevDY then
+          local lastIndex
+
+          if lines[i - 1] then
+            lastLine = lines[i - 1]
+            lastIndex = i - 1
+          elseif lines[i - 2] then
+            lastLine = lines[i - 2]
+            lastIndex = i - 2
+          else
+            for index = (i - 2), 1, -1 do
+              if lines[index] then
+                lastIndex = index
+                lastLine = lines[index]
+                break
+              end
+            end
+          end
+
+          startX = graphWidth * (data[(lastIndex or 2) - 1] - minX) / (maxX - minX)
+          line = lastLine or lines[2] -- NOTE: or line
+          dx, dy = stopX - startX, stopY - startY
+          cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
+        end
+
+        if (dx < 0) then -- Normalize direction if necessary
+          dx, dy = -dx, -dy
+        end
+
+        local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
+
+        local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
+        local sc = s * c
+
+        local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
+        if dy >= 0 then
+          Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
+          Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
+          BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
+          BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
+          TRy = BRx
         else
-          line:SetVertexColor(1.0, 1.0, 1.0, 1.0)
+          Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
+          Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
+          BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
+          BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
+          TRx = TLy
+        end
+
+        if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
+        if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
+        if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
+        if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
+        if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
+        if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
+        if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
+        if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
+
+        if not line then
+          line = frame:CreateTexture("CT_Graph_Line" .. i, self.drawLayer or "ARTWORK")
+          line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
+          line:SetVertexColor(c1, c2, c3, c4)
+
+          lastLine = line
+          self.lastLine = line -- Easy access to most recent
+          self.totalLines = (self.totalLines or 0) + 1
+
+          lines[i] = line
+        end
+
+        line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
+        line:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
+        line:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
+      end
+
+      if bars then
+        if self.fill then -- and (stopX - startX) > 1 -- Draw bars if fill is true
+          if startX > stopX then -- Want startX <= stopX, if not then flip them
+            startX, stopX = stopX, startX
+            startY, stopY = stopY, startY
+          end
+
+          local minY, maxY
+          if startY < stopY then
+            minY = startY
+            maxY = stopY
+          else
+            minY = stopY
+            maxY = startY
+          end
+
+          local width = stopX - startX
+
+          if width < 1 then width = 1 end
+          if 1 > minY then minY = 1 end -- Has to be at least 1 wide
+
+          do -- Handle the bar
+            local bar = bars[i]
+
+            if not bar and (not self.prevDY or dy ~= self.prevDY) then
+              bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, self.drawLayer or "ARTWORK")
+              bar:SetTexture(1, 1, 1, 1)
+              bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
+              bar:SetBlendMode("ADD")
+
+              bars.lastBar = bar
+
+              self.totalBars = (self.totalBars or 0) + 1
+
+              bars[i] = bar
+            end
+
+            if bar then
+              bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
+              bar:SetSize(width, minY)
+            end
+
+            if self.prevDY and dy == self.prevDY then
+              if bars[i - 1] then
+                bars[i - 1]:SetPoint("RIGHT", lastLine, 0, 0)
+              else
+                for index = (i - 2), 1, -1 do
+                  if bars[index] then
+                    bars[index]:SetPoint("RIGHT", lastLine, 0, 0)
+                    break
+                  end
+                end
+              end
+            elseif bar then
+              if bars[i - 1] then
+                bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+              else
+                for index = (i - 2), 1, -1 do
+                  if bars[index] then
+                    bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+                    break
+                  end
+                end
+              end
+            else
+              debug(i, "No bar, but does need to anchor!")
+            end
+          end
+
+          do -- Handle triangle stuff
+            local tri = triangles[i]
+            if not tri and (maxY - minY) >= 1 then
+              tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, self.drawLayer or "ARTWORK")
+              tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
+              tri:SetVertexColor(c1, c2, c3, triangles.alpha or bars.alpha or 0.3)
+              tri:SetBlendMode("ADD")
+
+              if startY < stopY then
+                tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
+              else
+                tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
+              end
+
+              self.totalTriangles = (self.totalTriangles or 0) + 1
+
+              triangles[i] = tri
+            end
+
+            if tri and (maxY - minY) >= 1 then
+              tri:SetPoint("BOTTOMLEFT", anchor, startX, minY)
+              tri:SetSize(width, maxY - minY)
+              tri:Show()
+              -- print("Showing", i)
+            elseif tri then
+              -- print("Hiding", i)
+              tri:Hide()
+            else
+              -- print("Didn't create one", i)
+            end
+          end
+
+          if self.status and self.status ~= "shown" then
+            debug("Showing graph filling.")
+            for i = 1, num do
+              if bars[i] then
+                bars[i]:Show()
+              end
+
+              if triangles[i] then
+                triangles[i]:Show()
+              end
+            end
+
+            self.status = "shown"
+          end
+        elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
+          print("Hiding graph filling")
+
+          for i = 1, num do
+            if bars[i] then
+              bars[i]:Hide()
+            end
+
+            if triangles[i] then
+              triangles[i]:Hide()
+            end
+          end
+
+          self.status = "hidden"
         end
       end
 
-      line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
-      line:SetPoint("TOPRIGHT", self.frame.anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
-      line:SetPoint("BOTTOMLEFT", self.frame.anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
+      self.prevDY = dy
+
+      if i == num then -- Done running the graph update
+        -- debug("Done running refresh:", debugprofilestop() - start)
+        if routine then
+          self.refresh = CT.refreshNormalGraph
+          self.updating = false
+        end
+        
+        self.endNum = i + 1
+        self.lastLine = lastLine or self.lastLine
+
+        -- debug("TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
+
+        if self.frame.zoomed then
+          local firstLine, lastLine = nil, nil
+
+          for i = 1, num do
+            if self.lines[i] then
+              firstLine = self.lines[i]
+              break
+            end
+          end
+
+          for i = num, 1, -1 do
+            if self.lines[i] then
+              lastLine = self.lines[i]
+              break
+            end
+          end
+
+          local minimum = firstLine:GetLeft() - self.frame:GetLeft()
+          local maximum = lastLine:GetRight() - self.frame:GetRight()
+
+          if 0 < minimum then minimum = 0 end
+          if 0 > maximum then maximum = 0 end
+          
+          self.frame.slider:SetMinMaxValues(minimum, maximum)
+          self.frame.slider:SetValue(0)
+        end
+      elseif routine and (i % 1000) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
+        local delay = random(-3, 3) / 100 + 0.05 -- The random number is to reduce the chances of multiple graphs refreshing at the exact same time
+        after(delay, self.refresh)
+        self.updating = true
+        yield()
+      end
+    elseif blocked and i == num then -- It's done
+      if routine then
+        self.refresh = CT.refreshNormalGraph
+        self.updating = false
+      end
+      
+      local dbGraph = self.__index
+      
+      if blockedX > 0 then
+        dbGraph.XMax = maxX * (blockedX / graphWidth) * 1.333 -- 75%
+      end
+      
+      if blockedY > 0 then
+        dbGraph.YMax = maxY * (blockedY / graphHeight) * 1.12 -- 90%
+      end
+      
+      return self:refresh(true) -- Run agian with the new X/Y value
     end
-
-    self.endNum = i
-  end
-
-  if callback then
-    -- When multiple graphs are shown, I can reduce the chance of them updating
-    -- at exactly the same time with this random number
-    C_Timer.After((random(-3, 3) / 100) + 0.04, function()
-      self:refresh()
-    end)
-  elseif self.frame.zoomed then
-    self.frame.slider:SetMinMaxValues(self.lines[4]:GetLeft() - self.frame:GetLeft(), self.lastLine:GetRight() - self.frame:GetRight())
-    self.frame.slider:SetValue(0)
   end
 end
 
@@ -2378,7 +2330,7 @@ function CT.loadDefaultGraphs()
     end
 
     -- name = "Mana" -- NOTE: Testing only
-    -- name = "Holy Power" -- NOTE: Testing only
+    name = "Holy Power" -- NOTE: Testing only
 
     if name and set.graphs[name] then
       return set.graphs[name]:toggle("show")
@@ -2692,6 +2644,7 @@ function CT:buildGraph()
       local lastLine, foundX = nil, nil
 
       local a = max((g.color[4] or 1) - 0.3, 0.5) -- Reduce alpha by 0.3, but don't let it go below 0.5
+      g.overrideAlpha = a
 
       for i = 1, #data do
         if lines[i] then
@@ -2747,7 +2700,8 @@ function CT:buildGraph()
     end
 
     do -- Now that a graph is selected, return it to its full opacity, leaving the others faded
-      local a = graph.color[4]
+      graph.overrideAlpha = nil
+      local a = graph.color[4] or 1
       local lines = graph.lines
 
       for i = 1, #graph.data do
@@ -2770,11 +2724,37 @@ function CT:buildGraph()
       mouseOver.tooltipTitle = YELLOW .. formatTimer(displayTimer) .. "|r\n"
     end
 
-    do -- Set the tooltip text
-      graph.displayText[5] = floor(graph.data[-num])
-      local text = table.concat(graph.displayText)
-
-      mouseOver.info = text
+    if graph.displayText then -- Set the tooltip text
+      local value = graph.data[-num]
+      
+      if graph.displayText.math then
+        local operator, number = strmatch(graph.displayText.math, "(.+)%s(%d+)")
+        number = tonumber(number)
+        
+        if operator == "+" then
+          value = value + number
+        elseif operator == "-" then
+          value = value - number
+        elseif operator == "/" then
+          value = value / number
+        elseif operator == "*" then
+          value = value * number
+        elseif operator == "^" then
+          value = value ^ number
+        elseif operator == "%" then
+          value = value % number
+        elseif operator == "_" then -- Use underscore to mean it should be negative
+          value = -value
+        end
+      end
+      
+      if graph.displayText.round then
+        
+      end
+      
+      graph.displayText[4] = floor(value)
+      
+      mouseOver.info = table.concat(graph.displayText)
     end
 
     self.lastMouseX = mouseX
@@ -2798,7 +2778,8 @@ function CT:buildGraph()
     for index = 1, #graphFrame.displayed do -- Set them all back to their default alpha
       local graph = graphFrame.displayed[index]
       local lines = graph.lines
-      local a = graph.color[4]
+      graph.overrideAlpha = nil
+      local a = graph.color[4] or 1
 
       if lines[2] and lines[2]:GetAlpha() ~= a then -- Only bother with this if they don't match
         for i = 1, #graph.data do
@@ -2851,13 +2832,20 @@ function CT:buildGraph()
 
             graphFrame.zoomed = (CT.displayedDB.stop or GetTime()) - CT.displayedDB.start
             graphFrame.dragOverlay:Hide()
-            graphFrame.slider:Show()
+            -- graphFrame.slider:Show()
 
             for i, graph in ipairs(graphFrame.displayed) do
               local dbGraph = graph.__index
+              
+              graph.preZoomMinX = dbGraph.XMin
+              graph.preZoomMaxX = dbGraph.XMax
+              
+              graph.preZoomMinY = dbGraph.YMin
+              graph.preZoomMaxY = dbGraph.YMax
 
               dbGraph.XMin = (graphFrame.mouseOverLeft / graphWidth) * dbGraph.XMax
               dbGraph.XMax = ((mouseOverRight - graphLeft) / graphWidth) * dbGraph.XMax
+              
               if not graph.updating then
                 graph:refresh(true)
               else
@@ -2874,21 +2862,31 @@ function CT:buildGraph()
 
           graphFrame.zoomed = false
           graphFrame.dragOverlay:Hide()
-          graphFrame.slider:Hide()
+          -- graphFrame.slider:Hide()
           mouseOver.dot:Hide()
           slider:SetValue(0)
 
           for i, graph in ipairs(graphFrame.displayed) do
-            local dbGraph = CT.displayedDB.graphs[graph.name]
+            
+            if graph.preZoomMinX then
+              local dbGraph = graph.__index
+              
+              dbGraph.XMin = graph.preZoomMinX
+              dbGraph.XMax = graph.preZoomMaxX
+              
+              dbGraph.YMin = graph.preZoomMinY
+              dbGraph.YMax = graph.preZoomMaxY
+              
+              graph.preZoomMinX = nil
+              graph.preZoomMaxX = nil
+              
+              graph.preZoomMinY = nil
+              graph.preZoomMaxY = nil
+              
+              graph:refresh(true)
+            end
 
-            dbGraph.XMin = 0
-
-            -- if timer > graph.XMax then
-            --   -- graph.XMax = graph.XMax + max(timer - graph.XMax, graph.startX)
-            --   dbGraph.XMax = graph.XMax + (timer - graph.XMax)
-            -- end
-            --
-            -- graph:refresh(true)
+            -- dbGraph.XMin = 0
           end
         else -- Graph is not zoomed in
           if not self.popup then
