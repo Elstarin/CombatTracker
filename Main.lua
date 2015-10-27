@@ -223,6 +223,7 @@ CT.__index = CT
 CT.settings = {}
 CT.settings.buttonSpacing = 2
 CT.settings.spellCooldownThrottle = 0.0085
+CT.settings.graphSmoothing = 2
 CT.combatevents = {}
 CT.player = {}
 CT.altPower = {}
@@ -252,9 +253,9 @@ do -- Debugging stuff
 
   if GetUnitName("player") == "Elstari" and GetRealmName() == "Drak'thul" then
     debugMode = true
-    testMode = true
-    trackingOnLogIn = true
-    loadBaseOnLogin = true
+    -- testMode = true
+    -- trackingOnLogIn = true
+    -- loadBaseOnLogin = true
     matched = true
   end
 
@@ -403,7 +404,7 @@ local success = true
 CT.update = {}
 CT.settings.updateDelay = 0.1
 CT.settings.auraUpdateDelay = 0.05
-CT.settings.graphUpdateDelay = 0.2
+CT.settings.graphUpdateDelay = 0.1
 CT.settings.uptimeGraphUpdateDelay = 0.05
 
 CT.mainUpdate = CreateFrame("Frame")

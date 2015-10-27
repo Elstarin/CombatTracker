@@ -275,6 +275,7 @@ local function basicGraphData(set, db, role)
     dbGraph.YMin = dbGraph.YMin or -5
     dbGraph.YMax = dbGraph.YMax or 105
     dbGraph.shown = dbGraph.shown or false
+    dbGraph.count = dbGraph.count or 0
 
     setGraph.lines = {}
     setGraph.name = name
