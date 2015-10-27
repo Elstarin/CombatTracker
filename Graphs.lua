@@ -1531,43 +1531,54 @@ do -- Coroutine test
   
             local width = stopX - startX
   
-            if width < 1 then width = 1 end
+            -- if width < 1 then width = 1 end
             if 1 > minY then minY = 1 end -- Has to be at least 1 wide
   
             do -- Handle the bar
               local bar = bars[i]
               
               if (i > 2) and bars.lastBar then -- Without this, it can fall into an infinite loop
-                local passed = nil
-                
-                do -- Check if any smoothing should be applied
-                  local diffDX = dx - (self.lastDX or 0)
-                  if 0 > diffDX then diffDX = -diffDX end
-                  
-                  local diffDY = dy - (self.lastDY or 0)
-                  if 0 > diffDY then diffDY = -diffDY end
-
-                  if (diffDX == 0) or (diffDY == 0) then
-                    passed = true
-                  end
-                end
-                  
-                if passed then
+                if (minY == (bars.lastHeight or 0)) or (1 > width) then -- Same height, stretch it
                   if bar then -- If a bar exists, recycle it to be used later, instead of throwing it away and creating a new one
                     if not self.barRecycling then self.barRecycling = {} end
-                    
+                  
                     self.barRecycling[#self.barRecycling + 1] = bar
                     bar:ClearAllPoints()
                     bar:Hide()
                     bars[i] = nil
                   end
-                  
+              
                   local index = i - 1
                   while not bars[index] do -- Find the most recent bar
                     index = index - 1
                   end
                   
                   bar = bars[index] -- Now this is used, instead of creating a brand new one
+                  
+                  local index = index - 1
+                  local prevBar = bars[index]
+                  while not prevBar do -- Find the most recent bar
+                    index = index - 1
+                    prevBar = bars[index]
+                    
+                    if 2 > index then break end
+                  end
+                  
+                  if prevBar then
+                    prevBar:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+                  end
+                  bar:SetPoint("RIGHT", line, 0, 0)
+                  
+                  -- if bar then
+                  -- else
+                  --   bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+                  -- end
+              
+                  -- bar:SetSize(width, minY)
+                  -- bar:SetPoint("RIGHT", line, 0, 0)
+                  -- bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+                  
+                  if not line then debug("NO LINE") end
                 end
               end
   
@@ -1585,21 +1596,16 @@ do -- Coroutine test
                 end
   
                 bars.lastBar = bar
-  
+                
                 bars[i] = bar
               end
   
               if bar then
                 bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
                 bar:SetSize(width, minY)
-                
-                -- local index = i
-                -- while not lines[index] do -- Find the most recent bar
-                --   index = index - 1
-                -- end
-                
-                bar:SetPoint("RIGHT", line, 0, 0)
               end
+              
+              bars.lastHeight = minY
   
               -- if self.prevDY and dy == self.prevDY then
               --   if bars[i - 1] then
@@ -2396,7 +2402,7 @@ do -- Coroutine test
   -- graph2.data[1] = 0
   -- graph2.data[-1] = y + 20
   
-  generateData(1000, "add")
+  -- generateData(1000, "add")
   
   local start = GetTime() - (#graph.data * speed)
 
