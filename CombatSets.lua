@@ -687,6 +687,67 @@ function CT.loadSavedSet(db)
     CT.loadDefaultUptimeGraph()
     CT.finalizeGraphLength("uptime")
   end
+  
+  -- debug("Loading saved set")
+  
+  -- if CT.displayed.graphs then
+  --   for name, graph in pairs(CT.displayed.graphs) do
+  --     if type(graph) == "table" then
+  --       debug(#graph.data, name)
+  --
+  --       local data = graph.data
+  --       local maxX = graph.XMax
+  --       local minX = graph.XMin
+  --       local maxY = graph.YMax
+  --       local minY = graph.YMin
+  --
+  --       local newData = {}
+  --
+  --       local lastDX, lastDY, lastSine = 0, 0, 0
+  --
+  --       for i = 1, #data do
+  --         local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+  --         local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+  --
+  --         local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX)
+  --         local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+  --
+  --         local dx, dy = stopX - startX, stopY - startY
+  --         local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
+  --
+  --         if (dx < 0) then -- Normalize direction if necessary
+  --           dx, dy = -dx, -dy
+  --         end
+  --
+  --         local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
+  --
+  --         local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
+  --         local sc = s * c
+  --
+  --         local diffDX = dx - (lastDX or 0)
+  --         if 0 > diffDX then diffDX = -diffDX end
+  --
+  --         local diffDY = dy - (lastDY or 0)
+  --         if 0 > diffDY then diffDY = -diffDY end
+  --
+  --         local diffS = s - (lastSine or 0)
+  --         if 0 > diffS then diffS = -diffS end
+  --
+  --         if (0 >= diffDX) or (0 >= diffDY) or (diffS > 0.999) or (0.001 > diffS) then
+  --           newData[#newData + 1] = data[-i]
+  --         end
+  --
+  --         lastDX = dx
+  --         lastDY = dy
+  --         lastSine = s
+  --       end
+  --
+  --       debug("DONE:", #data, #newData)
+  --
+  --       break
+  --     end
+  --   end
+  -- end
 
   return set, db
 end

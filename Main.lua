@@ -34,9 +34,7 @@
 --------------------------------------------------------------------------------
 local profile = false
 
-if not profile then
-  CombatTracker = LibStub("AceAddon-3.0"):NewAddon("CombatTracker", "AceConsole-3.0")
-else -- profile code in here
+if profile then -- profile code in here
   local infinity = math.huge
   local function round(num, decimals)
     if (num == infinity) or (num == -infinity) then num = 0 end
@@ -79,30 +77,101 @@ else -- profile code in here
 
     -- local texture = f:CreateTexture(nil, "ARTWORK")
 
-    -- local loop = 100 -- 100
-    -- local loop = 1000 -- 1 thousand
+    -- local loop = 10
+    -- local loop = 50
+    -- local loop = 100
+    -- local loop = 1000
     -- local loop = 10000 -- 10 thousand
     -- local loop = 100000 -- 100 thousand
     -- local loop = 500000 -- 500 thousand
     -- local loop = 1000000 -- 1 million
-    local loop = 10000000 -- 10 million
+    -- local loop = 10000000 -- 10 million
     -- local loop = 100000000 -- 100 million
 
     local t = {}
 
-    collectgarbage("collect")
-    local val
-
     local loop = loop or 1
-    local start = debugprofilestop()
-    local max = max
-    local min = min
-    local ceil = ceil
-    local floor = floor
 
-    for i = 1, loop do
-      local num = floor(0.3253242)
+    local temp = {}
+    local start, stop
+    local function douglasPeucker(t, first, last, tolerance, callback)
+      if not callback then -- Will pass the first time it is called, not when it calls itself
+        wipe(temp)
+        
+        start, stop = first, last -- When it matches these values again, it *should* be done running
+      
+        if not last then last = #t end
+        if not first then first = 1 end
+      end
+      
+      local maxD = 0
+      local farthestIndex = 0
+    
+      for i = first, last do
+        local x1, y1 = t[i], t[-i]
+        local x2, y2 = t[first], t[-first]
+        local x3, y3 = t[last], t[-last]
+        
+        local area = abs(0.5 * (x2 * y3 + x3 * y1 + x1 * y2 - x3 * y2 - x1 * y3 - x2 * y1)) -- Get area of triangle
+        local bottom = sqrt((x2 - x3) ^ 2 + (y2 - y3) ^ 2) -- Calculates the length of the bottom edge
+        local distance = area / bottom -- This is the triangle's high, which is also the distance found
+    
+        if distance > maxD then
+          maxD = distance
+          farthestIndex = i
+        end
+      end
+    
+      if maxD > tolerance and farthestIndex ~= 1 then
+        local num = #temp + 1
+        temp[num] = t[farthestIndex] -- Store the X point
+        temp[-num] = t[-farthestIndex] -- Store the Y point
+    
+        douglasPeucker(t, first, farthestIndex, tolerance, true)
+        douglasPeucker(t, farthestIndex, last, tolerance, true)
+      end
+      
+      if first == start and last == stop then -- Should mean it's done running
+        for i = 1, #t do
+          if temp[i] then
+            t[i] = temp[i]
+            t[-i] = temp[-i]
+          else -- I'm guessing this is more efficient than first calling wipe(t) first, since I'm already iterating through it
+            t[i] = nil
+            t[-i] = nil
+          end
+        end
+      end
     end
+    
+    -- local list = {}
+    -- for index = 1, 5 do
+    --   local t = {}
+    --
+    --   for i = 1, 10000 do
+    --     t[i] = i * 0.1
+    --     t[-i] = random(1, 10000) / 100
+    --   end
+    --
+    --   list[index] = t
+    -- end
+    
+    for i = 1, 50000 do
+      t[i] = i * 0.1
+      t[-i] = random(1, 10000) / 100
+    end
+
+    collectgarbage("collect")
+    local start = debugprofilestop()
+    
+    douglasPeucker(t, 1, #t, 3)
+    
+    -- for i = 1, #list do
+    --   local before = #list[i]
+    --   douglasPeucker(list[i], 1, #list[i], 0.5)
+    --
+    --   print(before, #list[i])
+    -- end
 
     -- All of these were at 10m
     -- for i = 1, 100 do: 32.2k
@@ -213,6 +282,8 @@ else -- profile code in here
   end
 
   return
+else
+  CombatTracker = LibStub("AceAddon-3.0"):NewAddon("CombatTracker", "AceConsole-3.0")
 end
 
 local CT = CombatTracker
@@ -244,11 +315,11 @@ local testMode = false
 local trackingOnLogIn = false
 local loadBaseOnLogin = false
 
+local debugMode = false
 do -- Debugging stuff
   local matched
   local start = debugprofilestop() / 1000
   local printFormat = "|cFF9E5A01(|r|cFF00CCFF%.3f|r|cFF9E5A01)|r |cFF00FF00CT|r: %s"
-  local debugMode = false
   local t = {}
 
   if GetUnitName("player") == "Elstari" and GetRealmName() == "Drak'thul" then
