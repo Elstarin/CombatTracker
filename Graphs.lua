@@ -1277,55 +1277,6 @@ function CT:toggleNormalGraph(command, frame)
   end
 end
 
--- calculating the distance from point1 to the line goes through point2 and point3
--- cross product of two vectors: v1 = (point1, point2) and v2 = (point1, point3)
--- ==> v1(x, y) = (point2.x - point1.x, point2.y - point1. y); v2(x, y) = (point3.x - point1.x, point3.y - point1. y)
--- v1 x v2 = v1.x.v2.y - v1.y.v2.x
-local function dPointLine(t, i, first, last)
-  local x1, y1 = t[i], t[-i]
-  local x2, y2 = t[first], t[-first]
-  local x3, y3 = t[last], t[-last]
-  
-  local area = abs(0.5 * (x2 * y3 + x3 * y1 + x1 * y2 - x3 * y2 - x1 * y3 - x2 * y1)) -- Get area of triangle
-  local bottom = sqrt((x2 - x3) ^ 2 + (y2 - y3) ^ 2) -- Calculates the length of the bottom edge
-  
-  -- calculates area of the triangle
-  -- local area = math.abs(0.5 * (point2.x * point3.y + point3.x *
-  -- point1.y + point1.x * point2.y - point3.x * point2.y - point1.x *
-  -- point3.y - point2.x * point1.y))
-  -- calculates the length of the bottom edge
-  -- local bottom = math.sqrt((point2.x - point3.x) ^ 2 + (point2.y - point3.y) ^ 2)
-  -- the triangle's height is also the distance found
-  local height = area / bottom
-
-  return height
-end
-
--- points are the set of points to be reduced
--- tolerance is value indicates degree of correctness for approximation
--- the other parameters are for recursion
-local function douglaspeuckerORIGINAL(points, firstpoint, lastpoint, tolerance, pointIndices)
-	local maxD = 0
-	local indexFurthest = 0
-
-	for i = firstpoint, lastpoint do
-		local distance = dPointLine(points, i, firstpoint, lastpoint)
-		-- local distance = dPointLine(points[i], points[firstpoint], points[lastpoint])
-
-		if distance > maxD then
-			maxD = distance
-			indexFurthest = i
-		end
-	end
-
-	if maxD > tolerance and indexFurthest ~= 1 then
-		table.insert(pointIndices, indexFurthest)
-
-		douglaspeuckerORIGINAL(points, firstpoint, indexFurthest, tolerance, pointIndices)
-		douglaspeuckerORIGINAL(points, indexFurthest, lastpoint, tolerance, pointIndices)
-	end
-end
-
 local badPoints = {}
 local newData = {}
 local startPoint, stopPoint
@@ -1346,10 +1297,19 @@ local function smoothingAlgorithm(data, first, last, tolerance, callback)
     local x1, y1 = data[i], data[-i]
     local x2, y2 = data[first], data[-first]
     local x3, y3 = data[last], data[-last]
+    local x4, y4 = data[i - 1], data[-(i - 1)] -- Previous
+    local x5, y5 = data[i + 1], data[-(i + 1)] -- Next
     
-    local area = abs(0.5 * (x2 * y3 + x3 * y1 + x1 * y2 - x3 * y2 - x1 * y3 - x2 * y1)) -- Get area of triangle
+    local area = abs(0.5 * ((x2 * y3) + (x3 * y1) + (x1 * y2) - (x3 * y2) - (x1 * y3) - (x2 * y1))) -- Get area of triangle
     local bottom = sqrt((x2 - x3) ^ 2 + (y2 - y3) ^ 2) -- Calculates the length of the bottom edge
     local distance = area / bottom -- This is the triangle's height, which is also the distance found
+    
+    if (y1 == y4) and (y1 == y5) then
+      badPoints[i] = "" -- Flagged for removal
+    elseif badPoints[i] == "" then
+      badPoints[i] = nil
+      print(i, "Unflagging point")
+    end
     
     if distance > maxD then
       maxD = distance
@@ -1368,12 +1328,29 @@ local function smoothingAlgorithm(data, first, last, tolerance, callback)
     wipe(newData)
     
     for i = startPoint, stopPoint do
-      if not badPoints[i] then -- The point was not flagged to be removed
+      -- local area
+      -- local prev = i - 1
+      -- local next = i + 1
+      --
+      -- if data[prev] and data[next] then
+      --   local x1, y1 = data[i], data[-i]
+      --   local x2, y2 = data[prev], data[-prev]
+      --   local x3, y3 = data[next], data[-next]
+      --
+      --   area = abs(0.5 * ((x2 * y3) + (x3 * y1) + (x1 * y2) - (x3 * y2) - (x1 * y3) - (x2 * y1))) -- Get area of triangle
+      --   local bottom = sqrt((x2 - x3) ^ 2 + (y2 - y3) ^ 2) -- Calculates the length of the bottom edge
+      --   local distance = area / bottom -- This is the triangle's height, which is also the distance found
+      -- end
+      
+      -- and (area ~= 0)
+      if (not badPoints[i]) then -- The point was not flagged to be removed
         local num = #newData + 1
         newData[num] = data[i]
         newData[-num] = data[-i]
       end
     end
+    
+    debug("Removed", #data - #newData, "out of", #data, "Remaining:", #newData)
     
     for i = startPoint, stopPoint do
       if newData[i] then -- Reconstruct the data table
@@ -1387,21 +1364,33 @@ local function smoothingAlgorithm(data, first, last, tolerance, callback)
   end
 end
 
+-- local s = "sin(3) = $[math.sin(3)]; 2^5 = $[2^5]"
+--
+-- local function load(x)
+--   x = "return " .. string.sub(x, 2, -2)
+--   local f = loadstring(x)
+--   return f()
+-- end
+--
+-- s = s:gsub("$(%b[])", load)
+--
+-- debug(s)
+  -->  sin(3) = 0.1411200080598672; 2^5 = 32
+
 do -- Coroutine test
   local frame = CreateFrame("Frame", "TestGraphFrame", UIParent)
-  frame:SetPoint("CENTER")
-  frame:SetSize(1400, 600)
-  -- frame:SetSize(1200, 800)
-  frame.bg = frame:CreateTexture("Background", "BACKGROUND")
-  frame.bg:SetTexture(0.1, 0.1, 0.1, 1)
-  frame.bg:SetAllPoints()
+  do -- Set up frame
+    frame:SetPoint("CENTER", 0, 100)
+    frame:SetSize(1400, 600)
+    -- frame:SetSize(1200, 800)
+    frame.bg = frame:CreateTexture("Background", "BACKGROUND")
+    frame.bg:SetTexture(0.1, 0.1, 0.1, 1)
+    frame.bg:SetAllPoints()
+  end
 
-  local function refreshNormalGraph(self, reset, routine)
-    if not self.shown then return debug("Refresh got called when graph was not flagged as shown!", self.name) end
-    if not self.frame then return debug("Refresh got called when graph had no frame!", self.name) end -- Happened once, was related to loading a saved fight or returning from one
-    if self.updating then return debug("Refresh got called when graph was flagged as updating!", self.name) end
-
+  local function refreshNormalGraph(self, reset, routine, offSet)
     local num = #self.data
+    
     local graphWidth, graphHeight = self.frame:GetSize()
 
     local stopX = graphWidth * (self.data[num] - self.XMin) / (self.XMax - self.XMin)
@@ -1413,15 +1402,11 @@ do -- Coroutine test
 
     if reset then
       self.endNum = 2
-      local percent = floor(((self.totalLines or 0) / num) * 100)  .. "%"
-
-      if num >= (1000) then -- The comparison number is after how many points do we want to switch to a coroutine (default 2000)
+  
+      if num > (1000) then -- The comparison number is after how many points do we want to switch to a coroutine (default 2000)
         self.refresh = wrap(refreshNormalGraph)
-
-        debug(percent, num, self.totalLines, #self.recycling, "Refreshing (coroutine):", self.name)
-        return self:refresh(nil, true) -- Call it again, but now as a coroutine
-      else
-        debug(percent, num, self.totalLines, #self.recycling, "Refreshing:", self.name)
+  
+        return self:refresh(nil, true, offSet) -- Call it again, but now as a coroutine
       end
     end
 
@@ -1466,11 +1451,11 @@ do -- Coroutine test
     --
     --   return debug("Greater, returning")
     -- end
-    
+
     -- if not reset and self.totalLines and self.totalLines > (self.lastSmoothing or 0) and (self.totalLines % 30) == 0 then -- and (self.endNum % 30) == 0
     --   local difference = (num - self.endNum)
     --
-    --   local v1, v2, v3 = douglasPeucker(self, self.data, max(num - 50, 1), num, 0.1)
+    --   local v1, v2, v3 = smoothingAlgorithm(self, self.data, max(num - 50, 1), num, 0.1)
     --
     --   num = #self.data
     --   self.lastSmoothing = self.totalLines
@@ -1478,991 +1463,450 @@ do -- Coroutine test
     -- end
 
     for i = (self.endNum or 2), num do
-      -- if data[i] and data[i - 1] then
-        local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+      local stopY = graphHeight * ((data[-i] + offSet) - minY) / (maxY - minY)
 
-        if not zoomed then -- Update maxX and maxY values if necessary, just not while zoomed
-          if stopY > graphHeight then -- Graph is too tall
-            blocked = true
+      if not zoomed then -- Update maxX and maxY values if necessary, just not while zoomed
+        if stopY > graphHeight then -- Graph is too tall
+          blocked = true
 
-            if (stopY / graphHeight) > blockedY then
-              blockedY = stopY
-            end
+          if (stopY / graphHeight) > blockedY then
+            blockedY = stopY
           end
         end
+      end
 
-        if not blocked then -- If out of bounds, finish looping to find the most out of bounds point, but don't waste time calculating everything
-          local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- Start isn't needed for bounds check
-          local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+      if not blocked then -- If out of bounds, finish looping to find the most out of bounds point, but don't waste time calculating everything
+        local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- Start isn't needed for bounds check
+        local startY = graphHeight * ((data[-(i - 1)] + offSet) - minY) / (maxY - minY)
 
-          local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+        local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
 
-          local lastLine
-          local line = lines[i]
-          local w = 32
-          local dx, dy = stopX - startX, stopY - startY -- This is about the change
-          local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
+        local lastLine
+        local line = lines[i]
+        local w = 32
+        local dx, dy = stopX - startX, stopY - startY -- This is about the change
+        local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
 
-          if (dx < 0) then -- Normalize direction if necessary
-            dx, dy = -dx, -dy
-          end
+        if (dx < 0) then -- Normalize direction if necessary
+          dx, dy = -dx, -dy
+        end
 
-          local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
+        local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
 
-          if (startX == stopX) and (startY == stopY) then
-            debug("Tried to draw point that takes no space!")
-          end
+        if (startX == stopX) and (startY == stopY) then
+          debug("Tried to draw point that takes no space!")
+        end
 
-          if startX ~= stopX then -- If they match, this can break
-            local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
-            local sc = s * c
+        if startX ~= stopX then -- If they match, this can break
+          local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
+          local sc = s * c
 
-            if (i > 2) and self.lastLine then -- Without this, it can fall into an infinite loop
-              local passed = nil
-            
-              do -- Check if any smoothing should be applied
-                local diffDX = dx - (self.lastDX or 0)
-                if 0 > diffDX then diffDX = -diffDX end
-            
-                local diffDY = dy - (self.lastDY or 0)
-                if 0 > diffDY then diffDY = -diffDY end
-            
-                local diffS = s - (self.lastSine or 0)
-                if 0 > diffS then diffS = -diffS end
-            
-                local level = self.smoothingOverride or CT.settings.graphSmoothing -- How much smoothing should happen, 0 to mostly disable
-            
-                if not level or level == 0 then -- Smoothing disabled, only do horizontal and vertical lines. This usually uses about 70% - 80% of the points, but can vary a ton
-                  if (diffDX == 0) or (diffDY == 0) then
-                    passed = true
-                  end
-                elseif level == 1 then -- Very little smoothing, this will probably gradually increase the number of textures, roughly uses around 50% of the points
-                  if (0 >= diffDX) or (0 >= diffDY) or (diffS > 0.999) or (0.001 > diffS) then
-                    passed = true
-                  end
-                elseif level == 2 then -- Medium, should be default, this tries to maintain a somewhat steady amount of textures, roughly around 400 - 600
-                  if (0.001 > diffDX) or (0.001 > diffDY) or (diffS > 0.99) or (0.01 > diffS) then
-                    passed = true
-                  end
-                elseif level == 3 then -- Lots of smoothing, roughly around 200 - 300 textures most of the time
-                  if (0.01 > diffDX) or (0.01 > diffDY) or (diffS > 0.95) or (0.05 > diffS) then
-                    passed = true
-                  end
-                elseif level == 4 then -- Probably too much smoothing, roughly around 140 - 200 textures
-                  if (0.1 > diffDX) or (0.1 > diffDY) or (diffS > 0.9) or (0.1 > diffS) then
-                    passed = true
-                  end
-                elseif level == 5 then -- Complete overkill, but whatever, it's usually less than 100 textures
-                  if (0.2 > diffDX) or (0.2 > diffDY) or (diffS > 0.8) or (0.2 > diffS) then
-                    passed = true
-                  end
-                end -- If you want to 100% disable smoothing, set the level higher than 5. I can't think of any reason to not extend straight lines though.
-              end
-            
-              if passed then
-                if line then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
-                  self.recycling[#self.recycling + 1] = line
-                  line:ClearAllPoints()
-                  line:Hide()
-                  lines[i] = nil
+          if (i > 2) and self.lastLine then -- Without this, it can fall into an infinite loop
+            local passed = nil
+
+            do -- Check if any smoothing should be applied
+              local diffDX = dx - (self.lastDX or 0)
+              if 0 > diffDX then diffDX = -diffDX end
+
+              local diffDY = dy - (self.lastDY or 0)
+              if 0 > diffDY then diffDY = -diffDY end
+
+              local diffS = s - (self.lastSine or 0)
+              if 0 > diffS then diffS = -diffS end
+
+              local level = self.smoothingOverride or CT.settings.graphSmoothing -- How much smoothing should happen, 0 to mostly disable
+              local level = 10
+
+              if not level or level == 0 then -- Smoothing disabled, only do horizontal and vertical lines. This usually uses about 70% - 80% of the points, but can vary a ton
+                if (diffDX == 0) or (diffDY == 0) then
+                  passed = true
                 end
-            
+              elseif level == 1 then -- Very little smoothing, this will probably gradually increase the number of textures, roughly uses around 50% of the points
+                if (0 >= diffDX) or (0 >= diffDY) or (diffS > 0.999) or (0.001 > diffS) then
+                  passed = true
+                end
+              elseif level == 2 then -- Medium, should be default, this tries to maintain a somewhat steady amount of textures, roughly around 400 - 600
+                if (0.001 > diffDX) or (0.001 > diffDY) or (diffS > 0.99) or (0.01 > diffS) then
+                  passed = true
+                end
+              elseif level == 3 then -- Lots of smoothing, roughly around 200 - 300 textures most of the time
+                if (0.01 > diffDX) or (0.01 > diffDY) or (diffS > 0.95) or (0.05 > diffS) then
+                  passed = true
+                end
+              elseif level == 4 then -- Probably too much smoothing, roughly around 140 - 200 textures
+                if (0.1 > diffDX) or (0.1 > diffDY) or (diffS > 0.9) or (0.1 > diffS) then
+                  passed = true
+                end
+              elseif level == 5 then -- Complete overkill, but whatever, it's usually less than 100 textures
+                if (0.2 > diffDX) or (0.2 > diffDY) or (diffS > 0.8) or (0.2 > diffS) then
+                  passed = true
+                end
+              end -- If you want to 100% disable smoothing, set the level higher than 5. I can't think of any reason to not extend straight lines though.
+            end
+
+            if passed then
+              if line then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
+                self.recycling[#self.recycling + 1] = line
+                line:ClearAllPoints()
+                line:Hide()
+                lines[i] = nil
+              end
+
+              local index = i - 1
+              while not lines[index] and (index > 0) do -- Find the most recent line
+                index = index - 1
+              end
+
+              line = lines[index] -- Now this is used, instead of creating a brand new one
+
+              startX = graphWidth * ((data[index - 1] + offSet) - minX) / (maxX - minX)
+              startY = graphHeight * ((data[-(i - 1)] + offSet) - minY) / (maxY - minY)
+
+              dx, dy = stopX - startX, stopY - startY -- Redo all these calculations with the new start points
+              cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
+
+              if (dx < 0) then
+                dx, dy = -dx, -dy
+              end
+
+              l = sqrt((dx * dx) + (dy * dy))
+
+              s, c = -dy / l, dx / l
+              sc = s * c
+            end
+          end
+
+          local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
+          if dy >= 0 then
+            Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
+            Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
+            BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
+            BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
+            TRy = BRx
+          else
+            Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
+            Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
+            BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
+            BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
+            TRx = TLy
+          end
+
+          if not line then
+            if self.recycling[1] then -- First try to recycle an old line, if it has at least one
+              line = tremove(self.recycling) -- Take the last one
+              line:Show()
+            else -- Nothing to recycle, create a new one
+              local name = format("CT_%s_Graph_Line_%d", self.name:gsub("%s", "_"), i)
+              line = frame:CreateTexture(name, (self.drawLayer or "ARTWORK"))
+              line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
+              self.totalLines = (self.totalLines or 0) + 1
+            end
+
+            line:SetVertexColor(c1, c2, c3, c4)
+
+            lastLine = line
+            self.lastIndex = i
+            self.lastLine = line -- Easy access to most recent
+
+            lines[i] = line
+          end
+
+          self.lastSine = s
+          self.lastDX = dx
+          self.lastDY = dy
+
+          line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
+          line:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
+          line:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
+        end
+
+        if bars then
+          if self.fill then -- Draw bars if fill is true
+            -- local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- Start isn't needed for bounds check
+            -- local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+            --
+            -- local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+            -- local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+
+            if startX > stopX then -- Want startX <= stopX, if not then flip them
+              startX, stopX = stopX, startX
+              startY, stopY = stopY, startY
+            end
+
+            local minY, maxY
+            if startY < stopY then
+              minY = startY
+              maxY = stopY
+            else
+              minY = stopY
+              maxY = startY
+            end
+
+            local width = stopX - startX
+
+            if width < 1 then width = 1 end
+            if 1 > minY then minY = 1 end -- Has to be at least 1 wide
+
+            local bar = bars[i]
+
+            do -- Handle the bar
+              if (i > 2) and (self.prevDY and dy == self.prevDY) then --  or (3 > width)
+                if bar then -- If a bar exists, recycle it to be used later, instead of throwing it away and creating a new one
+                  if not self.barRecycling then self.barRecycling = {} end
+
+                  self.barRecycling[#self.barRecycling + 1] = bar
+                  bar:ClearAllPoints()
+                  bar:Hide()
+                  bars[i] = nil
+                end
+
                 local index = i - 1
-                while not lines[index] and (index > 0) do -- Find the most recent line
+                while not bars[index] and (index > 0) do -- Find the most recent bar
                   index = index - 1
                 end
-            
-                line = lines[index] -- Now this is used, instead of creating a brand new one
-            
-                startX = graphWidth * (data[index - 1] - minX) / (maxX - minX)
-                startY = graphHeight * (data[-(index - 1)] - minY) / (maxY - minY)
-            
-                dx, dy = stopX - startX, stopY - startY -- Redo all these calculations with the new start points
-                cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
-            
-                if (dx < 0) then
-                  dx, dy = -dx, -dy
+
+                bar = bars[index] -- Now this is used, instead of creating a brand new one
+              end
+
+              if not bar then
+                if self.barRecycling and self.barRecycling[1] then -- First try to recycle an old bar, if it has at least one
+                  bar = tremove(self.barRecycling) -- Take the last one
+                  bar:Show()
+                else -- Nothing to recycle, create a new one
+                  bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, self.drawLayer or "ARTWORK")
+                  bar:SetTexture(1, 1, 1, 1)
+                  bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
+                  -- bar:SetBlendMode("ADD")
+
+                  self.totalBars = (self.totalBars or 0) + 1
                 end
-            
-                l = sqrt((dx * dx) + (dy * dy))
-            
-                s, c = -dy / l, dx / l
-                sc = s * c
-              end
-            end
 
-            local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
-            if dy >= 0 then
-              Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
-              Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
-              BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
-              BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
-              TRy = BRx
-            else
-              Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
-              Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
-              BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
-              BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
-              TRx = TLy
-            end
+                bars.lastBar = bar
 
-            if not line then
-              if self.recycling[1] then -- First try to recycle an old line, if it has at least one
-                line = tremove(self.recycling) -- Take the last one
-                line:Show()
-              else -- Nothing to recycle, create a new one
-                line = frame:CreateTexture(nil, (self.drawLayer or "ARTWORK"))
-                line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
-                self.totalLines = (self.totalLines or 0) + 1
+                bars[i] = bar
               end
 
-              line:SetVertexColor(c1, c2, c3, c4)
-
-              lastLine = line
-              self.lastIndex = i
-              self.lastLine = line -- Easy access to most recent
-
-              lines[i] = line
-            end
-
-            self.lastSine = s
-            self.lastDX = dx
-            self.lastDY = dy
-
-            line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
-            line:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
-            line:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
-          end
-
-          if bars then
-            if self.fill then -- Draw bars if fill is true
-              -- local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- Start isn't needed for bounds check
-              -- local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
-              --
-              -- local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
-              -- local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
-
-              if startX > stopX then -- Want startX <= stopX, if not then flip them
-                startX, stopX = stopX, startX
-                startY, stopY = stopY, startY
+              if bar then
+                -- bar:ClearAllPoints()
+                bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
+                bar:SetSize(width, minY)
               end
 
-              local minY, maxY
-              if startY < stopY then
-                minY = startY
-                maxY = stopY
-              else
-                minY = stopY
-                maxY = startY
-              end
-
-              local width = stopX - startX
-
-              if width < 1 then width = 1 end
-              if 1 > minY then minY = 1 end -- Has to be at least 1 wide
-
-              local bar = bars[i]
-
-              do -- Handle the bar
-                if (i > 2) and (self.prevDY and dy == self.prevDY) then --  or (3 > width)
-                  if bar then -- If a bar exists, recycle it to be used later, instead of throwing it away and creating a new one
-                    if not self.barRecycling then self.barRecycling = {} end
-
-                    self.barRecycling[#self.barRecycling + 1] = bar
-                    bar:ClearAllPoints()
-                    bar:Hide()
-                    bars[i] = nil
-                  end
-
+              if self.prevDY and (dy == self.prevDY) then -- Same height as before
+                if bar then
+                  -- debug("First")
+                  bar:SetPoint("RIGHT", line, 0, 0)
+                else
+                  debug("Second")
                   local index = i - 1
                   while not bars[index] and (index > 0) do -- Find the most recent bar
                     index = index - 1
                   end
 
                   bar = bars[index] -- Now this is used, instead of creating a brand new one
-                end
 
-                if not bar then
-                  if self.barRecycling and self.barRecycling[1] then -- First try to recycle an old bar, if it has at least one
-                    bar = tremove(self.barRecycling) -- Take the last one
-                    bar:Show()
-                  else -- Nothing to recycle, create a new one
-                    bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, self.drawLayer or "ARTWORK")
-                    bar:SetTexture(1, 1, 1, 1)
-                    bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
-                    -- bar:SetBlendMode("ADD")
-
-                    self.totalBars = (self.totalBars or 0) + 1
-                  end
-
-                  bars.lastBar = bar
-
-                  bars[i] = bar
-                end
-
-                if bar then
-                  -- bar:ClearAllPoints()
-                  bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
-                  bar:SetSize(width, minY)
-                end
-
-                if self.prevDY and (dy == self.prevDY) then -- Same height as before
                   if bar then
-                    -- debug("First")
                     bar:SetPoint("RIGHT", line, 0, 0)
+                  end
+                end
+              elseif bar then
+                local index = i - 1
+                local prevBar = bars[index]
+                while ((not prevBar) or (prevBar == bar)) and (index > 0) do -- Find the most recent bar
+                  index = index - 1
+                  prevBar = bars[index]
+                end
+
+                if prevBar then
+                  prevBar:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+                end
+              else
+                debug(i, "No bar, but does need to anchor!")
+              end
+            end
+
+            --   if self.prevDY and dy == self.prevDY then
+            --     if bars[i - 1] then
+            --       bars[i - 1]:SetPoint("RIGHT", lastLine, 0, 0)
+            --     else
+            --       for index = (i - 2), 1, -1 do
+            --         if bars[index] then
+            --           bars[index]:SetPoint("RIGHT", lastLine, 0, 0)
+            --           break
+            --         end
+            --       end
+            --     end
+            --   elseif bar then
+            --     local index = i - 1
+            --     local prevBar = bars[index]
+            --     while ((not prevBar) or (prevBar == bar)) and (index > 0) do -- Find the most recent bar
+            --       index = index - 1
+            --       prevBar = bars[index]
+            --     end
+            --
+            --     if prevBar then
+            --       prevBar:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+            --     end
+            --
+            --     -- if bars[i - 1] then
+            --     --   bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+            --     -- else
+            --     --   for index = (i - 2), 1, -1 do
+            --     --     if bars[index] then
+            --     --       bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+            --     --       break
+            --     --     end
+            --     --   end
+            --     -- end
+            --   else
+            --     debug(i, "No bar, but does need to anchor!")
+            --   end
+
+            do -- Handle triangle stuff
+              -- local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- Start isn't needed for bounds check
+              -- local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+              --
+              -- local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+              -- local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+
+              if bar then
+                local tri = triangles[i]
+                if not tri and (maxY - minY) >= 1 then
+                  tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, self.drawLayer or "ARTWORK")
+                  tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
+                  tri:SetVertexColor(c1, c2, c3, triangles.alpha or bars.alpha or 0.3)
+                  -- tri:SetBlendMode("ADD")
+
+                  if startY < stopY then
+                    tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
                   else
-                    debug("Second")
-                    local index = i - 1
-                    while not bars[index] and (index > 0) do -- Find the most recent bar
-                      index = index - 1
-                    end
-
-                    bar = bars[index] -- Now this is used, instead of creating a brand new one
-
-                    if bar then
-                      bar:SetPoint("RIGHT", line, 0, 0)
-                    end
-                  end
-                elseif bar then
-                  local index = i - 1
-                  local prevBar = bars[index]
-                  while ((not prevBar) or (prevBar == bar)) and (index > 0) do -- Find the most recent bar
-                    index = index - 1
-                    prevBar = bars[index]
+                    tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
                   end
 
-                  if prevBar then
-                    prevBar:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-                  end
+                  self.totalTriangles = (self.totalTriangles or 0) + 1
+
+                  triangles[i] = tri
+                end
+
+                if tri and (maxY - minY) >= 1 then
+                  tri:SetPoint("BOTTOMLEFT", anchor, startX, minY)
+                  tri:SetSize(width, maxY - minY)
+                  tri:Show()
+                  -- print("Showing", i)
+                elseif tri then
+                  -- print("Hiding", i)
+                  tri:Hide()
                 else
-                  debug(i, "No bar, but does need to anchor!")
+                  -- print("Didn't create one", i)
                 end
               end
+            end
 
-              --   if self.prevDY and dy == self.prevDY then
-              --     if bars[i - 1] then
-              --       bars[i - 1]:SetPoint("RIGHT", lastLine, 0, 0)
-              --     else
-              --       for index = (i - 2), 1, -1 do
-              --         if bars[index] then
-              --           bars[index]:SetPoint("RIGHT", lastLine, 0, 0)
-              --           break
-              --         end
-              --       end
-              --     end
-              --   elseif bar then
-              --     local index = i - 1
-              --     local prevBar = bars[index]
-              --     while ((not prevBar) or (prevBar == bar)) and (index > 0) do -- Find the most recent bar
-              --       index = index - 1
-              --       prevBar = bars[index]
-              --     end
-              --
-              --     if prevBar then
-              --       prevBar:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-              --     end
-              --
-              --     -- if bars[i - 1] then
-              --     --   bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-              --     -- else
-              --     --   for index = (i - 2), 1, -1 do
-              --     --     if bars[index] then
-              --     --       bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-              --     --       break
-              --     --     end
-              --     --   end
-              --     -- end
-              --   else
-              --     debug(i, "No bar, but does need to anchor!")
-              --   end
-
-              do -- Handle triangle stuff
-                -- local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- Start isn't needed for bounds check
-                -- local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
-                --
-                -- local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
-                -- local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
-
-                if bar then
-                  local tri = triangles[i]
-                  if not tri and (maxY - minY) >= 1 then
-                    tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, self.drawLayer or "ARTWORK")
-                    tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
-                    tri:SetVertexColor(c1, c2, c3, triangles.alpha or bars.alpha or 0.3)
-                    -- tri:SetBlendMode("ADD")
-
-                    if startY < stopY then
-                      tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
-                    else
-                      tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
-                    end
-
-                    self.totalTriangles = (self.totalTriangles or 0) + 1
-
-                    triangles[i] = tri
-                  end
-
-                  if tri and (maxY - minY) >= 1 then
-                    tri:SetPoint("BOTTOMLEFT", anchor, startX, minY)
-                    tri:SetSize(width, maxY - minY)
-                    tri:Show()
-                    -- print("Showing", i)
-                  elseif tri then
-                    -- print("Hiding", i)
-                    tri:Hide()
-                  else
-                    -- print("Didn't create one", i)
-                  end
-                end
-              end
-
-              if self.status and self.status ~= "shown" then
-                debug("Showing graph filling.")
-                for i = 1, num do
-                  if bars[i] then
-                    bars[i]:Show()
-                  end
-
-                  if triangles[i] then
-                    triangles[i]:Show()
-                  end
-                end
-
-                self.status = "shown"
-              end
-            elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
-              print("Hiding graph filling")
-
+            if self.status and self.status ~= "shown" then
+              debug("Showing graph filling.")
               for i = 1, num do
                 if bars[i] then
-                  bars[i]:Hide()
+                  bars[i]:Show()
                 end
 
                 if triangles[i] then
-                  triangles[i]:Hide()
+                  triangles[i]:Show()
                 end
               end
 
-              self.status = "hidden"
+              self.status = "shown"
             end
+          elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
+            print("Hiding graph filling")
+
+            for i = 1, num do
+              if bars[i] then
+                bars[i]:Hide()
+              end
+
+              if triangles[i] then
+                triangles[i]:Hide()
+              end
+            end
+
+            self.status = "hidden"
           end
+        end
 
-          self.prevDY = dy
+        self.prevDY = dy
 
-          if i == num then -- Done running the graph update
-            -- debug("Done running refresh:", debugprofilestop() - start)
-            if routine then
-              self.refresh = refreshNormalGraph
-              self.updating = false
-            end
-
-            self.endNum = i + 1
-            self.lastLine = lastLine or self.lastLine
-
-            -- debug("TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
-
-            if self.frame.zoomed then
-              local firstLine, lastLine = nil, nil
-
-              for i = 1, num do
-                if self.lines[i] then
-                  firstLine = self.lines[i]
-                  break
-                end
-              end
-
-              for i = num, 1, -1 do
-                if self.lines[i] then
-                  lastLine = self.lines[i]
-                  break
-                end
-              end
-
-              local minimum = firstLine:GetLeft() - self.frame:GetLeft()
-              local maximum = lastLine:GetRight() - self.frame:GetRight()
-
-              if 0 < minimum then minimum = 0 end
-              if 0 > maximum then maximum = 0 end
-
-              self.frame.slider:SetMinMaxValues(minimum, maximum)
-              self.frame.slider:SetValue(0)
-            end
-          elseif routine and (i % 500) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
-            local delay = random(-3, 3) / 100 + 0.05 -- The random number is to reduce the chances of multiple graphs refreshing at the exact same time
-            after(delay, self.refresh)
-            self.updating = true
-            yield()
-          end
-        elseif blocked and i == num then -- It's done
+        if i == num then -- Done running the graph update
           if routine then
             self.refresh = refreshNormalGraph
             self.updating = false
           end
-
-          if blockedY > 0 then
-            self.YMax = maxY * (blockedY / graphHeight) * 1.12 -- 90%
+          
+          if reset or routine then
+            local runTime = floor((debugprofilestop() - start) * 1000 + 0.5) / 1000
+            local percent = floor(((self.totalLines or 0) / num) * 100)  .. "%"
+            
+            if routine then
+              debug(percent, num, self.totalLines, #self.recycling, "Done refreshing (coroutine):", self.name, runTime, "MS")
+            else
+              debug(percent, num, self.totalLines, #self.recycling, "Done refreshing:", self.name, runTime, "MS")
+            end
           end
 
-          return self:refresh(true) -- Run again with the new Y value
+          self.endNum = i + 1
+          self.lastLine = lastLine or self.lastLine
+
+          if self.frame.zoomed then
+            local firstLine, lastLine = nil, nil
+
+            for i = 1, num do
+              if self.lines[i] then
+                firstLine = self.lines[i]
+                break
+              end
+            end
+
+            for i = num, 1, -1 do
+              if self.lines[i] then
+                lastLine = self.lines[i]
+                break
+              end
+            end
+
+            local minimum = firstLine:GetLeft() - self.frame:GetLeft()
+            local maximum = lastLine:GetRight() - self.frame:GetRight()
+
+            if 0 < minimum then minimum = 0 end
+            if 0 > maximum then maximum = 0 end
+
+            self.frame.slider:SetMinMaxValues(minimum, maximum)
+            self.frame.slider:SetValue(0)
+          end
+        elseif routine and (i % 500) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
+          local delay = random(-3, 3) / 100 + 0.05 -- The random number is to reduce the chances of multiple graphs refreshing at the exact same time
+          after(delay, self.refresh)
+          self.updating = true
+          yield()
         end
-      -- end
+      elseif blocked and i == num then -- It's done
+        if routine then
+          self.refresh = refreshNormalGraph
+          self.updating = false
+        end
+
+        if blockedY > 0 then
+          self.YMax = maxY * (blockedY / graphHeight) * 1.12 -- 90%
+        end
+
+        return self:refresh(true, nil, offSet) -- Run again with the new Y value
+      end
     end
   end
-
-  -- local function refreshNormalGraph2(self, reset, routine)
-  --   if not self.shown then return debug("Refresh got called when graph was not flagged as shown!", self.name) end
-  --   if not self.frame then return debug("Refresh got called when graph had no frame!", self.name) end -- Happened once, was related to loading a saved fight or returning from one
-  --   if self.updating then return debug("Refresh got called when graph was flagged as updating!", self.name) end
-  --
-  --   local cTime = GetTime()
-  --   local num = #self.data
-  --   local graphWidth, graphHeight = self.frame:GetSize()
-  --
-  --   do -- Check if it needs to be extended
-  --     local stopX = graphWidth * (self.data[num] - self.XMin) / (self.XMax - self.XMin)
-  --
-  --     if stopX > graphWidth then -- Graph is too long
-  --       self.XMax = self.XMax * (stopX / graphWidth) * 1.05
-  --       -- self.XMax = maxX * (blockedX / graphWidth) * 1.333 -- 75%
-  --       reset = true
-  --     end
-  --   end
-  --
-  --   if reset then
-  --     self.endNum = 2
-  --     self.lastRefresh = cTime
-  --
-  --     if num >= (2000) then -- The comparison number is after how many points do we want to switch to a coroutine (default 2000)
-  --       self.refresh = wrap(refreshNormalGraph2)
-  --
-  --       -- debug(num, self.totalLines, self.deletedCount, "Refreshing (coroutine):", self.name)
-  --       return self:refresh(nil, true) -- Call it again, but now as a coroutine
-  --     else
-  --       -- debug(num, self.totalLines, self.deletedCount, "Refreshing:", self.name)
-  --     end
-  --   end
-  --
-  --   if self.fill then -- Make sure the tables exist
-  --     if not self.bars then self.bars = {} end
-  --     if not self.triangles then self.triangles = {} end
-  --   end
-  --
-  --   local start = debugprofilestop()
-  --   local maxX = self.XMax
-  --   local minX = self.XMin
-  --   local maxY = self.YMax
-  --   local minY = self.YMin
-  --   local data = self.data
-  --   local lines = self.lines
-  --   local bars = self.bars
-  --   local triangles = self.triangles
-  --   local frame = self.frame.anchor or self.frame
-  --   local anchor = self.anchor or self.frame.anchor or self.frame
-  --   local zoomed = self.frame.zoomed
-  --   local blocked, blockedX, blockedY = nil, 0, 0
-  --
-  --   local c1, c2, c3, c4 = 0.0, 0.0, 1.0, 1.0 -- Default to blue
-  --   if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.overrideAlpha or self.color[4] end
-  --
-  --   if self.endNum ~= 2 and self.endNum > num then -- Generally, this should mean it was called without adding new data points from last time, redraw the last line
-  --     local startX = graphWidth * (data[num - 1] - minX) / (maxX - minX)
-  --     local startY = graphHeight * (data[-(num - 1)] - minY) / (maxY - minY)
-  --
-  --     local stopX = graphWidth * (data[num] - minX) / (maxX - minX)
-  --     local stopY = graphHeight * (data[-num] - minY) / (maxY - minY)
-  --
-  --     local lastIndex, lastLine = nil, nil
-  --
-  --     for i = num, 2, -1 do -- Find most recent line, searching backwards
-  --       if lines[i] then
-  --         lastIndex = i
-  --         lastLine = lines[i]
-  --         break
-  --       end
-  --     end
-  --
-  --     return debug("Greater, returning")
-  --   end
-  --
-  --   for i = (self.endNum or 2), num do
-  --     local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
-  --     local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
-  --
-  --     if not zoomed then -- Update maxX and maxY values if necessary, just not while zoomed
-  --       if stopY > graphHeight then -- Graph is too tall
-  --         blocked = true
-  --
-  --         if (stopY / graphHeight) > blockedY then
-  --           blockedY = stopY
-  --         end
-  --       end
-  --     end
-  --
-  --     if not blocked then -- If out of bounds, finish looping to find the most out of bounds point, but don't waste time calculating everything
-  --       local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- start isn't needed for bounds check
-  --       local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
-  --
-  --       local lastLine
-  --       local w = 32
-  --       local dx, dy = stopX - startX, stopY - startY -- This is about the change
-  --       local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
-  --
-  --       if (dx < 0) then -- Normalize direction if necessary
-  --         dx, dy = -dx, -dy
-  --       end
-  --
-  --       if (startX == stopX) and (startY == stopY) then
-  --         debug("Tried to draw point that takes no space!")
-  --       end
-  --
-  --       if startX ~= stopX then -- If they match, this can break
-  --         -- NOTE: is it if they match and if the y points are the same? Then it would be drawing a point that doesn't take any space
-  --         local line = lines[i]
-  --         local lastIndex
-  --
-  --         -- if i > 2 then
-  --         --   local diffX = dx - (self.lastDX or 0)
-  --         --   if 0 > diffX then diffX = -diffX end -- Make it positive
-  --         --   if diffX > 0.001 then diffX = nil end
-  --         --
-  --         --   local diffY = dy - (self.lastDY or 0)
-  --         --   if 0 > diffY then diffY = -diffY end -- Make it positive
-  --         --   if diffY > 0.001 then diffY = nil end
-  --         --
-  --         --   if (diffX or diffY) or (dy == self.lastDY) then
-  --         --     local diff = diffX or diffY
-  --         --
-  --         --     if reset and line then -- Recycle lines
-  --         --       if not self.recycling then self.recycling = {} end
-  --         --
-  --         --       self.recycling[#self.recycling + 1] = line
-  --         --       line:ClearAllPoints()
-  --         --       line = nil
-  --         --
-  --         --       debug("Adding:", #self.recycling)
-  --         --     end
-  --         --
-  --         --     if line then -- Recycle lines
-  --         --       if not self.recycling then self.recycling = {} end
-  --         --
-  --         --       local index = i
-  --         --       while lines[index] ~= line do
-  --         --         index = index - 1
-  --         --       end
-  --         --
-  --         --       self.recycling[#self.recycling + 1] = lines[index]
-  --         --       lines[index]:ClearAllPoints()
-  --         --       lines[index]:Hide()
-  --         --
-  --         --       lines[index] = nil
-  --         --       -- debug("Adding:", #self.recycling)
-  --         --     end
-  --         --
-  --         --     local index = i - 1
-  --         --     if lines[2] then -- Shouldn't fail, but just to make sure it can't go infitely
-  --         --       while not lines[index] do
-  --         --         index = index - 1
-  --         --       end
-  --         --     end
-  --         --
-  --         --     line = lines[index]
-  --         --
-  --         --     startX = graphWidth * (data[index - 1] - minX) / (maxX - minX)
-  --         --     startY = graphHeight * (data[-(index - 1)] - minY) / (maxY - minY)
-  --         --
-  --         --     dx, dy = stopX - startX, stopY - startY -- This is about the change
-  --         --     cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
-  --         --
-  --         --     if (dx < 0) then -- Normalize direction if necessary
-  --         --       dx, dy = -dx, -dy
-  --         --     end
-  --         --   end
-  --         -- end
-  --
-  --         -- if self.prevDY and dy == self.prevDY then -- Same angle as the last one, no need to make a new line
-  --         --   if lines[i - 1] then -- Try to find the most recent line
-  --         --     lastLine = lines[i - 1]
-  --         --     lastIndex = i - 1
-  --         --   elseif lines[i - 2] then
-  --         --     lastLine = lines[i - 2]
-  --         --     lastIndex = i - 2
-  --         --   else -- Couldn't find it efficiently, so start searching backwards
-  --         --     for index = (i - 2), 1, -1 do
-  --         --       if lines[index] then
-  --         --         lastIndex = index
-  --         --         lastLine = lines[index]
-  --         --         break
-  --         --       end
-  --         --     end
-  --         --   end
-  --         --
-  --         --   startX = graphWidth * (data[(lastIndex or 2) - 1] - minX) / (maxX - minX)
-  --         --   line = lastLine or lines[2] -- NOTE: or line
-  --         --   dx, dy = stopX - startX, stopY - startY
-  --         --   cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
-  --         -- end
-  --
-  --         local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
-  --
-  --         local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
-  --         local sc = s * c
-  --
-  --         -- if not reset then debug(sc, dy, dx) end
-  --
-  --         -- if i > 2 then
-  --         --   -- local diff = l - (self.lastLength or 0)
-  --         --   -- if 0 > diff then diff = -diff end -- Make it positive
-  --         --
-  --         --   -- local diff = sc - (self.lastSC or 0)
-  --         --   -- if 0 > diff then diff = -diff end -- Make it positive
-  --         --
-  --         --   local diff = dx - (self.lastDX or 0)
-  --         --   if 0 > diff then diff = -diff end -- Make it positive
-  --         --
-  --         --   if (0.02 > diff) then --  or (dy == (self.lastDY or 0))
-  --         --     if line then -- Recycle lines
-  --         --       if not self.recycling then self.recycling = {} end
-  --         --
-  --         --       self.recycling[#self.recycling + 1] = line
-  --         --       line:ClearAllPoints()
-  --         --       lines[i] = nil
-  --         --
-  --         --       debug("Adding:", #self.recycling)
-  --         --     end
-  --         --
-  --         --     local index = i - 1
-  --         --     while not lines[index] do
-  --         --       index = index - 1
-  --         --     end
-  --         --
-  --         --     line = lines[index]
-  --         --
-  --         --     -- if (0.001 > diff) and (dy == self.lastDY or 0) then
-  --         --     --   debug(self.totalLines, "Too short and same DY")
-  --         --     -- elseif (0.001 > diff) then
-  --         --     --   debug(self.totalLines, "Too short")
-  --         --     -- elseif (dy == self.lastDY or 0) then
-  --         --     --   debug(self.totalLines, "Same DY")
-  --         --     -- end
-  --         --
-  --         --     -- if not reset then debug(i, self.totalLines) end
-  --         --
-  --         --     startX = graphWidth * (data[index - 1] - minX) / (maxX - minX)
-  --         --     startY = graphHeight * (data[-(index - 1)] - minY) / (maxY - minY)
-  --         --
-  --         --     dx, dy = stopX - startX, stopY - startY -- This is about the change
-  --         --     cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
-  --         --
-  --         --     if (dx < 0) then -- Normalize direction if necessary
-  --         --       dx, dy = -dx, -dy
-  --         --     end
-  --         --
-  --         --     l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
-  --         --
-  --         --     s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
-  --         --     sc = s * c
-  --         --   end
-  --         -- end
-  --
-  --         -- if reset and line and not lastIndex then -- There is a line, try to find out if it's actually needed
-  --         --   local diff = sc - (self.lastSC or 0)
-  --         --   if 0 > diff then diff = -diff end -- Make it positive
-  --         --
-  --         --   if diff > 0 and diff < 0.001 then
-  --         --     -- line:Hide()
-  --         --     line:SetTexture(nil)
-  --         --     line = nil
-  --         --     lines[i] = nil
-  --         --
-  --         --     self.totalLines = (self.totalLines or 0) - 1
-  --         --
-  --         --     self.deletedCount = (self.deletedCount or 0) + 1
-  --         --
-  --         --     -- debug(i, diff)
-  --         --     local lineNum = nil
-  --         --
-  --         --     for index = i, 2, -1 do
-  --         --       if lines[index] then
-  --         --         line = lines[index]
-  --         --         lineNum = index
-  --         --         break
-  --         --       end
-  --         --     end
-  --         --
-  --         --     startX = graphWidth * (data[lineNum - 1] - minX) / (maxX - minX)
-  --         --     startY = graphHeight * (data[-(lineNum - 1)] - minY) / (maxY - minY)
-  --         --
-  --         --     dx, dy = stopX - startX, stopY - startY -- This is about the change
-  --         --     cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
-  --         --
-  --         --     if (dx < 0) then -- Normalize direction if necessary
-  --         --       dx, dy = -dx, -dy
-  --         --     end
-  --         --
-  --         --     l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
-  --         --
-  --         --     s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
-  --         --     sc = s * c
-  --         --   end
-  --         -- end
-  --
-  --         local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
-  --         do -- Calculate line texture coords and anchor points
-  --           if dy >= 0 then
-  --             Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
-  --             Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
-  --             BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
-  --             BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
-  --             TRy = BRx
-  --           else
-  --             Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
-  --             Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
-  --             BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
-  --             BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
-  --             TRx = TLy
-  --           end
-  --
-  --           if TLx > 10000 then TLx = 10000 elseif TLx < -10000 then TLx = -10000 end
-  --           if TLy > 10000 then TLy = 10000 elseif TLy < -10000 then TLy = -10000 end
-  --           if BLx > 10000 then BLx = 10000 elseif BLx < -10000 then BLx = -10000 end
-  --           if BLy > 10000 then BLy = 10000 elseif BLy < -10000 then BLy = -10000 end
-  --           if TRx > 10000 then TRx = 10000 elseif TRx < -10000 then TRx = -10000 end
-  --           if TRy > 10000 then TRy = 10000 elseif TRy < -10000 then TRy = -10000 end
-  --           if BRx > 10000 then BRx = 10000 elseif BRx < -10000 then BRx = -10000 end
-  --           if BRy > 10000 then BRy = 10000 elseif BRy < -10000 then BRy = -10000 end
-  --         end
-  --
-  --         if not line then
-  --           if self.recycling and self.recycling[1] then -- First try to recycle an old line
-  --             line = self.recycling[#self.recycling]
-  --             self.recycling[#self.recycling] = nil
-  --
-  --             line:Show()
-  --
-  --             -- debug("Recycling:", #self.recycling)
-  --             self.deletedCount = (self.deletedCount or 0) + 1
-  --           else
-  --             line = frame:CreateTexture("CT_Graph_Line" .. i, self.drawLayer or "ARTWORK")
-  --             line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
-  --             self.totalLines = (self.totalLines or 0) + 1
-  --           end
-  --
-  --           line:SetVertexColor(c1, c2, c3, c4)
-  --
-  --           lastLine = line
-  --           self.lastIndex = i
-  --           self.lastLine = line -- Easy access to most recent
-  --
-  --           lines[i] = line
-  --         end
-  --
-  --         self.lastSC = sc
-  --         self.lastLength = l
-  --         self.lastDX = dx
-  --         self.lastDY = dy
-  --         self.lastTRx = TRx
-  --
-  --         line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
-  --         line:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
-  --         line:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
-  --       end
-  --
-  --       if bars then
-  --         if self.fill then -- and (stopX - startX) > 1 -- Draw bars if fill is true
-  --           if startX > stopX then -- Want startX <= stopX, if not then flip them
-  --             startX, stopX = stopX, startX
-  --             startY, stopY = stopY, startY
-  --           end
-  --
-  --           local minY, maxY
-  --           if startY < stopY then
-  --             minY = startY
-  --             maxY = stopY
-  --           else
-  --             minY = stopY
-  --             maxY = startY
-  --           end
-  --
-  --           local width = stopX - startX
-  --
-  --           if width < 1 then width = 1 end
-  --           if 1 > minY then minY = 1 end -- Has to be at least 1 wide
-  --
-  --           do -- Handle the bar
-  --             local bar = bars[i]
-  --
-  --             if not bar and (not self.prevDY or dy ~= self.prevDY) then
-  --               bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, self.drawLayer or "ARTWORK")
-  --               bar:SetTexture(1, 1, 1, 1)
-  --               bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
-  --               bar:SetBlendMode("ADD")
-  --
-  --               bars.lastBar = bar
-  --
-  --               self.totalBars = (self.totalBars or 0) + 1
-  --
-  --               bars[i] = bar
-  --             end
-  --
-  --             if bar then
-  --               bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
-  --               bar:SetSize(width, minY)
-  --             end
-  --
-  --             if self.prevDY and dy == self.prevDY then
-  --               if bars[i - 1] then
-  --                 bars[i - 1]:SetPoint("RIGHT", lastLine, 0, 0)
-  --               else
-  --                 for index = (i - 2), 1, -1 do
-  --                   if bars[index] then
-  --                     bars[index]:SetPoint("RIGHT", lastLine, 0, 0)
-  --                     break
-  --                   end
-  --                 end
-  --               end
-  --             elseif bar then
-  --               if bars[i - 1] then
-  --                 bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-  --               else
-  --                 for index = (i - 2), 1, -1 do
-  --                   if bars[index] then
-  --                     bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
-  --                     break
-  --                   end
-  --                 end
-  --               end
-  --             else
-  --               debug(i, "No bar, but does need to anchor!")
-  --             end
-  --           end
-  --
-  --           do -- Handle triangle stuff
-  --             local tri = triangles[i]
-  --             if not tri and (maxY - minY) >= 1 then
-  --               tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, self.drawLayer or "ARTWORK")
-  --               tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
-  --               tri:SetVertexColor(c1, c2, c3, triangles.alpha or bars.alpha or 0.3)
-  --               tri:SetBlendMode("ADD")
-  --
-  --               if startY < stopY then
-  --                 tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
-  --               else
-  --                 tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
-  --               end
-  --
-  --               self.totalTriangles = (self.totalTriangles or 0) + 1
-  --
-  --               triangles[i] = tri
-  --             end
-  --
-  --             if tri and (maxY - minY) >= 1 then
-  --               tri:SetPoint("BOTTOMLEFT", anchor, startX, minY)
-  --               tri:SetSize(width, maxY - minY)
-  --               tri:Show()
-  --               -- print("Showing", i)
-  --             elseif tri then
-  --               -- print("Hiding", i)
-  --               tri:Hide()
-  --             else
-  --               -- print("Didn't create one", i)
-  --             end
-  --           end
-  --
-  --           if self.status and self.status ~= "shown" then
-  --             debug("Showing graph filling.")
-  --             for i = 1, num do
-  --               if bars[i] then
-  --                 bars[i]:Show()
-  --               end
-  --
-  --               if triangles[i] then
-  --                 triangles[i]:Show()
-  --               end
-  --             end
-  --
-  --             self.status = "shown"
-  --           end
-  --         elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
-  --           print("Hiding graph filling")
-  --
-  --           for i = 1, num do
-  --             if bars[i] then
-  --               bars[i]:Hide()
-  --             end
-  --
-  --             if triangles[i] then
-  --               triangles[i]:Hide()
-  --             end
-  --           end
-  --
-  --           self.status = "hidden"
-  --         end
-  --       end
-  --
-  --       self.prevDY = dy
-  --
-  --       if i == num then -- Done running the graph update
-  --         -- debug("Done running refresh:", debugprofilestop() - start)
-  --         if routine then
-  --           self.refresh = refreshNormalGraph2
-  --           self.updating = false
-  --         end
-  --
-  --         self.endNum = i + 1
-  --         self.lastLine = lastLine or self.lastLine
-  --
-  --         -- debug("TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
-  --
-  --         if self.frame.zoomed then
-  --           local firstLine, lastLine = nil, nil
-  --
-  --           for i = 1, num do
-  --             if self.lines[i] then
-  --               firstLine = self.lines[i]
-  --               break
-  --             end
-  --           end
-  --
-  --           for i = num, 1, -1 do
-  --             if self.lines[i] then
-  --               lastLine = self.lines[i]
-  --               break
-  --             end
-  --           end
-  --
-  --           local minimum = firstLine:GetLeft() - self.frame:GetLeft()
-  --           local maximum = lastLine:GetRight() - self.frame:GetRight()
-  --
-  --           if 0 < minimum then minimum = 0 end
-  --           if 0 > maximum then maximum = 0 end
-  --
-  --           self.frame.slider:SetMinMaxValues(minimum, maximum)
-  --           self.frame.slider:SetValue(0)
-  --         end
-  --       elseif routine and (i % 1000) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
-  --         local delay = random(-3, 3) / 100 + 0.05 -- The random number is to reduce the chances of multiple graphs refreshing at the exact same time
-  --         after(delay, self.refresh)
-  --         self.updating = true
-  --         yield()
-  --       end
-  --     elseif blocked and i == num then -- It's done
-  --       if routine then
-  --         self.refresh = refreshNormalGraph2
-  --         self.updating = false
-  --       end
-  --
-  --       if blockedY > 0 then
-  --         self.YMax = maxY * (blockedY / graphHeight) * 1.12 -- 90%
-  --       end
-  --
-  --       return self:refresh(true) -- Run agian with the new X/Y value
-  --     end
-  --   end
-  -- end
-
-  local graph = {}
-  do -- Graph setup
-    graph.name = "Test Graph"
+  
+  local graphs = {}
+  
+  local function createGraph(name, color)
+    local graph = {}
+    graph.name = name or "Test Graph"
     graph.data = {}
     graph.lines = {}
     graph.bars = {}
@@ -2476,134 +1920,612 @@ do -- Coroutine test
     graph.endNum = 2
     graph.fill = false
     graph.refresh = refreshNormalGraph
-    graph.color = {0.0, 0.0, 1.0, 1.0} -- Blue
+    graph.color = color or {0.0, 0.0, 1.0, 1.0} -- Blue
     graph.shown = true
     -- graph.color = {1.0, 0.0, 0.0, 1.0} -- Red
     -- graph.color = {0.0, 1.0, 0.5, 1.0} -- Green
+    
+    graphs[#graphs + 1] = graph
+    
+    return graph
   end
-
-  -- local graph2 = {}
-  -- do -- Graph setup
-  --   graph2.name = "Test Graph 2"
-  --   graph2.data = {}
-  --   graph2.lines = {}
-  --   graph2.bars = {}
-  --   graph2.triangles = {}
-  --   graph2.frame = frame
-  --   graph2.XMax = 10
-  --   graph2.XMin = 0
-  --   graph2.YMax = 100
-  --   graph2.YMin = 0
-  --   graph2.endNum = 2
-  --   graph2.fill = false
-  --   graph2.refresh = refreshNormalGraph2
-  --   graph2.color = {0.0, 0.0, 1.0, 1.0} -- Blue
-  --   graph2.shown = true
-  --   graph2.recycling = {}
-  --   -- graph.color = {1.0, 0.0, 0.0, 1.0} -- Red
-  --   -- graph.color = {0.0, 1.0, 0.5, 1.0} -- Green
-  -- end
 
   local speed = 0.01
-  local variation = 1
+  local variation = 0.1
+  
+  local function createData(num, seed, variation)
+    local seed = seed or random(25, 75)
+      
+    for i = 1, num do
+      local prev = graphs[1].data[-(i - 1)] or seed
+  
+      local y = prev
+      if random(1, 2) == 1 then -- This is just so I can have the variation be a decimal, since random doesn't work with decimals
+        y = y + variation
+      else
+        y = y - variation
+      end
+      
+      for index = 1, #graphs do
+        local data = graphs[index].data
 
-  local function generateData(num, command)
-    local gapX = 100 / num
+        if 20 > y then y = 20 end
+        if y > 80 then y = 80 end
+        
+        -- y = y + ((index - 1) * 10)
+        
+        data[i] = i * 0.1
+        data[-i] = y
+      end
+    end
+    
+    return data
+  end
+  
+  createGraph("Test_Graph_1")
+  createGraph("Test_Graph_2", {0.0, 1.0, 0.5, 1.0})
+  createGraph("Test_Graph_3", {0.5, 0.5, 0.5, 1.0})
+  createData(1000, random(25, 75), 1)
+  
+  local data = graphs[1].data
+  smoothingAlgorithm(data, 1, #data, 0.01)
+  graphs[1]:refresh(nil, nil, 10)
+  
+  graphs[2]:refresh(nil, nil, 5)
+  
+  local data = graphs[3].data
+  smoothingAlgorithm(data, 1, #data, 0.1)
+  graphs[3]:refresh(nil, nil, 0)
 
-    if command and command == "add" then
-      local dataNum = #graph.data
+  -- local start = GetTime() - (#graph.data * speed)
+  --
+  -- C_Timer.NewTicker(speed, function(ticker)
+  --   local timer = GetTime() - start
+  --
+  --   local i = #graph.data + 1
+  --
+  --   local prev = graph.data[-(i - 1)] or 0
+  --   if not prev then debug("No prev data!") end
+  --   local y = random(prev - variation, prev + variation)
+  --   if 0 >= y then y = 0 end
+  --   if graph2 then
+  --     if y > 80 then y = 80 end
+  --   else
+  --     if y > 100 then y = 100 end
+  --   end
+  --
+  --   graph.data[i] = timer
+  --   graph.data[-i] = y
+  --   if graph2 then
+  --     graph2.data[1] = timer
+  --     graph2.data[-1] = y + 20
+  --   end
+  --
+  --   if not graph.updating then graph:refresh() end
+  --   if graph2 and not graph2.updating then graph2:refresh() end
+  -- end)
+end
 
-      for i = dataNum, num + dataNum do
-        local prev = graph.data[-(i - 1)] or random(25, 75)
+function CT:refreshNormalGraph(reset, routine)
+  if not CT.base.shown then return debug("Refresh got called when base was hidden!", self.name) end
+  if not CT.base.expander then return debug("Refresh got called before the expander was created!", self.name) end
+  if not CT.base.expander.shown then return debug("Refresh got called when the expander was not flagged as shown!", self.name) end
+  if not self.shown then return debug("Refresh got called when graph was not flagged as shown!", self.name) end
+  if not self.frame then return debug("Refresh got called when graph had no frame!", self.name) end -- Happened once, was related to loading a saved fight or returning from one
+  if self.updating then return debug("Refresh got called when graph was flagged as updating!", self.name) end
+  
+  if not self.recycling then self.recycling = {} end
 
-        local y = random(prev - variation, prev + variation)
-        if 0 >= y then y = 0 end
-        if graph2 then
-          if y > 80 then y = 80 end
+  local num = #self.data
+  if 0 >= num then return end
+  
+  local graphWidth, graphHeight = self.frame:GetSize()
+  local dbGraph = self.__index
+
+  local stopX = graphWidth * (dbGraph.data[num] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin)
+  if dbGraph and stopX > graphWidth then -- Graph is too long, squish it
+    -- dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.05
+    dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.333 -- 75%
+    reset = true
+  end
+
+  if reset then
+    self.endNum = 2
+
+    if num >= (1000) then -- The comparison number is after how many points do we want to switch to a coroutine (default 2000)
+      self.refresh = wrap(CT.refreshNormalGraph)
+
+      return self:refresh(nil, true) -- Call it again, but now as a coroutine
+    end
+  end
+
+  if self.fill then -- Make sure the tables exist
+    if not self.bars then self.bars = {} end
+    if not self.triangles then self.triangles = {} end
+  end
+
+  local start = debugprofilestop()
+  local maxX = self.XMax
+  local minX = self.XMin
+  local maxY = self.YMax
+  local minY = self.YMin
+  local data = self.data
+  local lines = self.lines
+  local bars = self.bars
+  local triangles = self.triangles
+  local frame = self.frame.anchor or self.frame
+  local anchor = self.anchor or self.frame.anchor or self.frame
+  local zoomed = self.frame.zoomed
+  local blocked, blockedY = nil, 0, 0
+
+  local c1, c2, c3, c4 = 0.0, 0.0, 1.0, 1.0 -- Default to blue
+  if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.overrideAlpha or self.color[4] end
+
+  -- if self.endNum ~= 2 and self.endNum > num then -- Generally, this should mean it was called without adding new data points from last time, redraw the last line
+  --   local startX = graphWidth * (data[num - 1] - minX) / (maxX - minX)
+  --   local startY = graphHeight * (data[-(num - 1)] - minY) / (maxY - minY)
+  --
+  --   local stopX = graphWidth * (data[num] - minX) / (maxX - minX)
+  --   local stopY = graphHeight * (data[-num] - minY) / (maxY - minY)
+  --
+  --   local lastIndex, lastLine = nil, nil
+  --
+  --   for i = num, 2, -1 do -- Find most recent line, searching backwards
+  --     if lines[i] then
+  --       lastIndex = i
+  --       lastLine = lines[i]
+  --       break
+  --     end
+  --   end
+  --
+  --   return debug("Greater, returning")
+  -- end
+
+  -- if not reset and self.totalLines and self.totalLines > (self.lastSmoothing or 0) and (self.totalLines % 30) == 0 then -- and (self.endNum % 30) == 0
+  --   local difference = (num - self.endNum)
+  --
+  --   local v1, v2, v3 = smoothingAlgorithm(self, self.data, max(num - 50, 1), num, 0.1)
+  --
+  --   num = #self.data
+  --   self.lastSmoothing = self.totalLines
+  --   -- self.endNum = num - difference
+  -- end
+
+  for i = (self.endNum or 2), num do
+    local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+
+    if not zoomed then -- Update maxX and maxY values if necessary, just not while zoomed
+      if stopY > graphHeight then -- Graph is too tall
+        blocked = true
+
+        if (stopY / graphHeight) > blockedY then
+          blockedY = stopY
+        end
+      end
+    end
+
+    if not blocked then -- If out of bounds, finish looping to find the most out of bounds point, but don't waste time calculating everything
+      local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- Start isn't needed for bounds check
+      local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+
+      local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+
+      local lastLine
+      local line = lines[i]
+      local w = 32
+      local dx, dy = stopX - startX, stopY - startY -- This is about the change
+      local cx, cy = (startX + stopX) / 2, (startY + stopY) / 2 -- This is about the total
+
+      if (dx < 0) then -- Normalize direction if necessary
+        dx, dy = -dx, -dy
+      end
+
+      local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
+
+      if (startX == stopX) and (startY == stopY) then
+        debug("Tried to draw point that takes no space!")
+      end
+
+      if startX ~= stopX then -- If they match, this can break
+        local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
+        local sc = s * c
+
+        if (i > 2) and self.lastLine then -- Without this, it can fall into an infinite loop
+          local passed = nil
+
+          do -- Check if any smoothing should be applied
+            local diffDX = dx - (self.lastDX or 0)
+            if 0 > diffDX then diffDX = -diffDX end
+
+            local diffDY = dy - (self.lastDY or 0)
+            if 0 > diffDY then diffDY = -diffDY end
+
+            local diffS = s - (self.lastSine or 0)
+            if 0 > diffS then diffS = -diffS end
+
+            local level = self.smoothingOverride or CT.settings.graphSmoothing -- How much smoothing should happen, 0 to mostly disable
+
+            if not level or level == 0 then -- Smoothing disabled, only do horizontal and vertical lines. This usually uses about 70% - 80% of the points, but can vary a ton
+              if (diffDX == 0) or (diffDY == 0) then
+                passed = true
+              end
+            elseif level == 1 then -- Very little smoothing, this will probably gradually increase the number of textures, roughly uses around 50% of the points
+              if (0 >= diffDX) or (0 >= diffDY) or (diffS > 0.999) or (0.001 > diffS) then
+                passed = true
+              end
+            elseif level == 2 then -- Medium, should be default, this tries to maintain a somewhat steady amount of textures, roughly around 400 - 600
+              if (0.001 > diffDX) or (0.001 > diffDY) or (diffS > 0.99) or (0.01 > diffS) then
+                passed = true
+              end
+            elseif level == 3 then -- Lots of smoothing, roughly around 200 - 300 textures most of the time
+              if (0.01 > diffDX) or (0.01 > diffDY) or (diffS > 0.95) or (0.05 > diffS) then
+                passed = true
+              end
+            elseif level == 4 then -- Probably too much smoothing, roughly around 140 - 200 textures
+              if (0.1 > diffDX) or (0.1 > diffDY) or (diffS > 0.9) or (0.1 > diffS) then
+                passed = true
+              end
+            elseif level == 5 then -- Complete overkill, but whatever, it's usually less than 100 textures
+              if (0.2 > diffDX) or (0.2 > diffDY) or (diffS > 0.8) or (0.2 > diffS) then
+                passed = true
+              end
+            end -- If you want to 100% disable smoothing, set the level higher than 5. I can't think of any reason to not extend straight lines though.
+          end
+
+          if passed then
+            if line then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
+              self.recycling[#self.recycling + 1] = line
+              line:ClearAllPoints()
+              line:Hide()
+              lines[i] = nil
+            end
+
+            local index = i - 1
+            while not lines[index] and (index > 0) do -- Find the most recent line
+              index = index - 1
+            end
+
+            line = lines[index] -- Now this is used, instead of creating a brand new one
+
+            startX = graphWidth * (data[index - 1] - minX) / (maxX - minX)
+            startY = graphHeight * (data[-(index - 1)] - minY) / (maxY - minY)
+
+            dx, dy = stopX - startX, stopY - startY -- Redo all these calculations with the new start points
+            cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
+
+            if (dx < 0) then
+              dx, dy = -dx, -dy
+            end
+
+            l = sqrt((dx * dx) + (dy * dy))
+
+            s, c = -dy / l, dx / l
+            sc = s * c
+          end
+        end
+
+        local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
+        if dy >= 0 then
+          Bwid = ((l * c) - (w * s)) * TAXIROUTE_LINEFACTOR_2
+          Bhgt = ((w * c) - (l * s)) * TAXIROUTE_LINEFACTOR_2
+          BLx, BLy, BRy = (w / l) * sc, s * s, (l / w) * sc
+          BRx, TLx, TLy, TRx = 1 - BLy, BLy, 1 - BRy, 1 - BLx
+          TRy = BRx
         else
-          if y > 100 then y = 100 end
+          Bwid = ((l * c) + (w * s)) * TAXIROUTE_LINEFACTOR_2
+          Bhgt = ((w * c) + (l * s)) * TAXIROUTE_LINEFACTOR_2
+          BLx, BLy, BRx = s * s, -(l / w) * sc, 1 + (w / l) * sc
+          BRy, TLx, TLy, TRy = BLx, 1 - BRx, 1 - BLx, 1 - BLy
+          TRx = TLy
         end
 
-        graph.data[i] = i * speed
-        graph.data[-i] = y
-        if graph2 then
-          graph2.data[i] = i * speed
-          graph2.data[-i] = y + 20
+        if not line then
+          if self.recycling[1] then -- First try to recycle an old line, if it has at least one
+            line = tremove(self.recycling) -- Take the last one
+            line:Show()
+          else -- Nothing to recycle, create a new one
+            line = frame:CreateTexture(nil, (self.drawLayer or "ARTWORK"))
+            line:SetTexture("Interface\\addons\\CombatTracker\\Media\\line.tga")
+            self.totalLines = (self.totalLines or 0) + 1
+          end
+
+          line:SetVertexColor(c1, c2, c3, c4)
+
+          lastLine = line
+          self.lastIndex = i
+          self.lastLine = line -- Easy access to most recent
+
+          lines[i] = line
+        end
+
+        self.lastSine = s
+        self.lastDX = dx
+        self.lastDY = dy
+
+        line:SetTexCoord(TLx, TLy, BLx, BLy, TRx, TRy, BRx, BRy)
+        line:SetPoint("TOPRIGHT", anchor, "BOTTOMLEFT", cx + Bwid, cy + Bhgt)
+        line:SetPoint("BOTTOMLEFT", anchor, "BOTTOMLEFT", cx - Bwid, cy - Bhgt)
+      end
+
+      if bars then
+        if self.fill then -- Draw bars if fill is true
+          if startX > stopX then -- Want startX <= stopX, if not then flip them
+            startX, stopX = stopX, startX
+            startY, stopY = stopY, startY
+          end
+
+          local minY, maxY
+          if startY < stopY then
+            minY = startY
+            maxY = stopY
+          else
+            minY = stopY
+            maxY = startY
+          end
+
+          local width = stopX - startX
+
+          if width < 1 then width = 1 end
+          if 1 > minY then minY = 1 end -- Has to be at least 1 wide
+
+          local bar = bars[i]
+
+          do -- Handle the bar
+            if (i > 2) and (self.prevDY and dy == self.prevDY) then --  or (3 > width)
+              if bar then -- If a bar exists, recycle it to be used later, instead of throwing it away and creating a new one
+                if not self.barRecycling then self.barRecycling = {} end
+
+                self.barRecycling[#self.barRecycling + 1] = bar
+                bar:ClearAllPoints()
+                bar:Hide()
+                bars[i] = nil
+              end
+
+              local index = i - 1
+              while not bars[index] and (index > 0) do -- Find the most recent bar
+                index = index - 1
+              end
+
+              bar = bars[index] -- Now this is used, instead of creating a brand new one
+            end
+
+            if not bar then
+              if self.barRecycling and self.barRecycling[1] then -- First try to recycle an old bar, if it has at least one
+                bar = tremove(self.barRecycling) -- Take the last one
+                bar:Show()
+              else -- Nothing to recycle, create a new one
+                bar = frame:CreateTexture("CT_Graph_Frame_Bar_" .. i, self.drawLayer or "ARTWORK")
+                bar:SetTexture(1, 1, 1, 1)
+                bar:SetVertexColor(c1, c2, c3, bars.alpha or 0.3)
+                -- bar:SetBlendMode("ADD")
+
+                self.totalBars = (self.totalBars or 0) + 1
+              end
+
+              bars.lastBar = bar
+
+              bars[i] = bar
+            end
+
+            if bar then
+              -- bar:ClearAllPoints()
+              bar:SetPoint("BOTTOMLEFT", anchor, startX, 0)
+              bar:SetSize(width, minY)
+            end
+
+            if self.prevDY and (dy == self.prevDY) then -- Same height as before
+              if bar then
+                -- debug("First")
+                bar:SetPoint("RIGHT", line, 0, 0)
+              else
+                debug("Second")
+                local index = i - 1
+                while not bars[index] and (index > 0) do -- Find the most recent bar
+                  index = index - 1
+                end
+
+                bar = bars[index] -- Now this is used, instead of creating a brand new one
+
+                if bar then
+                  bar:SetPoint("RIGHT", line, 0, 0)
+                end
+              end
+            elseif bar then
+              local index = i - 1
+              local prevBar = bars[index]
+              while ((not prevBar) or (prevBar == bar)) and (index > 0) do -- Find the most recent bar
+                index = index - 1
+                prevBar = bars[index]
+              end
+
+              if prevBar then
+                prevBar:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+              end
+            else
+              debug(i, "No bar, but does need to anchor!")
+            end
+          end
+
+          --   if self.prevDY and dy == self.prevDY then
+          --     if bars[i - 1] then
+          --       bars[i - 1]:SetPoint("RIGHT", lastLine, 0, 0)
+          --     else
+          --       for index = (i - 2), 1, -1 do
+          --         if bars[index] then
+          --           bars[index]:SetPoint("RIGHT", lastLine, 0, 0)
+          --           break
+          --         end
+          --       end
+          --     end
+          --   elseif bar then
+          --     local index = i - 1
+          --     local prevBar = bars[index]
+          --     while ((not prevBar) or (prevBar == bar)) and (index > 0) do -- Find the most recent bar
+          --       index = index - 1
+          --       prevBar = bars[index]
+          --     end
+          --
+          --     if prevBar then
+          --       prevBar:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+          --     end
+          --
+          --     -- if bars[i - 1] then
+          --     --   bars[i - 1]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+          --     -- else
+          --     --   for index = (i - 2), 1, -1 do
+          --     --     if bars[index] then
+          --     --       bars[index]:SetPoint("RIGHT", bar, "LEFT", 0, 0)
+          --     --       break
+          --     --     end
+          --     --   end
+          --     -- end
+          --   else
+          --     debug(i, "No bar, but does need to anchor!")
+          --   end
+
+          do -- Handle triangle stuff
+            -- local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX) -- Start isn't needed for bounds check
+            -- local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+            --
+            -- local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+            -- local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+
+            if bar then
+              local tri = triangles[i]
+              if not tri and (maxY - minY) >= 1 then
+                tri = frame:CreateTexture("CT_Graph_Frame_Triangle_" .. i, self.drawLayer or "ARTWORK")
+                tri:SetTexture("Interface\\Addons\\CombatTracker\\Media\\triangle")
+                tri:SetVertexColor(c1, c2, c3, triangles.alpha or bars.alpha or 0.3)
+                -- tri:SetBlendMode("ADD")
+
+                if startY < stopY then
+                  tri:SetTexCoord(0, 0, 0, 1, 1, 0, 1, 1)
+                else
+                  tri:SetTexCoord(1, 0, 1, 1, 0, 0, 0, 1)
+                end
+
+                self.totalTriangles = (self.totalTriangles or 0) + 1
+
+                triangles[i] = tri
+              end
+
+              if tri and (maxY - minY) >= 1 then
+                tri:SetPoint("BOTTOMLEFT", anchor, startX, minY)
+                tri:SetSize(width, maxY - minY)
+                tri:Show()
+                -- print("Showing", i)
+              elseif tri then
+                -- print("Hiding", i)
+                tri:Hide()
+              else
+                -- print("Didn't create one", i)
+              end
+            end
+          end
+
+          if self.status and self.status ~= "shown" then
+            debug("Showing graph filling.")
+            for i = 1, num do
+              if bars[i] then
+                bars[i]:Show()
+              end
+
+              if triangles[i] then
+                triangles[i]:Show()
+              end
+            end
+
+            self.status = "shown"
+          end
+        elseif not self.fill and self.status and self.status ~= "hidden" then -- Don't fill, so remove the line if they are shown
+          print("Hiding graph filling")
+
+          for i = 1, num do
+            if bars[i] then
+              bars[i]:Hide()
+            end
+
+            if triangles[i] then
+              triangles[i]:Hide()
+            end
+          end
+
+          self.status = "hidden"
         end
       end
-    else
-      wipe(graph.data)
 
-      graph.data[1] = 0
-      graph.data[-1] = random(25, 75)
+      self.prevDY = dy
 
-      for i = 2, num do
-        local prev = graph.data[-(i - 1)]
-
-        graph.data[i] = i * gapX
-        graph.data[-i] = random(prev - 3, prev + 3)
-
-        if 0 > graph.data[-i] then
-          graph.data[-i] = 0
-        elseif graph.XMax < graph.data[-i] then
-          graph.data[-i] = graph.XMax
+      if i == num then -- Done running the graph update
+        if routine then
+          self.refresh = CT.refreshNormalGraph
+          self.updating = false
         end
+        
+        if reset or routine then
+          local runTime = floor((debugprofilestop() - start) * 1000 + 0.5) / 1000
+          local percent = floor(((self.totalLines or 0) / num) * 100)  .. "%"
+          
+          if routine then
+            debug(percent, num, self.totalLines, #self.recycling, "Done refreshing (coroutine):", self.name .. ".", runTime, "MS.")
+          else
+            debug(percent, num, self.totalLines, #self.recycling, "Done refreshing:", self.name .. ".", runTime, "MS.")
+          end
+        end
+
+        self.endNum = i + 1
+        self.lastLine = lastLine or self.lastLine
+
+        -- debug("TOTALS:", self.totalLines or 0, self.totalBars or 0, self.totalTriangles or 0, i)
+
+        if self.frame.zoomed then
+          local firstLine, lastLine = nil, nil
+
+          for i = 1, num do
+            if self.lines[i] then
+              firstLine = self.lines[i]
+              break
+            end
+          end
+
+          for i = num, 1, -1 do
+            if self.lines[i] then
+              lastLine = self.lines[i]
+              break
+            end
+          end
+
+          local minimum = firstLine:GetLeft() - self.frame:GetLeft()
+          local maximum = lastLine:GetRight() - self.frame:GetRight()
+
+          if 0 < minimum then minimum = 0 end
+          if 0 > maximum then maximum = 0 end
+
+          self.frame.slider:SetMinMaxValues(minimum, maximum)
+          self.frame.slider:SetValue(0)
+        end
+      elseif routine and (i % 500) == 0 then -- The modulo of i is how many lines it will run before calling back, if it's in a coroutine
+        local delay = random(-3, 3) / 100 + 0.05 -- The random number is to reduce the chances of multiple graphs refreshing at the exact same time
+        after(delay, self.refresh)
+        self.updating = true
+        yield()
       end
+    elseif blocked and i == num then -- It's done
+      if routine then
+        self.refresh = CT.refreshNormalGraph
+        self.updating = false
+      end
+
+      if blockedY > 0 then
+        self.YMax = maxY * (blockedY / graphHeight) * 1.12 -- 90%
+      end
+
+      return self:refresh(true) -- Run again with the new Y value
     end
-  end
-
-  local y = random(25, 75)
-
-  graph.data[1] = 0
-  graph.data[-1] = y
-  if graph2 then
-    graph2.data[1] = 0
-    graph2.data[-1] = y + 20
-  end
-
-  -- generateData(400, "add")
-
-  local start = GetTime() - (#graph.data * speed)
-
-  C_Timer.NewTicker(speed, function(ticker)
-    local timer = GetTime() - start
-
-    local i = #graph.data + 1
-
-    local prev = graph.data[-(i - 1)] or 0
-    if not prev then debug("No prev data!") end
-    local y = random(prev - variation, prev + variation)
-    if 0 >= y then y = 0 end
-    if graph2 then
-      if y > 80 then y = 80 end
-    else
-      if y > 100 then y = 100 end
-    end
-
-    graph.data[i] = timer
-    graph.data[-i] = y
-    if graph2 then
-      graph2.data[1] = timer
-      graph2.data[-1] = y + 20
-    end
-
-    if not graph.updating then graph:refresh() end
-    if graph2 and not graph2.updating then graph2:refresh() end
-  end)
-end
-
-do -- LibCompress test
-  local data = {}
-
-  local start = debugprofilestop() / 1000
-
-  for i = 1, 10000 do
-    local y = random(1, 10000) / 100
-    data[i] = floor(y * 100)
   end
 end
 
-function CT:refreshNormalGraph(reset, routine) -- NOTE: What about accessing the Y points directly for comparisons for smoothing?
+function CT:refreshNormalGraph_BACKUP_2(reset, routine) -- NOTE: What about accessing the Y points directly for comparisons for smoothing?
   if not CT.base.shown then return debug("Refresh got called when base was hidden!", self.name) end
   if not CT.base.expander then return debug("Refresh got called before the expander was created!", self.name) end
   if not CT.base.expander.shown then return debug("Refresh got called when the expander was not flagged as shown!", self.name) end
@@ -2651,25 +2573,25 @@ function CT:refreshNormalGraph(reset, routine) -- NOTE: What about accessing the
   local c1, c2, c3, c4 = 0.0, 0.0, 1.0, 1.0 -- Default to blue
   if self.color then c1, c2, c3, c4 = self.color[1], self.color[2], self.color[3], self.overrideAlpha or self.color[4] end
   
-  if self.endNum ~= 2 and self.endNum > num then -- Generally, this should mean it was called without adding new data points from last time, redraw the last line
-    local startX = graphWidth * (data[num - 1] - minX) / (maxX - minX)
-    local startY = graphHeight * (data[-(num - 1)] - minY) / (maxY - minY)
-    
-    local stopX = graphWidth * (data[num] - minX) / (maxX - minX)
-    local stopY = graphHeight * (data[-num] - minY) / (maxY - minY)
-    
-    local lastIndex, lastLine = nil, nil
-    
-    for i = num, 2, -1 do -- Find most recent line, searching backwards
-      if lines[i] then
-        lastIndex = i
-        lastLine = lines[i]
-        break
-      end
-    end
-    
-    return debug("Greater, returning")
-  end
+  -- if self.endNum and self.endNum ~= 2 and self.endNum > num then -- Generally, this should mean it was called without adding new data points from last time, redraw the last line
+  --   local startX = graphWidth * (data[num - 1] - minX) / (maxX - minX)
+  --   local startY = graphHeight * (data[-(num - 1)] - minY) / (maxY - minY)
+  --
+  --   local stopX = graphWidth * (data[num] - minX) / (maxX - minX)
+  --   local stopY = graphHeight * (data[-num] - minY) / (maxY - minY)
+  --
+  --   local lastIndex, lastLine = nil, nil
+  --
+  --   for i = num, 2, -1 do -- Find most recent line, searching backwards
+  --     if lines[i] then
+  --       lastIndex = i
+  --       lastLine = lines[i]
+  --       break
+  --     end
+  --   end
+  --
+  --   return debug("Greater, returning")
+  -- end
 
   for i = (self.endNum or 2), num do
     local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
@@ -3893,7 +3815,7 @@ function CT:buildGraph()
           local tempStopX = graphWidth * (data[i] - minX) / (maxX - minX)
           local tempStopY = graphHeight * (data[-i] - minY) / (maxY - minY)
 
-          if ((fromGraphLeft > tempStartX) and (fromGraphLeft <= tempStopX)) then -- First find the closest data point on the X axis
+          if ((fromGraphLeft > tempStartX) and (fromGraphLeft <= tempStopX)) and lastLine then -- First find the closest data point on the X axis
             foundX = true
 
             local _, lineY = lastLine:GetCenter()

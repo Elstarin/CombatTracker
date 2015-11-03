@@ -32,7 +32,7 @@
 --------------------------------------------------------------------------------
 -- Locals, Frames, and Tables
 --------------------------------------------------------------------------------
-local profile = false
+local profile = true
 
 if profile then -- profile code in here
   local infinity = math.huge
@@ -84,94 +84,24 @@ if profile then -- profile code in here
     -- local loop = 10000 -- 10 thousand
     -- local loop = 100000 -- 100 thousand
     -- local loop = 500000 -- 500 thousand
-    -- local loop = 1000000 -- 1 million
+    local loop = 1000000 -- 1 million
     -- local loop = 10000000 -- 10 million
     -- local loop = 100000000 -- 100 million
 
     local t = {}
+    
+    local function func()
+      return
+    end
 
     local loop = loop or 1
-
-    local temp = {}
-    local start, stop
-    local function douglasPeucker(t, first, last, tolerance, callback)
-      if not callback then -- Will pass the first time it is called, not when it calls itself
-        wipe(temp)
-        
-        start, stop = first, last -- When it matches these values again, it *should* be done running
-      
-        if not last then last = #t end
-        if not first then first = 1 end
-      end
-      
-      local maxD = 0
-      local farthestIndex = 0
-    
-      for i = first, last do
-        local x1, y1 = t[i], t[-i]
-        local x2, y2 = t[first], t[-first]
-        local x3, y3 = t[last], t[-last]
-        
-        local area = abs(0.5 * (x2 * y3 + x3 * y1 + x1 * y2 - x3 * y2 - x1 * y3 - x2 * y1)) -- Get area of triangle
-        local bottom = sqrt((x2 - x3) ^ 2 + (y2 - y3) ^ 2) -- Calculates the length of the bottom edge
-        local distance = area / bottom -- This is the triangle's high, which is also the distance found
-    
-        if distance > maxD then
-          maxD = distance
-          farthestIndex = i
-        end
-      end
-    
-      if maxD > tolerance and farthestIndex ~= 1 then
-        local num = #temp + 1
-        temp[num] = t[farthestIndex] -- Store the X point
-        temp[-num] = t[-farthestIndex] -- Store the Y point
-    
-        douglasPeucker(t, first, farthestIndex, tolerance, true)
-        douglasPeucker(t, farthestIndex, last, tolerance, true)
-      end
-      
-      if first == start and last == stop then -- Should mean it's done running
-        for i = 1, #t do
-          if temp[i] then
-            t[i] = temp[i]
-            t[-i] = temp[-i]
-          else -- I'm guessing this is more efficient than first calling wipe(t) first, since I'm already iterating through it
-            t[i] = nil
-            t[-i] = nil
-          end
-        end
-      end
-    end
-    
-    -- local list = {}
-    -- for index = 1, 5 do
-    --   local t = {}
-    --
-    --   for i = 1, 10000 do
-    --     t[i] = i * 0.1
-    --     t[-i] = random(1, 10000) / 100
-    --   end
-    --
-    --   list[index] = t
-    -- end
-    
-    for i = 1, 50000 do
-      t[i] = i * 0.1
-      t[-i] = random(1, 10000) / 100
-    end
 
     collectgarbage("collect")
     local start = debugprofilestop()
     
-    douglasPeucker(t, 1, #t, 3)
-    
-    -- for i = 1, #list do
-    --   local before = #list[i]
-    --   douglasPeucker(list[i], 1, #list[i], 0.5)
-    --
-    --   print(before, #list[i])
-    -- end
+    for i = 1, loop do
+      local _, _, s = ("This is a STRING"):find("(STRING)")
+    end
 
     -- All of these were at 10m
     -- for i = 1, 100 do: 32.2k
@@ -294,7 +224,7 @@ CT.__index = CT
 CT.settings = {}
 CT.settings.buttonSpacing = 2
 CT.settings.spellCooldownThrottle = 0.0085
-CT.settings.graphSmoothing = 2
+CT.settings.graphSmoothing = 1
 CT.combatevents = {}
 CT.player = {}
 CT.altPower = {}
@@ -335,6 +265,10 @@ do -- Debugging stuff
     blocked = {}
   end
 
+  local function colorNumbers(num)
+    
+  end
+
   function CT.debug(...)
     if debugMode then
       wipe(t)
@@ -343,39 +277,74 @@ do -- Debugging stuff
       for i = 1, num do
         local var = select(i, ...)
         local obj = type(var)
-
-        if obj == "table" then
-          t[i] = "|cFF888888" .. tostring(var) .. "|r"
+        local spellName, _, _, _, _, _, spellID = GetSpellInfo(tonumber(var) or var)
+        
+        if _G[var] then
+          t[i] = format("|cFFFF9B00%s|r", var)
+        elseif spellName and spellName:match(var) then
+          -- print("SPELL NAME", spellName)
+          t[i] = format("|cFFFF00FF%s|r", spellName)
+        elseif var == true then
+          t[i] = "|cFF4B6CD7true|r"
+        elseif var == false then
+          t[i] = "|cFFFF9B00false|r"
+        elseif obj == "table" then
+          t[i] = format("|cFF888888%s|r", tostring(var))
         elseif obj == "function" then
-          t[i] = "|cFFDA70D6" .. tostring(var) .. "|r"
+          t[i] = format("|cFFDA70D6%s|r", tostring(var))
         elseif obj == "nil" then
           t[i] = "|cFFFA6022nil|r"
-        elseif obj == "boolean" then
-          if var == true then
-            t[i] = "|cFF4B6CD7true|r"
-          elseif var == false then
-            t[i] = "|cFFFF9B00false|r"
-          end
         elseif obj == "userdata" then
           t[i] = "|cFF888888" .. tostring(var) .. "|r"
+          -- t[i] = tostring(var)
         elseif obj == "number" or type(tonumber(obj)) == "number" then
-          t[i] = "|cFF00CCFF" .. var .. "|r"
+          -- t[i] = format("|cFF00CCFF%s|r", var)
+          t[i] = var
         elseif obj == "string" then
           t[i] = var
         end
+        
+        -- local str = tostring(var)
+        
+        -- if str:match("%d") and not str:match("%c") then
+        --   t[i] = str:gsub("(%P%-?%d+%.?%d*%%?)", "|cFF00CCFF%1|r") -- Find and color all numbers and percent signs if they have one
+        -- end
       end
+      
+      local colorNil = "|cFFFA6022"
+      local colorTable = "|cFF888888"
+      local colorTrue = "|cFF4B6CD7"
+      local colorFalse = "|cFFFF9B00"
+      local colorUserData = "|cFF888888"
+      local colorNumber = "|cFF00CCFF"
 
-      local string = table.concat(t, ", ")
+      local string = table.concat(t, "~") .. "~" -- The ~ lets me keep track of the different chunks while I apply colors and such, it gets removed last
 
       if string then
-        string = string:gsub("(%a+), (|%x*%d+|r)", "%1 %2") -- Remove any commas after a string when it's followed by a number
-        string = string:gsub("(%a+), (%a+)", "%1 %2") -- Remove any commas after a string when it's followed by a string
-        string = string:gsub("(|%x*%d+|r), %a+", "%1") -- Remove any commas after a number when it's followed by a string
-        string = string:gsub("(%p),", "%1") -- Remove any commas after a punctuation character
+        string = string:gsub("(%P%d+%.?%d*%%?)(%~%d)", "%1,%2") -- Seperate numbers followed by numbers with commas
+        string = string:gsub("([%a%d])(%~%u%l)", "%1.%2") -- Add a period if there's a lowercase letter or number, a space, then an uppercase letter
+        string = string:gsub("(%P%~?)$", "%1.") -- Add a period to the end if there isn't any punctuation
+        
+        string = string:gsub("%d+%%", "|cFF00CCFF%1|r") -- Make all percentages blue
+        string = string:gsub("(%d+)([%,%.])", "|cFF00CCFF%1|r%2") -- Make all numbers followed by a comma or period blue
+        string = string:gsub("%.(%d+)", ".|cFF00CCFF%1|r") -- Make all decimal numbers blue
+        string = string:gsub("(%a+%~)(%d+)(%~%a+)", "%1|cFF00CCFF%2|r%3") -- Make all numbers between two spaced strings without punctuation blue
+        string = string:gsub("(%l:%~)(%S+)%~", "%1|cFFFF9B00%2|r~") -- Set everything after : color until next punctuation mark if it doesn't end with |r
+        string = string:gsub("%~?(%a+)(%~|cFF%D)", "%1,%2") -- Separate most segments with a comma unless the next is a number
         string = string:gsub("(%()(.*)(%))", "|cFF9E5A01%1|r|cFF00CCFF%2|r|cFF9E5A01%3|r") -- Make ( and ) orange and anything inside them blue
-        string = string:gsub("(%w: )(.+)%p*", "%1|cFFFFCC00%2|r") -- Make any letters after a: gold until next punctuation mark
+        
+        string = string:gsub("~", " ")
+        string = string:gsub("%s+([%.%,%!%?])", "%1") -- Make sure there aren't any spaces followed by an important punctuation mark left from removing ~
 				string = string:trim() -- Get rid of useless whitespace
-        if not string:match("[|r]*(%p)[|r]*$") then string = string .. "." end -- If it doesn't end with a puncuation character, add a period
+        
+        -- string = string:gsub("(%P%-?%d+%.?%d*%%?)", "|cFF00CCFF%1|r") -- Find and color all numbers and percent signs if they have one
+        
+        -- string = string:gsub("(%a+), (|%x*%d+|r)", "%1 %2") -- Remove any commas after a string when it's followed by a number
+        -- string = string:gsub("(%a+), (%a+)", "%1 %2") -- Remove any commas after a string when it's followed by a string
+        -- string = string:gsub("(|%x*%d+|r), %a+", "%1") -- Remove any commas after a number when it's followed by a string
+        -- string = string:gsub("(%p),", "%1") -- Remove any commas after a punctuation character
+        -- string = string:gsub("(%()(.*)(%))", "|cFF9E5A01%1|r|cFF00CCFF%2|r|cFF9E5A01%3|r") -- Make ( and ) orange and anything inside them blue
+        -- string = string:gsub("(%w: )(.+)%p*", "%1|cFFFFCC00%2|r") -- Make any letters after a: gold until next punctuation mark
 
         print(printFormat:format((debugprofilestop() / 1000) - start, string))
       end
@@ -390,6 +359,8 @@ do -- Debugging stuff
   end
 end
 local debug = CT.debug
+
+debug("Test", {}, "CombatTracker_Base", "Holy Shock")
 
 CT.eventFrame = CreateFrame("Frame")
 --------------------------------------------------------------------------------
@@ -3587,6 +3558,9 @@ function SlashCmdList.CombatTracker(msg, editbox)
     CT.base:ClearAllPoints()
     CT.base:SetPoint("CENTER", "UIParent", 0, 0)
     CT:Print("Position reset.")
+  elseif command == "save" then
+    debug("Trying to save set")
+    CT.stopTracking()
   elseif command == "cmd" or command == "commands" or command == "options" or command == "opt" or command == "help" then
     CT:Print("CT COMMANDS:\ntoggle - Toggles Show/Hide.\nshow - Shows CombatTracker.\nhide - Hides CombatTracker.\nreset - Moves CombatTracker frame to the center.\nxNUMBER - Adjusts X axis by number\nyNUMBER - Adjusts Y axis by number")
   elseif direction == "x" and offSet then
