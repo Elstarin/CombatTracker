@@ -301,24 +301,24 @@ function CT.mouseFrameBorder(parent, size, color)
   local border = CT.mouseoverBorder
 
   if not border then
-    border = CreateFrame("Frame", "CT_Mouseover_Border", CT.base)
+    border = CreateFrame("Frame", "CombatTracker_Mouseover_Border", CT.base)
     -- border = CT.base:CreateTexture("CT_Mouseover_Border", "OVERLAY")
     border:SetFrameStrata("HIGH")
     border:SetSize(10, 10)
 
-    border[1] = border:CreateTexture(nil, "OVERLAY")
+    border[1] = border:CreateTexture("CombatTracker_Mouseover_Border_TOP", "OVERLAY")
     border[1]:SetPoint("TOPRIGHT", border, 0, 0)
     border[1]:SetPoint("TOPLEFT", border, 0, 0)
 
-    border[2] = border:CreateTexture(nil, "OVERLAY")
+    border[2] = border:CreateTexture("CombatTracker_Mouseover_Border_BOTTOM", "OVERLAY")
     border[2]:SetPoint("BOTTOMRIGHT", border, 0, 0)
     border[2]:SetPoint("BOTTOMLEFT", border, 0, 0)
 
-    border[3] = border:CreateTexture(nil, "OVERLAY")
+    border[3] = border:CreateTexture("CombatTracker_Mouseover_Border_LEFT", "OVERLAY")
     border[3]:SetPoint("TOPLEFT", border, 0, 0)
     border[3]:SetPoint("BOTTOMLEFT", border, 0, 0)
 
-    border[4] = border:CreateTexture(nil, "OVERLAY")
+    border[4] = border:CreateTexture("CombatTracker_Mouseover_Border_RIGHT", "OVERLAY")
     border[4]:SetPoint("TOPRIGHT", border, 0, 0)
     border[4]:SetPoint("BOTTOMRIGHT", border, 0, 0)
 

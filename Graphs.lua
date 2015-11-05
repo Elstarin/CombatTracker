@@ -241,7 +241,7 @@ local function handleGraphData(set, db, graph, data, name, timer, value, prev)
   data[num] = timer -- X coords
   data[-num] = value -- Y coords
 
-  if CT.base and CT.base.shown then -- These updates should only need to happen if it's actually visible
+  if CT.base and CT.base.shown and CT.base.expander and CT.base.expander.shown then -- These updates should only need to happen if it's actually visible
     if graph.shown and (graph.frame and not graph.frame.zoomed) then -- Refreshing when zoomed makes it look weird, but we still need to let it create data points if it's active
       if not graph.updating then
         graph:refresh()
@@ -1279,7 +1279,60 @@ end
 
 local badPoints = {}
 local newData = {}
+local criticalPoints = {}
 local startPoint, stopPoint
+local countSlope = 0
+local function filterUselessPoints(data, first, last, tolerance)
+  wipe(newData)
+  wipe(badPoints)
+  wipe(criticalPoints)
+  
+  for i = first, last do
+    if data[i - 1] and data[i + 1] then
+      local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+      local cX, cY = data[i], data[-i] -- Current
+      local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+      
+      local prevSlope = (pY - cY) / (pX - cX)
+      local nextSlope = (nY - cY) / (nX - cX)
+      
+      if (prevSlope > 0) and (nextSlope < 0) then -- Peak
+        -- criticalPoints[i] = true
+      elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
+        -- criticalPoints[i] = true
+      else
+        badPoints[i] = true -- Flagged for removal
+        countSlope = countSlope + 1
+      end
+    end
+  end
+  
+  for i = first, last do
+    if (not badPoints[i]) then -- The point was not flagged to be removed
+      local num = #newData + 1
+      newData[num] = data[i]
+      newData[-num] = data[-i]
+    end
+  end
+  
+  debug("Removed", #data - #newData, "out of", #data, "Remaining:", #newData, "Slope count:", countSlope)
+  
+  for i = first, last do
+    if newData[i] then -- Reconstruct the data table
+      data[i] = newData[i]
+      data[-i] = newData[-i]
+    elseif data[i] then -- I assume this is cheaper than calling wipe(data) first, since I'm already doing the loop anyway
+      data[i] = nil
+      data[-i] = nil
+    end
+  end
+end
+
+local badPoints = {}
+local newData = {}
+local startPoint, stopPoint
+local countSlope = 0
+local countNormal = 0
 local function smoothingAlgorithm(data, first, last, tolerance, callback)
   -- Credit to Quang Le who wrote what this is originally based on. The source code can be found at:
   -- https://quangnle.wordpress.com/2012/12/30/corona-sdk-curve-fitting-1-implementation-of-ramer-douglas-peucker-algorithm-to-reduce-points-of-a-curve/
@@ -1292,34 +1345,30 @@ local function smoothingAlgorithm(data, first, last, tolerance, callback)
   
   local maxD = 0
   local farthestIndex = 0
-
+  
   for i = first, last do
-    local x1, y1 = data[i], data[-i]
-    local x2, y2 = data[first], data[-first]
-    local x3, y3 = data[last], data[-last]
-    local x4, y4 = data[i - 1], data[-(i - 1)] -- Previous
-    local x5, y5 = data[i + 1], data[-(i + 1)] -- Next
-    
-    local area = abs(0.5 * ((x2 * y3) + (x3 * y1) + (x1 * y2) - (x3 * y2) - (x1 * y3) - (x2 * y1))) -- Get area of triangle
-    local bottom = sqrt((x2 - x3) ^ 2 + (y2 - y3) ^ 2) -- Calculates the length of the bottom edge
-    local distance = area / bottom -- This is the triangle's height, which is also the distance found
-    
-    if (y1 == y4) and (y1 == y5) then
-      badPoints[i] = "" -- Flagged for removal
-    elseif badPoints[i] == "" then
-      badPoints[i] = nil
-      print(i, "Unflagging point")
-    end
-    
-    if distance > maxD then
-      maxD = distance
-      farthestIndex = i
+    if not badPoints[i] then
+      local x1, y1 = data[i], data[-i]
+      local x2, y2 = data[first], data[-first]
+      local x3, y3 = data[last], data[-last]
+  
+      local area = abs(0.5 * ((x2 * y3) + (x3 * y1) + (x1 * y2) - (x3 * y2) - (x1 * y3) - (x2 * y1))) -- Get area of triangle
+      local bottom = sqrt((x2 - x3) ^ 2 + (y2 - y3) ^ 2) -- Calculates the length of the bottom edge
+      local distance = area / bottom -- This is the triangle's height, which is also the distance found
+  
+      if distance > maxD then
+        maxD = distance
+        farthestIndex = i
+      end
     end
   end
-
+  
   if maxD > tolerance and farthestIndex ~= 1 then
-    badPoints[farthestIndex] = true -- Flagged for removal
-
+    if not badPoints[farthestIndex] then
+      badPoints[farthestIndex] = true -- Flagged for removal
+      countNormal = countNormal + 1
+    end
+  
     smoothingAlgorithm(data, first, farthestIndex, tolerance, true)
     smoothingAlgorithm(data, farthestIndex, last, tolerance, true)
   end
@@ -1328,21 +1377,6 @@ local function smoothingAlgorithm(data, first, last, tolerance, callback)
     wipe(newData)
     
     for i = startPoint, stopPoint do
-      -- local area
-      -- local prev = i - 1
-      -- local next = i + 1
-      --
-      -- if data[prev] and data[next] then
-      --   local x1, y1 = data[i], data[-i]
-      --   local x2, y2 = data[prev], data[-prev]
-      --   local x3, y3 = data[next], data[-next]
-      --
-      --   area = abs(0.5 * ((x2 * y3) + (x3 * y1) + (x1 * y2) - (x3 * y2) - (x1 * y3) - (x2 * y1))) -- Get area of triangle
-      --   local bottom = sqrt((x2 - x3) ^ 2 + (y2 - y3) ^ 2) -- Calculates the length of the bottom edge
-      --   local distance = area / bottom -- This is the triangle's height, which is also the distance found
-      -- end
-      
-      -- and (area ~= 0)
       if (not badPoints[i]) then -- The point was not flagged to be removed
         local num = #newData + 1
         newData[num] = data[i]
@@ -1351,6 +1385,7 @@ local function smoothingAlgorithm(data, first, last, tolerance, callback)
     end
     
     debug("Removed", #data - #newData, "out of", #data, "Remaining:", #newData)
+    debug("Normal count:", countNormal, "Slope count:", countSlope)
     
     for i = startPoint, stopPoint do
       if newData[i] then -- Reconstruct the data table
@@ -1364,20 +1399,72 @@ local function smoothingAlgorithm(data, first, last, tolerance, callback)
   end
 end
 
--- local s = "sin(3) = $[math.sin(3)]; 2^5 = $[2^5]"
---
--- local function load(x)
---   x = "return " .. string.sub(x, 2, -2)
---   local f = loadstring(x)
---   return f()
--- end
---
--- s = s:gsub("$(%b[])", load)
---
--- debug(s)
-  -->  sin(3) = 0.1411200080598672; 2^5 = 32
+local badPoints = {}
+local newData = {}
+local function filteringAlgorithm(data, first, last)
+  if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+  
+  wipe(newData)
+  wipe(badPoints)
+  
+  local countSlope = 0
+  local countValley = 0
+  local countPeak = 0
+  
+  for i = first, last do
+    local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+    local cX, cY = data[i], data[-i] -- Current
+    local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+    
+    if pX and nX then
+      local prevSlope = (pY - cY) / (pX - cX)
+      local nextSlope = (nY - cY) / (nX - cX)
+      
+      if (prevSlope > 0) and (nextSlope < 0) then -- Peak
+        badPoints[i] = nil
+      elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
+        badPoints[i] = nil
+        
+        local prev = prevSlope
+        local index = i - 1
+        while (prev == prevSlope) and (not badPoints[index]) and index > (first) do -- Run backwards checking which points have the same slope
+          badPoints[index] = true -- Flagged for removal
+          countValley = countValley + 1
+          
+          prev = (data[-(index - 1)] - data[-index]) / (data[index - 1] - data[index])
+          index = index - 1
+        end
+      elseif not badPoints[i] then -- Not a peak or valley
+        badPoints[i] = true -- Flagged for removal
+        countSlope = countSlope + 1
+      end
+    end
+  end
+  
+  local startNum = #data
+  
+  for i = first, last do
+    if (not badPoints[i]) then -- The point was not flagged to be removed
+      local num = #newData + 1
+      newData[num] = data[i]
+      newData[-num] = data[-i]
+    end
+  end
+  
+  local num = first - 1
+  for i = 1, #data do
+    data[i + num] = newData[i]
+    data[-(i + num)] = newData[-i]
+  end
+  
+  debug("Removed", startNum - #data, "out of", startNum, "Remaining:", #data, "Slope count:", countSlope, "Valley count:", countValley, "Peak count:", countPeak)
+  
+  data.filterStop = #data
+  
+  return data.filterStop
+end
 
-do -- Coroutine test
+if false then -- Coroutine test
   local frame = CreateFrame("Frame", "TestGraphFrame", UIParent)
   do -- Set up frame
     frame:SetPoint("CENTER", 0, 100)
@@ -1390,7 +1477,8 @@ do -- Coroutine test
 
   local function refreshNormalGraph(self, reset, routine, offSet)
     local num = #self.data
-    
+    if self.endNum > num then error("self.endNum > num!") num = self.endNum end
+
     local graphWidth, graphHeight = self.frame:GetSize()
 
     local stopX = graphWidth * (self.data[num] - self.XMin) / (self.XMax - self.XMin)
@@ -1402,10 +1490,10 @@ do -- Coroutine test
 
     if reset then
       self.endNum = 2
-  
+
       if num > (1000) then -- The comparison number is after how many points do we want to switch to a coroutine (default 2000)
         self.refresh = wrap(refreshNormalGraph)
-  
+
         return self:refresh(nil, true, offSet) -- Call it again, but now as a coroutine
       end
     end
@@ -1494,7 +1582,7 @@ do -- Coroutine test
         local l = sqrt((dx * dx) + (dy * dy)) -- Calculate actual length of line
 
         if (startX == stopX) and (startY == stopY) then
-          debug("Tried to draw point that takes no space!")
+          debug(i, "Tried to draw point that takes no space!", self.name)
         end
 
         if startX ~= stopX then -- If they match, this can break
@@ -1840,11 +1928,11 @@ do -- Coroutine test
             self.refresh = refreshNormalGraph
             self.updating = false
           end
-          
+
           if reset or routine then
             local runTime = floor((debugprofilestop() - start) * 1000 + 0.5) / 1000
             local percent = floor(((self.totalLines or 0) / num) * 100)  .. "%"
-            
+
             if routine then
               debug(percent, num, self.totalLines, #self.recycling, "Done refreshing (coroutine):", self.name, runTime, "MS")
             else
@@ -1901,9 +1989,9 @@ do -- Coroutine test
       end
     end
   end
-  
+
   local graphs = {}
-  
+
   local function createGraph(name, color)
     local graph = {}
     graph.name = name or "Test Graph"
@@ -1924,58 +2012,65 @@ do -- Coroutine test
     graph.shown = true
     -- graph.color = {1.0, 0.0, 0.0, 1.0} -- Red
     -- graph.color = {0.0, 1.0, 0.5, 1.0} -- Green
-    
+
     graphs[#graphs + 1] = graph
-    
+
     return graph
   end
 
   local speed = 0.01
-  local variation = 0.1
   
-  local function createData(num, seed, variation)
-    local seed = seed or random(25, 75)
-      
-    for i = 1, num do
-      local prev = graphs[1].data[-(i - 1)] or seed
-  
-      local y = prev
-      if random(1, 2) == 1 then -- This is just so I can have the variation be a decimal, since random doesn't work with decimals
-        y = y + variation
-      else
-        y = y - variation
-      end
-      
-      for index = 1, #graphs do
-        local data = graphs[index].data
-
-        if 20 > y then y = 20 end
-        if y > 80 then y = 80 end
-        
-        -- y = y + ((index - 1) * 10)
-        
-        data[i] = i * 0.1
-        data[-i] = y
+  local function createData(numPoints, variation, seed)
+    local start, stop = 1, numPoints
+    for index = 1, #graphs do
+      if #graphs[index].data > start then
+        start = #graphs[index].data + 1
+        stop = start + stop - 1
       end
     end
     
+    local prev = graphs[1].data[-(start - 1)] or seed or random(25, 75)
+    for i = start, stop do
+      local y
+      if random(1, 2) == 1 then -- This is just so I can have the variation be a decimal, since random doesn't work with decimals
+        y = prev + variation
+      else
+        y = prev - variation
+      end
+      
+      if 20 > y then y = 20 end
+      if y > 80 then y = 80 end
+
+      for index = 1, #graphs do
+        local data = graphs[index].data
+        local num = #data + 1
+
+        data[num] = i * 0.1
+        data[-num] = y
+      end
+      
+      prev = y
+    end
+
     return data
   end
   
-  createGraph("Test_Graph_1")
-  createGraph("Test_Graph_2", {0.0, 1.0, 0.5, 1.0})
-  createGraph("Test_Graph_3", {0.5, 0.5, 0.5, 1.0})
-  createData(1000, random(25, 75), 1)
+  createGraph("Test_Graph_1") -- {0.5, 0.5, 0.5, 1.0}
+  createGraph("Test_Graph_2", {0.5, 0.5, 0.5, 1.0})
+  createGraph("Test_Graph_3", {0.0, 1.0, 0.5, 1.0})
+
+  createData(4000, 0.5)
+  filteringAlgorithm(graphs[1].data, 1, #graphs[1].data)
+  filteringAlgorithm(graphs[1].data, 1, #graphs[1].data)
+  filteringAlgorithm(graphs[2].data, 1, #graphs[2].data)
   
-  local data = graphs[1].data
-  smoothingAlgorithm(data, 1, #data, 0.01)
-  graphs[1]:refresh(nil, nil, 10)
+  -- while #data > 1500 do
+  --   data.filterStop = filteringAlgorithm(data, 1, #data)
+  -- end
   
-  graphs[2]:refresh(nil, nil, 5)
-  
-  local data = graphs[3].data
-  smoothingAlgorithm(data, 1, #data, 0.1)
-  graphs[3]:refresh(nil, nil, 0)
+  graphs[1]:refresh(nil, nil, 5)
+  graphs[2]:refresh(nil, nil, 0)
+  graphs[3]:refresh(nil, nil, -5)
 
   -- local start = GetTime() - (#graph.data * speed)
   --
