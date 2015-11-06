@@ -217,6 +217,7 @@ function CT.finalizeGraphLength(graphType)
   end
 end
 
+-- NOTE: May want to floor Y points for better filtering
 local function handleGraphData(set, db, graph, data, name, timer, value, prev)
   if (value == infinity) or (value == -infinity) then value = 0 end
 
@@ -1401,7 +1402,7 @@ end
 
 local badPoints = {}
 local newData = {}
-local function filteringAlgorithm(data, first, last)
+local function filteringUselessPoints(data, first, last, maxPoints)
   if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
   
   wipe(newData)
@@ -1410,6 +1411,162 @@ local function filteringAlgorithm(data, first, last)
   local countSlope = 0
   local countValley = 0
   local countPeak = 0
+  local removed = 0
+  
+  for i = last, first, -1 do
+    -- if i == (data.filterStop or 0) then debug("Breaking loop") end
+    
+    local pX, pY = data[i + 1], data[-(i + 1)] -- Previous
+    local cX, cY = data[i], data[-i] -- Current
+    local nX, nY = data[i - 1], data[-(i - 1)] -- Next
+    
+    if pX and nX then
+      local prevSlope = (pY - cY) / (pX - cX)
+      local nextSlope = (nY - cY) / (nX - cX)
+      
+      if (prevSlope > 0) and (nextSlope < 0) then -- Peak NOTE: Can error, point can be nil
+        badPoints[i] = nil
+      elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
+        badPoints[i] = nil
+      elseif (prevSlope == nextSlope) then -- Not a peak or valley
+        countSlope = countSlope + 1
+        badPoints[i] = true -- Flagged for removal
+        removed = removed + 1
+      else
+        local percent = (nextSlope / prevSlope) * 100
+        
+        if (percent > 99) or (-99 > percent) then
+          countSlope = countSlope + 1
+          badPoints[i] = true -- Flagged for removal
+          removed = removed + 1
+        end
+      end
+    end
+  end
+  
+  local startNum = #data
+  
+  if removed > 0 then
+    for i = first, last do
+      if (not badPoints[i]) then -- The point was not flagged to be removed
+        local num = #newData + 1
+        newData[num] = data[i]
+        newData[-num] = data[-i]
+      end
+    end
+    
+    local num = first - 1
+    for i = 1, #data do
+      data[i + num] = newData[i]
+      data[-(i + num)] = newData[-i]
+    end
+
+    debug("Removed", startNum - #data, "out of", startNum, "Remaining:", #data, "Slope count:", countSlope, "Valley count:", countValley, "Peak count:", countPeak)
+    
+    if #data > maxPoints then
+      -- filteringAlgorithm(data, first, last, maxPoints)
+    end
+    
+    data.filterStop = #data
+  else
+    debug("Didn't remove any points")
+  end
+end
+
+local badPoints = {}
+local newData = {}
+local function filteringAlgorithmNoLoss(data, first, last) -- Filtering points with no accuracy loss
+  if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+  
+  wipe(newData)
+  wipe(badPoints)
+  
+  local countSlope = 0
+  local countValley = 0
+  local countPeak = 0
+  local countPercent = 0
+  local removed = 0
+  
+  for i = first, last do
+    local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+    local cX, cY = data[i], data[-i] -- Current
+    local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+    
+    if pX and nX then
+      local prevSlope = (pY - cY) / (pX - cX)
+      local nextSlope = (nY - cY) / (nX - cX)
+      local combined = (nY - pY) / (nX - pX)
+      if 0 > combined then combined = -combined end
+      
+      if (prevSlope > 0) and (nextSlope < 0) then -- Peak NOTE: Can error, point can be nil
+        badPoints[i] = nil
+      elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
+        badPoints[i] = nil
+      elseif combined > 0 and 5 > combined then
+        countPercent = countPercent + 1
+        badPoints[i] = true -- Flagged for removal
+        removed = removed + 1
+      elseif (prevSlope == nextSlope) then -- Not a peak or valley
+        countSlope = countSlope + 1
+        removed = removed + 1
+        badPoints[i] = true -- Flagged for removal
+      else
+        -- local percent = 100 - (nextSlope / prevSlope) * 100
+        
+        local percent = (nextSlope / prevSlope) * 100
+        if 0 >= percent then percent = -percent end
+        
+        if (percent > 99) then
+          countPercent = countPercent + 1
+          badPoints[i] = true -- Flagged for removal
+          removed = removed + 1
+        else
+          -- print(i, percent)
+        end
+      end
+    end
+  end
+  
+  local startNum = #data
+  
+  if removed > 0 then
+    for i = first, last do
+      if (not badPoints[i]) then -- The point was not flagged to be removed
+        local num = #newData + 1
+        newData[num] = data[i]
+        newData[-num] = data[-i]
+      end
+    end
+    
+    local num = first - 1
+    for i = 1, #data do
+      data[i + num] = newData[i]
+      data[-(i + num)] = newData[-i]
+    end
+
+    local percent = (#data / startNum) * 100 .. "%"
+    debug("Removed", percent, "Remaining:", #data, "Slope:", countSlope, "Percent:", countPercent, "Valley:", countValley, "Peak:", countPeak)
+    
+    data.filterStop = #data
+  else
+    debug("Didn't remove any points")
+  end
+end
+
+local badPoints = {}
+local newData = {}
+local countSlope = 0
+local countValley = 0
+local countPeak = 0
+local countPercent = 0
+local safetyNet = 0
+local function filteringAlgorithm(data, first, last) -- Filtering points with no accuracy loss
+  if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+  
+  wipe(newData)
+  wipe(badPoints)
+  
+  local removed = 0
   
   for i = first, last do
     local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
@@ -1424,44 +1581,382 @@ local function filteringAlgorithm(data, first, last)
         badPoints[i] = nil
       elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
         badPoints[i] = nil
-        
-        local prev = prevSlope
-        local index = i - 1
-        while (prev == prevSlope) and (not badPoints[index]) and index > (first) do -- Run backwards checking which points have the same slope
-          badPoints[index] = true -- Flagged for removal
-          countValley = countValley + 1
-          
-          prev = (data[-(index - 1)] - data[-index]) / (data[index - 1] - data[index])
-          index = index - 1
-        end
-      elseif not badPoints[i] then -- Not a peak or valley
-        badPoints[i] = true -- Flagged for removal
+      elseif (prevSlope == nextSlope) then -- Not a peak or valley
         countSlope = countSlope + 1
+        removed = removed + 1
+        badPoints[i] = true -- Flagged for removal
+      else
+        local percent = (nextSlope / prevSlope) * 100
+        if 0 >= percent then percent = -percent end
+        
+        -- if 0 > combined then combined = -combined end
+        -- if 0 > nextSlope then nextSlope = -nextSlope end
+        -- if 0 > prevSlope then prevSlope = -prevSlope end
+        
+        -- local area = abs(0.5 * ((pX * nY) + (nX * cY) + (cX * pY) - (nX * pY) - (cX * nY) - (pX * cY))) -- Get area of triangle
+        -- local bottom = sqrt((pX - nX) ^ 2 + (pY - nY) ^ 2) -- Calculates the length of the bottom edge
+        -- local distance = area / bottom -- This is the triangle's height, which is also the distance found
+        
+        -- if 0 > change then change = -change end
+        
+        local area = pX * (cY - nY) + cX * (nY - pY) + nX * (pY - cY)
+        local prevDist = sqrt((cX - pX)^2 + (cY - pY)^2)
+        local nextDist = sqrt((nX - cX)^2 + (nY - cY)^2)
+        local bottDist = sqrt((nX - pX)^2 + (nY - pY)^2)
+        print(i, bottDist)
+        
+        local total = prevDist + nextDist + bottDist
+        local diff = total - ((prevDist + nextDist) - bottDist)
+        
+        local change = (prevDist + nextDist) - bottDist
+        local percent = 100 - ((change / total) * 100)
+
+        if (percent > 97) then
+          countPercent = countPercent + 1
+          badPoints[i] = true -- Flagged for removal
+          removed = removed + 1
+        else
+          -- print("Keeping", i, percent)
+        end
       end
     end
   end
   
-  local startNum = #data
-  
-  for i = first, last do
-    if (not badPoints[i]) then -- The point was not flagged to be removed
-      local num = #newData + 1
-      newData[num] = data[i]
-      newData[-num] = data[-i]
+  if removed > 0 then
+    for i = first, last do
+      if (not badPoints[i]) then -- The point was not flagged to be removed
+        local num = #newData + 1
+        newData[num] = data[i]
+        newData[-num] = data[-i]
+      end
+    end
+    
+    local num = first - 1
+    for i = 1, #data do
+      data[i + num] = newData[i]
+      data[-(i + num)] = newData[-i]
     end
   end
   
-  local num = first - 1
-  for i = 1, #data do
-    data[i + num] = newData[i]
-    data[-(i + num)] = newData[-i]
+  local startNum = (last - first + 1)
+  local percent = ((removed / startNum) * 100)
+  
+  -- if percent > 5 and (5 > safetyNet) then -- Still too high, try again
+  --   debug(percent)
+  --   filteringAlgorithm(data, first, last)
+  --   safetyNet = safetyNet + 1
+  -- else
+    debug(percent, "Done.", #data, "remaining. Slope:", countSlope, "Percent:", countPercent, "Valley:", countValley, "Peak:", countPeak)
+  --
+  --   local countSlope = 0
+  --   local countValley = 0
+  --   local countPeak = 0
+  --   local countPercent = 0
+  --   local safetyNet = 0
+  -- end
+end
+
+local badPoints = {}
+local newData = {}
+local function filteringAlgorithm(data, first, last)
+  if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+  
+  wipe(newData)
+  wipe(badPoints)
+  
+  local removed = 0
+  
+  for i = first, last do
+    local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+    local cX, cY = data[i], data[-i] -- Current
+    local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+    
+    if pX and nX then
+      -- local prevSlope = (pY - cY) / (pX - cX)
+      local prevSlope = (cY - pY) / (cX - pX)
+      local nextSlope = (nY - cY) / (nX - cX)
+      -- local nextSlope = (nY - cY) / (nX - cX)
+      
+      if (prevSlope > 0) and (nextSlope < 0) then -- Peak
+        print(i, prevSlope, nextSlope)
+        badPoints[i] = nil
+      elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
+        badPoints[i] = nil
+      elseif (prevSlope == nextSlope) then -- Not a peak or valley
+        removed = removed + 1
+        badPoints[i] = true -- Flagged for removal
+      else
+        local angleR = math.atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
+        local angleD = 180 - math.deg(angleR)
+        
+        if (angleD > 140) then
+          badPoints[i] = true -- Flagged for removal
+          removed = removed + 1
+        end
+        
+        -- local prevDist = sqrt((cX - pX)^2 + (cY - pY)^2)
+        -- local nextDist = sqrt((nX - cX)^2 + (nY - cY)^2)
+        -- local hypotenuse = sqrt((nX - pX)^2 + (nY - pY)^2)
+        --
+        -- local total = prevDist + nextDist + hypotenuse
+        --
+        -- local change = (prevDist + nextDist) - hypotenuse
+        -- local percent = 100 - ((change / total) * 100)
+        --
+        -- if (percent > 97) then
+        --   badPoints[i] = true -- Flagged for removal
+        --   removed = removed + 1
+        -- end
+      end
+    end
   end
   
-  debug("Removed", startNum - #data, "out of", startNum, "Remaining:", #data, "Slope count:", countSlope, "Valley count:", countValley, "Peak count:", countPeak)
+  if removed > 0 then
+    for i = first, last do
+      if (not badPoints[i]) then -- The point was not flagged to be removed
+        local num = #newData + 1
+        newData[num] = data[i]
+        newData[-num] = data[-i]
+      end
+    end
+    
+    local num = first - 1
+    for i = 1, #data do
+      data[i + num] = newData[i]
+      data[-(i + num)] = newData[-i]
+    end
+  end
+end
+
+if false then -- Backup
+  local badPoints = {}
+  local newData = {}
+  local function filteringAlgorithm(data, first, last, maxPoints)
+    if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+    
+    wipe(newData)
+    wipe(badPoints)
+    
+    local countSlope = 0
+    local countValley = 0
+    local countPeak = 0
+    
+    -- for i = first, last do
+    for i = last, first, -1 do
+      if i == (data.filterStop or 0) then debug("Breaking loop") end
+      
+      -- local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+      -- local cX, cY = data[i], data[-i] -- Current
+      -- local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+      
+      local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+      local cX, cY = data[i], data[-i] -- Current
+      local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+      
+      if pX and nX then
+        local prevSlope = (pY - cY) / (pX - cX)
+        local nextSlope = (nY - cY) / (nX - cX)
+        
+        if (prevSlope > 0) and (nextSlope < 0) then -- Peak NOTE: Can error, point can be nil
+          badPoints[i] = nil
+          local index = i + 1
+          
+          local pX, pY = data[index - 1], data[-(index - 1)] -- Previous
+          local cX, cY = data[index], data[-index] -- Current
+          local nX, nY = data[index + 1] or 0, data[-(index + 1)] or 0 -- Next
+          
+          local prev = (pY - cY) / (pX - cX)
+          -- local prev = (nY - cY) / (nX - cX)
+          local next = nextSlope
+          
+          while (prev == next) and (index < last) do -- Run backwards checking which points have the same slope
+            if not badPoints[index] then
+              badPoints[index] = true -- Flagged for removal
+              countPeak = countPeak + 1
+            end
+            
+            local pX, pY = data[index - 1], data[-(index - 1)] -- Previous
+            local cX, cY = data[index], data[-index] -- Current
+            local nX, nY = data[index + 1], data[-(index + 1)] -- Next
+            
+            -- prev = (pY - cY) / (pX - cX)
+            prev = (nY - cY) / (nX - cX)
+            -- next = (nY - cY) / (nX - cX)
+          
+            -- next = (data[-(index + 1)] - data[-index]) / (data[index + 1] - data[index])
+            index = index + 1
+          end
+        elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
+          badPoints[i] = nil
+          --  and (not badPoints[index])
+          -- local prev = prevSlope
+          -- local index = i - 1
+          -- while (prev == prevSlope) and (index > first) do -- Run backwards checking which points have the same slope
+          --   if not badPoints[index] then
+          --     badPoints[index] = true -- Flagged for removal
+          --     countValley = countValley + 1
+          --   end
+          --
+          --   prev = (data[-(index - 1)] - data[-index]) / (data[index - 1] - data[index])
+          --   index = index - 1
+          -- end
+        elseif (prevSlope == nextSlope) then -- Not a peak or valley
+          if (prevSlope == nextSlope) then
+            if not badPoints[i] then
+              countSlope = countSlope + 1
+              badPoints[i] = true -- Flagged for removal
+            end
+          end
+        else
+          local percent = (nextSlope / prevSlope) * 100
+          
+          if (percent > 99) or (-99 > percent) then
+            if not badPoints[i] then
+              countSlope = countSlope + 1
+              badPoints[i] = true -- Flagged for removal
+            end
+          end
+        end
+      end
+    end
+    
+    local startNum = #data
+    
+    -- for i = last, first, -1 do
+    for i = first, last do
+      if (not badPoints[i]) then -- The point was not flagged to be removed
+        local num = #newData + 1
+        newData[num] = data[i]
+        newData[-num] = data[-i]
+      end
+    end
+    
+    local num = first - 1
+    for i = 1, #data do
+      data[i + num] = newData[i]
+      data[-(i + num)] = newData[-i]
+    end
   
-  data.filterStop = #data
+    debug("Removed", startNum - #data, "out of", startNum, "Remaining:", #data, "Slope count:", countSlope, "Valley count:", countValley, "Peak count:", countPeak)
+    
+    if #data > maxPoints then
+      -- filteringAlgorithm(data, first, last, maxPoints)
+    end
+    
+    data.filterStop = #data
+  end
   
-  return data.filterStop
+  local function filteringAlgorithm(data, first, last, maxPoints)
+    if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+    
+    wipe(newData)
+    wipe(badPoints)
+    
+    local countSlope = 0
+    local countValley = 0
+    local countPeak = 0
+    
+    -- for i = first, last do
+    for i = last, first, -1 do
+      if i == (data.filterStop or 0) then debug("Breaking loop") end
+      
+      -- local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+      -- local cX, cY = data[i], data[-i] -- Current
+      -- local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+      
+      local pX, pY = data[i + 1], data[-(i + 1)] -- Previous
+      local cX, cY = data[i], data[-i] -- Current
+      local nX, nY = data[i - 1], data[-(i - 1)] -- Next
+      
+      if pX and nX then
+        local prevSlope = (pY - cY) / (pX - cX)
+        local nextSlope = (nY - cY) / (nX - cX)
+        
+        if (prevSlope > 0) and (nextSlope < 0) then -- Peak NOTE: Can error, point can be nil
+          badPoints[i] = nil
+          
+          -- local next = prevSlope
+          -- local index = i + 1
+          -- while (next == nextSlope) and (last > index) do -- Run backwards checking which points have the same slope
+          --   if not badPoints[index] then
+          --     badPoints[index] = true -- Flagged for removal
+          --     countPeak = countPeak + 1
+          --   end
+          --
+          --   next = (data[-(index + 1)] - data[-index]) / (data[index + 1] - data[index])
+          --   index = index + 1
+          -- end
+        elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
+          badPoints[i] = nil
+          --  and (not badPoints[index])
+          -- local prev = prevSlope
+          -- local index = i - 1
+          -- while (prev == prevSlope) and (index > first) do -- Run backwards checking which points have the same slope
+          --   if not badPoints[index] then
+          --     badPoints[index] = true -- Flagged for removal
+          --     countValley = countValley + 1
+          --   end
+          --
+          --   prev = (data[-(index - 1)] - data[-index]) / (data[index - 1] - data[index])
+          --   index = index - 1
+          -- end
+        elseif (prevSlope == nextSlope) then -- Not a peak or valley
+          if not badPoints[i] then
+            countSlope = countSlope + 1
+            badPoints[i] = true -- Flagged for removal
+          end
+        else
+          local percent = (nextSlope / prevSlope) * 100
+          
+          if (percent > 99) or (-99 > percent) then
+            if not badPoints[i] then
+              countSlope = countSlope + 1
+              badPoints[i] = true -- Flagged for removal
+            end
+          end
+        end
+      end
+    end
+    
+    local startNum = #data
+    
+    -- for i = last, first, -1 do
+    for i = first, last do
+      if (not badPoints[i]) then -- The point was not flagged to be removed
+        local num = #newData + 1
+        newData[num] = data[i]
+        newData[-num] = data[-i]
+      end
+    end
+    
+    local num = first - 1
+    for i = 1, #data do
+      data[i + num] = newData[i]
+      data[-(i + num)] = newData[-i]
+    end
+  
+    debug("Removed", startNum - #data, "out of", startNum, "Remaining:", #data, "Slope count:", countSlope, "Valley count:", countValley, "Peak count:", countPeak)
+    
+    if #data > maxPoints then
+      -- filteringAlgorithm(data, first, last, maxPoints)
+    end
+    
+    data.filterStop = #data
+  end
+  
+  badPoints[i] = nil
+  --  and (not badPoints[index])
+  local prev = prevSlope
+  local index = i - 1
+  while (prev == prevSlope) and (index > first) do -- Run backwards checking which points have the same slope
+    if not badPoints[index] then
+      badPoints[index] = true -- Flagged for removal
+      countValley = countValley + 1
+    end
+    
+    prev = (data[-(index - 1)] - data[-index]) / (data[index - 1] - data[index])
+    index = index - 1
+  end
 end
 
 if false then -- Coroutine test
@@ -2029,17 +2524,26 @@ if false then -- Coroutine test
       end
     end
     
-    local prev = graphs[1].data[-(start - 1)] or seed or random(25, 75)
+    local prev = graphs[2].data[-(start - 1)] or seed or random(25, 75)
     for i = start, stop do
-      local y
-      if random(1, 2) == 1 then -- This is just so I can have the variation be a decimal, since random doesn't work with decimals
+      local rNum = random(1, 3)
+      if rNum == 3 then -- This is just so I can have the variation be a decimal, since random doesn't work with decimals
         y = prev + variation
+      elseif rNum == 2 then
+        y = prev
       else
         y = prev - variation
       end
       
+      -- local var = random(-100, 100) / 100
+      -- y = y + var
+      -- local var = random(-100, 100) / 100
+      -- y = y - var
+      
       if 20 > y then y = 20 end
       if y > 80 then y = 80 end
+      
+      y = floor(y * 100) / 100
 
       for index = 1, #graphs do
         local data = graphs[index].data
@@ -2057,20 +2561,20 @@ if false then -- Coroutine test
   
   createGraph("Test_Graph_1") -- {0.5, 0.5, 0.5, 1.0}
   createGraph("Test_Graph_2", {0.5, 0.5, 0.5, 1.0})
-  createGraph("Test_Graph_3", {0.0, 1.0, 0.5, 1.0})
+  -- createGraph("Test_Graph_3", {0.0, 1.0, 0.5, 1.0})
 
-  createData(4000, 0.5)
-  filteringAlgorithm(graphs[1].data, 1, #graphs[1].data)
-  filteringAlgorithm(graphs[1].data, 1, #graphs[1].data)
-  filteringAlgorithm(graphs[2].data, 1, #graphs[2].data)
+  createData(2000, 0.4)
+  filteringAlgorithm(graphs[1].data, 1, #graphs[1].data, 1000)
+  filteringAlgorithm(graphs[1].data, 1, #graphs[1].data, 1000)
   
-  -- while #data > 1500 do
-  --   data.filterStop = filteringAlgorithm(data, 1, #data)
-  -- end
+  -- createData(1000, 0.5)
+  -- debug("Second filter...")
+  -- filteringAlgorithm(graphs[1].data, 1, #graphs[1].data, 1000)
+  -- filteringAlgorithm(graphs[2].data, 1, #graphs[2].data)
   
   graphs[1]:refresh(nil, nil, 5)
   graphs[2]:refresh(nil, nil, 0)
-  graphs[3]:refresh(nil, nil, -5)
+  -- graphs[3]:refresh(nil, nil, -5)
 
   -- local start = GetTime() - (#graph.data * speed)
   --
@@ -2117,10 +2621,10 @@ function CT:refreshNormalGraph(reset, routine)
   local graphWidth, graphHeight = self.frame:GetSize()
   local dbGraph = self.__index
 
-  local stopX = graphWidth * (dbGraph.data[num] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin)
+  local stopX = graphWidth * ((dbGraph.data[num] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin))
   if dbGraph and stopX > graphWidth then -- Graph is too long, squish it
-    -- dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.05
-    dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.333 -- 75%
+    -- dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.1
+    dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.25 -- 75%
     reset = true
   end
 
