@@ -4,6 +4,9 @@ if not CombatTracker then return end
 --------------------------------------------------------------------------------
 local CT = CombatTracker
 local graphFunctions = {}
+local lineCache = {}
+local barCache = {}
+local triangleCache = {}
 
 local formatTimer = CT.formatTimer
 local colorText = CT.colorText
@@ -1280,61 +1283,11 @@ end
 
 local badPoints = {}
 local newData = {}
-local criticalPoints = {}
-local startPoint, stopPoint
-local countSlope = 0
-local function filterUselessPoints(data, first, last, tolerance)
-  wipe(newData)
-  wipe(badPoints)
-  wipe(criticalPoints)
-  
-  for i = first, last do
-    if data[i - 1] and data[i + 1] then
-      local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
-      local cX, cY = data[i], data[-i] -- Current
-      local nX, nY = data[i + 1], data[-(i + 1)] -- Next
-      
-      local prevSlope = (pY - cY) / (pX - cX)
-      local nextSlope = (nY - cY) / (nX - cX)
-      
-      if (prevSlope > 0) and (nextSlope < 0) then -- Peak
-        -- criticalPoints[i] = true
-      elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
-        -- criticalPoints[i] = true
-      else
-        badPoints[i] = true -- Flagged for removal
-        countSlope = countSlope + 1
-      end
-    end
-  end
-  
-  for i = first, last do
-    if (not badPoints[i]) then -- The point was not flagged to be removed
-      local num = #newData + 1
-      newData[num] = data[i]
-      newData[-num] = data[-i]
-    end
-  end
-  
-  debug("Removed", #data - #newData, "out of", #data, "Remaining:", #newData, "Slope count:", countSlope)
-  
-  for i = first, last do
-    if newData[i] then -- Reconstruct the data table
-      data[i] = newData[i]
-      data[-i] = newData[-i]
-    elseif data[i] then -- I assume this is cheaper than calling wipe(data) first, since I'm already doing the loop anyway
-      data[i] = nil
-      data[-i] = nil
-    end
-  end
-end
-
-local badPoints = {}
-local newData = {}
 local startPoint, stopPoint
 local countSlope = 0
 local countNormal = 0
 local function smoothingAlgorithm(data, first, last, tolerance, callback)
+  if true then return debug("Called smoothing when shouldn't!") end
   -- Credit to Quang Le who wrote what this is originally based on. The source code can be found at:
   -- https://quangnle.wordpress.com/2012/12/30/corona-sdk-curve-fitting-1-implementation-of-ramer-douglas-peucker-algorithm-to-reduce-points-of-a-curve/
   
@@ -1397,79 +1350,6 @@ local function smoothingAlgorithm(data, first, last, tolerance, callback)
         data[-i] = nil
       end
     end
-  end
-end
-
-local badPoints = {}
-local newData = {}
-local function filteringUselessPoints(data, first, last, maxPoints)
-  if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
-  
-  wipe(newData)
-  wipe(badPoints)
-  
-  local countSlope = 0
-  local countValley = 0
-  local countPeak = 0
-  local removed = 0
-  
-  for i = last, first, -1 do
-    -- if i == (data.filterStop or 0) then debug("Breaking loop") end
-    
-    local pX, pY = data[i + 1], data[-(i + 1)] -- Previous
-    local cX, cY = data[i], data[-i] -- Current
-    local nX, nY = data[i - 1], data[-(i - 1)] -- Next
-    
-    if pX and nX then
-      local prevSlope = (pY - cY) / (pX - cX)
-      local nextSlope = (nY - cY) / (nX - cX)
-      
-      if (prevSlope > 0) and (nextSlope < 0) then -- Peak NOTE: Can error, point can be nil
-        badPoints[i] = nil
-      elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
-        badPoints[i] = nil
-      elseif (prevSlope == nextSlope) then -- Not a peak or valley
-        countSlope = countSlope + 1
-        badPoints[i] = true -- Flagged for removal
-        removed = removed + 1
-      else
-        local percent = (nextSlope / prevSlope) * 100
-        
-        if (percent > 99) or (-99 > percent) then
-          countSlope = countSlope + 1
-          badPoints[i] = true -- Flagged for removal
-          removed = removed + 1
-        end
-      end
-    end
-  end
-  
-  local startNum = #data
-  
-  if removed > 0 then
-    for i = first, last do
-      if (not badPoints[i]) then -- The point was not flagged to be removed
-        local num = #newData + 1
-        newData[num] = data[i]
-        newData[-num] = data[-i]
-      end
-    end
-    
-    local num = first - 1
-    for i = 1, #data do
-      data[i + num] = newData[i]
-      data[-(i + num)] = newData[-i]
-    end
-
-    debug("Removed", startNum - #data, "out of", startNum, "Remaining:", #data, "Slope count:", countSlope, "Valley count:", countValley, "Peak count:", countPeak)
-    
-    if #data > maxPoints then
-      -- filteringAlgorithm(data, first, last, maxPoints)
-    end
-    
-    data.filterStop = #data
-  else
-    debug("Didn't remove any points")
   end
 end
 
@@ -1555,18 +1435,25 @@ end
 
 local badPoints = {}
 local newData = {}
-local countSlope = 0
-local countValley = 0
-local countPeak = 0
-local countPercent = 0
-local safetyNet = 0
-local function filteringAlgorithm(data, first, last) -- Filtering points with no accuracy loss
-  if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+function CT:filteringAlgorithm(data, first, last, angle)
+  if 1 > (last - first) then return #data, debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+  
+  debug("Smoothing from:", first, "to:", last)
+  
+  angle = angle or 100
+  if angle > 179 then
+    angle = 179
+  elseif angle < 90 then
+    angle = 90
+  end
   
   wipe(newData)
   wipe(badPoints)
   
   local removed = 0
+  local removedAngle = 0
+  local removedMatch = 0
+  local protectLast = nil
   
   for i = first, last do
     local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
@@ -1574,139 +1461,35 @@ local function filteringAlgorithm(data, first, last) -- Filtering points with no
     local nX, nY = data[i + 1], data[-(i + 1)] -- Next
     
     if pX and nX then
-      local prevSlope = (pY - cY) / (pX - cX)
+      local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
       local nextSlope = (nY - cY) / (nX - cX)
       
-      if (prevSlope > 0) and (nextSlope < 0) then -- Peak
-        badPoints[i] = nil
+      if protectLast then -- Protect this point
+        protectLast = nil
+      elseif (nextSlope == 0) and (prevSlope < 0) then
+        
+      elseif (prevSlope == 0) and (nextSlope > 0) then
+        
+      elseif (prevSlope > 0) and (nextSlope < 0) then -- Peak
+        -- protectLast = true
       elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
-        badPoints[i] = nil
+        -- protectLast = true
       elseif (prevSlope == nextSlope) then -- Not a peak or valley
-        countSlope = countSlope + 1
-        removed = removed + 1
         badPoints[i] = true -- Flagged for removal
-      else
-        local percent = (nextSlope / prevSlope) * 100
-        if 0 >= percent then percent = -percent end
-        
-        -- if 0 > combined then combined = -combined end
-        -- if 0 > nextSlope then nextSlope = -nextSlope end
-        -- if 0 > prevSlope then prevSlope = -prevSlope end
-        
-        -- local area = abs(0.5 * ((pX * nY) + (nX * cY) + (cX * pY) - (nX * pY) - (cX * nY) - (pX * cY))) -- Get area of triangle
-        -- local bottom = sqrt((pX - nX) ^ 2 + (pY - nY) ^ 2) -- Calculates the length of the bottom edge
-        -- local distance = area / bottom -- This is the triangle's height, which is also the distance found
-        
-        -- if 0 > change then change = -change end
-        
-        local area = pX * (cY - nY) + cX * (nY - pY) + nX * (pY - cY)
-        local prevDist = sqrt((cX - pX)^2 + (cY - pY)^2)
-        local nextDist = sqrt((nX - cX)^2 + (nY - cY)^2)
-        local bottDist = sqrt((nX - pX)^2 + (nY - pY)^2)
-        print(i, bottDist)
-        
-        local total = prevDist + nextDist + bottDist
-        local diff = total - ((prevDist + nextDist) - bottDist)
-        
-        local change = (prevDist + nextDist) - bottDist
-        local percent = 100 - ((change / total) * 100)
-
-        if (percent > 97) then
-          countPercent = countPercent + 1
-          badPoints[i] = true -- Flagged for removal
-          removed = removed + 1
-        else
-          -- print("Keeping", i, percent)
-        end
-      end
-    end
-  end
-  
-  if removed > 0 then
-    for i = first, last do
-      if (not badPoints[i]) then -- The point was not flagged to be removed
-        local num = #newData + 1
-        newData[num] = data[i]
-        newData[-num] = data[-i]
-      end
-    end
-    
-    local num = first - 1
-    for i = 1, #data do
-      data[i + num] = newData[i]
-      data[-(i + num)] = newData[-i]
-    end
-  end
-  
-  local startNum = (last - first + 1)
-  local percent = ((removed / startNum) * 100)
-  
-  -- if percent > 5 and (5 > safetyNet) then -- Still too high, try again
-  --   debug(percent)
-  --   filteringAlgorithm(data, first, last)
-  --   safetyNet = safetyNet + 1
-  -- else
-    debug(percent, "Done.", #data, "remaining. Slope:", countSlope, "Percent:", countPercent, "Valley:", countValley, "Peak:", countPeak)
-  --
-  --   local countSlope = 0
-  --   local countValley = 0
-  --   local countPeak = 0
-  --   local countPercent = 0
-  --   local safetyNet = 0
-  -- end
-end
-
-local badPoints = {}
-local newData = {}
-local function filteringAlgorithm(data, first, last)
-  if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
-  
-  wipe(newData)
-  wipe(badPoints)
-  
-  local removed = 0
-  
-  for i = first, last do
-    local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
-    local cX, cY = data[i], data[-i] -- Current
-    local nX, nY = data[i + 1], data[-(i + 1)] -- Next
-    
-    if pX and nX then
-      -- local prevSlope = (pY - cY) / (pX - cX)
-      local prevSlope = (cY - pY) / (cX - pX)
-      local nextSlope = (nY - cY) / (nX - cX)
-      -- local nextSlope = (nY - cY) / (nX - cX)
-      
-      if (prevSlope > 0) and (nextSlope < 0) then -- Peak
-        print(i, prevSlope, nextSlope)
-        badPoints[i] = nil
-      elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
-        badPoints[i] = nil
-      elseif (prevSlope == nextSlope) then -- Not a peak or valley
         removed = removed + 1
-        badPoints[i] = true -- Flagged for removal
+        removedMatch = removedMatch + 1
       else
         local angleR = math.atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
+        if 0 > angleR then angleR = -angleR end
         local angleD = 180 - math.deg(angleR)
-        
-        if (angleD > 140) then
+
+        if angleD > angle then
           badPoints[i] = true -- Flagged for removal
           removed = removed + 1
+          removedAngle = removedAngle + 1
+        -- else
+          -- print(i, angleD)
         end
-        
-        -- local prevDist = sqrt((cX - pX)^2 + (cY - pY)^2)
-        -- local nextDist = sqrt((nX - cX)^2 + (nY - cY)^2)
-        -- local hypotenuse = sqrt((nX - pX)^2 + (nY - pY)^2)
-        --
-        -- local total = prevDist + nextDist + hypotenuse
-        --
-        -- local change = (prevDist + nextDist) - hypotenuse
-        -- local percent = 100 - ((change / total) * 100)
-        --
-        -- if (percent > 97) then
-        --   badPoints[i] = true -- Flagged for removal
-        --   removed = removed + 1
-        -- end
       end
     end
   end
@@ -1722,228 +1505,34 @@ local function filteringAlgorithm(data, first, last)
     
     local num = first - 1
     for i = 1, #data do
-      data[i + num] = newData[i]
-      data[-(i + num)] = newData[-i]
+      if newData[i] then
+        data[i + num] = newData[i]
+        data[-(i + num)] = newData[-i]
+      else
+        if self.lines[i] then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
+          local line = self.lines[i]
+          lineCache[#lineCache + 1] = line
+          line:ClearAllPoints()
+          line:Hide()
+          self.lines[i] = nil
+        end
+        
+        data[i + num] = nil
+        data[-(i + num)] = nil
+      end
     end
   end
+  
+  -- local startNum = (last - first + 1)
+  -- local percent = ((removed / startNum) * 100)
+  -- debug(percent .. "% of points filtered with an angle of", angle, "\nRemaining:", #data, "\nRemoved:", removed, "\nRemoved by match:", removedMatch, "\nRemoved by angle:", removedAngle)
+  data.smoothedPoint = #data
+  debug("Smoothing done:", #data)
+  
+  return data.smoothedPoint
 end
 
 if false then -- Backup
-  local badPoints = {}
-  local newData = {}
-  local function filteringAlgorithm(data, first, last, maxPoints)
-    if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
-    
-    wipe(newData)
-    wipe(badPoints)
-    
-    local countSlope = 0
-    local countValley = 0
-    local countPeak = 0
-    
-    -- for i = first, last do
-    for i = last, first, -1 do
-      if i == (data.filterStop or 0) then debug("Breaking loop") end
-      
-      -- local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
-      -- local cX, cY = data[i], data[-i] -- Current
-      -- local nX, nY = data[i + 1], data[-(i + 1)] -- Next
-      
-      local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
-      local cX, cY = data[i], data[-i] -- Current
-      local nX, nY = data[i + 1], data[-(i + 1)] -- Next
-      
-      if pX and nX then
-        local prevSlope = (pY - cY) / (pX - cX)
-        local nextSlope = (nY - cY) / (nX - cX)
-        
-        if (prevSlope > 0) and (nextSlope < 0) then -- Peak NOTE: Can error, point can be nil
-          badPoints[i] = nil
-          local index = i + 1
-          
-          local pX, pY = data[index - 1], data[-(index - 1)] -- Previous
-          local cX, cY = data[index], data[-index] -- Current
-          local nX, nY = data[index + 1] or 0, data[-(index + 1)] or 0 -- Next
-          
-          local prev = (pY - cY) / (pX - cX)
-          -- local prev = (nY - cY) / (nX - cX)
-          local next = nextSlope
-          
-          while (prev == next) and (index < last) do -- Run backwards checking which points have the same slope
-            if not badPoints[index] then
-              badPoints[index] = true -- Flagged for removal
-              countPeak = countPeak + 1
-            end
-            
-            local pX, pY = data[index - 1], data[-(index - 1)] -- Previous
-            local cX, cY = data[index], data[-index] -- Current
-            local nX, nY = data[index + 1], data[-(index + 1)] -- Next
-            
-            -- prev = (pY - cY) / (pX - cX)
-            prev = (nY - cY) / (nX - cX)
-            -- next = (nY - cY) / (nX - cX)
-          
-            -- next = (data[-(index + 1)] - data[-index]) / (data[index + 1] - data[index])
-            index = index + 1
-          end
-        elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
-          badPoints[i] = nil
-          --  and (not badPoints[index])
-          -- local prev = prevSlope
-          -- local index = i - 1
-          -- while (prev == prevSlope) and (index > first) do -- Run backwards checking which points have the same slope
-          --   if not badPoints[index] then
-          --     badPoints[index] = true -- Flagged for removal
-          --     countValley = countValley + 1
-          --   end
-          --
-          --   prev = (data[-(index - 1)] - data[-index]) / (data[index - 1] - data[index])
-          --   index = index - 1
-          -- end
-        elseif (prevSlope == nextSlope) then -- Not a peak or valley
-          if (prevSlope == nextSlope) then
-            if not badPoints[i] then
-              countSlope = countSlope + 1
-              badPoints[i] = true -- Flagged for removal
-            end
-          end
-        else
-          local percent = (nextSlope / prevSlope) * 100
-          
-          if (percent > 99) or (-99 > percent) then
-            if not badPoints[i] then
-              countSlope = countSlope + 1
-              badPoints[i] = true -- Flagged for removal
-            end
-          end
-        end
-      end
-    end
-    
-    local startNum = #data
-    
-    -- for i = last, first, -1 do
-    for i = first, last do
-      if (not badPoints[i]) then -- The point was not flagged to be removed
-        local num = #newData + 1
-        newData[num] = data[i]
-        newData[-num] = data[-i]
-      end
-    end
-    
-    local num = first - 1
-    for i = 1, #data do
-      data[i + num] = newData[i]
-      data[-(i + num)] = newData[-i]
-    end
-  
-    debug("Removed", startNum - #data, "out of", startNum, "Remaining:", #data, "Slope count:", countSlope, "Valley count:", countValley, "Peak count:", countPeak)
-    
-    if #data > maxPoints then
-      -- filteringAlgorithm(data, first, last, maxPoints)
-    end
-    
-    data.filterStop = #data
-  end
-  
-  local function filteringAlgorithm(data, first, last, maxPoints)
-    if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
-    
-    wipe(newData)
-    wipe(badPoints)
-    
-    local countSlope = 0
-    local countValley = 0
-    local countPeak = 0
-    
-    -- for i = first, last do
-    for i = last, first, -1 do
-      if i == (data.filterStop or 0) then debug("Breaking loop") end
-      
-      -- local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
-      -- local cX, cY = data[i], data[-i] -- Current
-      -- local nX, nY = data[i + 1], data[-(i + 1)] -- Next
-      
-      local pX, pY = data[i + 1], data[-(i + 1)] -- Previous
-      local cX, cY = data[i], data[-i] -- Current
-      local nX, nY = data[i - 1], data[-(i - 1)] -- Next
-      
-      if pX and nX then
-        local prevSlope = (pY - cY) / (pX - cX)
-        local nextSlope = (nY - cY) / (nX - cX)
-        
-        if (prevSlope > 0) and (nextSlope < 0) then -- Peak NOTE: Can error, point can be nil
-          badPoints[i] = nil
-          
-          -- local next = prevSlope
-          -- local index = i + 1
-          -- while (next == nextSlope) and (last > index) do -- Run backwards checking which points have the same slope
-          --   if not badPoints[index] then
-          --     badPoints[index] = true -- Flagged for removal
-          --     countPeak = countPeak + 1
-          --   end
-          --
-          --   next = (data[-(index + 1)] - data[-index]) / (data[index + 1] - data[index])
-          --   index = index + 1
-          -- end
-        elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
-          badPoints[i] = nil
-          --  and (not badPoints[index])
-          -- local prev = prevSlope
-          -- local index = i - 1
-          -- while (prev == prevSlope) and (index > first) do -- Run backwards checking which points have the same slope
-          --   if not badPoints[index] then
-          --     badPoints[index] = true -- Flagged for removal
-          --     countValley = countValley + 1
-          --   end
-          --
-          --   prev = (data[-(index - 1)] - data[-index]) / (data[index - 1] - data[index])
-          --   index = index - 1
-          -- end
-        elseif (prevSlope == nextSlope) then -- Not a peak or valley
-          if not badPoints[i] then
-            countSlope = countSlope + 1
-            badPoints[i] = true -- Flagged for removal
-          end
-        else
-          local percent = (nextSlope / prevSlope) * 100
-          
-          if (percent > 99) or (-99 > percent) then
-            if not badPoints[i] then
-              countSlope = countSlope + 1
-              badPoints[i] = true -- Flagged for removal
-            end
-          end
-        end
-      end
-    end
-    
-    local startNum = #data
-    
-    -- for i = last, first, -1 do
-    for i = first, last do
-      if (not badPoints[i]) then -- The point was not flagged to be removed
-        local num = #newData + 1
-        newData[num] = data[i]
-        newData[-num] = data[-i]
-      end
-    end
-    
-    local num = first - 1
-    for i = 1, #data do
-      data[i + num] = newData[i]
-      data[-(i + num)] = newData[-i]
-    end
-  
-    debug("Removed", startNum - #data, "out of", startNum, "Remaining:", #data, "Slope count:", countSlope, "Valley count:", countValley, "Peak count:", countPeak)
-    
-    if #data > maxPoints then
-      -- filteringAlgorithm(data, first, last, maxPoints)
-    end
-    
-    data.filterStop = #data
-  end
-  
   badPoints[i] = nil
   --  and (not badPoints[index])
   local prev = prevSlope
@@ -1978,8 +1567,7 @@ if false then -- Coroutine test
 
     local stopX = graphWidth * (self.data[num] - self.XMin) / (self.XMax - self.XMin)
     if stopX > graphWidth then -- Graph is too long, squish it
-      self.XMax = self.XMax * (stopX / graphWidth) * 1.05
-      -- self.XMax = maxX * (blockedX / graphWidth) * 1.333 -- 75%
+      self.XMax = self.XMax * (stopX / graphWidth) * 1.1
       reset = true
     end
 
@@ -2033,16 +1621,6 @@ if false then -- Coroutine test
     --   end
     --
     --   return debug("Greater, returning")
-    -- end
-
-    -- if not reset and self.totalLines and self.totalLines > (self.lastSmoothing or 0) and (self.totalLines % 30) == 0 then -- and (self.endNum % 30) == 0
-    --   local difference = (num - self.endNum)
-    --
-    --   local v1, v2, v3 = smoothingAlgorithm(self, self.data, max(num - 50, 1), num, 0.1)
-    --
-    --   num = #self.data
-    --   self.lastSmoothing = self.totalLines
-    --   -- self.endNum = num - difference
     -- end
 
     for i = (self.endNum or 2), num do
@@ -2526,25 +2104,22 @@ if false then -- Coroutine test
     
     local prev = graphs[2].data[-(start - 1)] or seed or random(25, 75)
     for i = start, stop do
+      local var = variation * 1000
       local rNum = random(1, 3)
+      
+      local var = (random(-var, var) / 1000)
+      
       if rNum == 3 then -- This is just so I can have the variation be a decimal, since random doesn't work with decimals
-        y = prev + variation
+        y = prev + var
       elseif rNum == 2 then
         y = prev
       else
-        y = prev - variation
+        y = prev - var
       end
-      
-      -- local var = random(-100, 100) / 100
-      -- y = y + var
-      -- local var = random(-100, 100) / 100
-      -- y = y - var
       
       if 20 > y then y = 20 end
       if y > 80 then y = 80 end
       
-      y = floor(y * 100) / 100
-
       for index = 1, #graphs do
         local data = graphs[index].data
         local num = #data + 1
@@ -2563,9 +2138,9 @@ if false then -- Coroutine test
   createGraph("Test_Graph_2", {0.5, 0.5, 0.5, 1.0})
   -- createGraph("Test_Graph_3", {0.0, 1.0, 0.5, 1.0})
 
-  createData(2000, 0.4)
-  filteringAlgorithm(graphs[1].data, 1, #graphs[1].data, 1000)
-  filteringAlgorithm(graphs[1].data, 1, #graphs[1].data, 1000)
+  createData(2000, 1.0)
+  filteringAlgorithm(graphs[1].data, 1, #graphs[1].data)
+  -- filteringAlgorithm(graphs[1].data, 1, #graphs[1].data, 1000)
   
   -- createData(1000, 0.5)
   -- debug("Second filter...")
@@ -2614,22 +2189,27 @@ function CT:refreshNormalGraph(reset, routine)
   if self.updating then return debug("Refresh got called when graph was flagged as updating!", self.name) end
   
   if not self.recycling then self.recycling = {} end
+  if not self.filter then self.filter = CT.filteringAlgorithm end
 
   local num = #self.data
-  if 0 >= num then return end
+  if num == 0 then return debug("Called graph refresh without any data points!", self.name) end
   
   local graphWidth, graphHeight = self.frame:GetSize()
   local dbGraph = self.__index
+  local data = dbGraph.data
 
-  local stopX = graphWidth * ((dbGraph.data[num] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin))
+  local stopX = graphWidth * ((data[num] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin))
   if dbGraph and stopX > graphWidth then -- Graph is too long, squish it
-    -- dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.1
-    dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.25 -- 75%
+    dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.2
     reset = true
   end
 
   if reset then
     self.endNum = 2
+    
+    if (num - 100) > (data.smoothedPoint or 1) then
+      num = self:filter(data, (data.smoothedPoint or 1), num, 100)
+    end
 
     if num >= (1000) then -- The comparison number is after how many points do we want to switch to a coroutine (default 2000)
       self.refresh = wrap(CT.refreshNormalGraph)
@@ -2680,16 +2260,6 @@ function CT:refreshNormalGraph(reset, routine)
   --   return debug("Greater, returning")
   -- end
 
-  -- if not reset and self.totalLines and self.totalLines > (self.lastSmoothing or 0) and (self.totalLines % 30) == 0 then -- and (self.endNum % 30) == 0
-  --   local difference = (num - self.endNum)
-  --
-  --   local v1, v2, v3 = smoothingAlgorithm(self, self.data, max(num - 50, 1), num, 0.1)
-  --
-  --   num = #self.data
-  --   self.lastSmoothing = self.totalLines
-  --   -- self.endNum = num - difference
-  -- end
-
   for i = (self.endNum or 2), num do
     local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
 
@@ -2729,79 +2299,109 @@ function CT:refreshNormalGraph(reset, routine)
         local s, c = -dy / l, dx / l -- Sin and Cosine of rotation, and combination (for later)
         local sc = s * c
 
-        if (i > 2) and self.lastLine then -- Without this, it can fall into an infinite loop
-          local passed = nil
-
-          do -- Check if any smoothing should be applied
-            local diffDX = dx - (self.lastDX or 0)
-            if 0 > diffDX then diffDX = -diffDX end
-
-            local diffDY = dy - (self.lastDY or 0)
-            if 0 > diffDY then diffDY = -diffDY end
-
-            local diffS = s - (self.lastSine or 0)
-            if 0 > diffS then diffS = -diffS end
-
-            local level = self.smoothingOverride or CT.settings.graphSmoothing -- How much smoothing should happen, 0 to mostly disable
-
-            if not level or level == 0 then -- Smoothing disabled, only do horizontal and vertical lines. This usually uses about 70% - 80% of the points, but can vary a ton
-              if (diffDX == 0) or (diffDY == 0) then
-                passed = true
-              end
-            elseif level == 1 then -- Very little smoothing, this will probably gradually increase the number of textures, roughly uses around 50% of the points
-              if (0 >= diffDX) or (0 >= diffDY) or (diffS > 0.999) or (0.001 > diffS) then
-                passed = true
-              end
-            elseif level == 2 then -- Medium, should be default, this tries to maintain a somewhat steady amount of textures, roughly around 400 - 600
-              if (0.001 > diffDX) or (0.001 > diffDY) or (diffS > 0.99) or (0.01 > diffS) then
-                passed = true
-              end
-            elseif level == 3 then -- Lots of smoothing, roughly around 200 - 300 textures most of the time
-              if (0.01 > diffDX) or (0.01 > diffDY) or (diffS > 0.95) or (0.05 > diffS) then
-                passed = true
-              end
-            elseif level == 4 then -- Probably too much smoothing, roughly around 140 - 200 textures
-              if (0.1 > diffDX) or (0.1 > diffDY) or (diffS > 0.9) or (0.1 > diffS) then
-                passed = true
-              end
-            elseif level == 5 then -- Complete overkill, but whatever, it's usually less than 100 textures
-              if (0.2 > diffDX) or (0.2 > diffDY) or (diffS > 0.8) or (0.2 > diffS) then
-                passed = true
-              end
-            end -- If you want to 100% disable smoothing, set the level higher than 5. I can't think of any reason to not extend straight lines though.
-          end
-
-          if passed then
-            if line then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
-              self.recycling[#self.recycling + 1] = line
-              line:ClearAllPoints()
-              line:Hide()
-              lines[i] = nil
-            end
-
-            local index = i - 1
-            while not lines[index] and (index > 0) do -- Find the most recent line
-              index = index - 1
-            end
-
-            line = lines[index] -- Now this is used, instead of creating a brand new one
-
-            startX = graphWidth * (data[index - 1] - minX) / (maxX - minX)
-            startY = graphHeight * (data[-(index - 1)] - minY) / (maxY - minY)
-
-            dx, dy = stopX - startX, stopY - startY -- Redo all these calculations with the new start points
-            cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
-
-            if (dx < 0) then
-              dx, dy = -dx, -dy
-            end
-
-            l = sqrt((dx * dx) + (dy * dy))
-
-            s, c = -dy / l, dx / l
-            sc = s * c
-          end
-        end
+        -- if data[i - 1] and data[i + 1] and self.lastLine then -- Without this, it can fall into an infinite loop
+        --   local passed = nil
+        --
+        --   -- do -- Check if any smoothing should be applied
+        --   --   local diffDX = dx - (self.lastDX or 0)
+        --   --   if 0 > diffDX then diffDX = -diffDX end
+        --   --
+        --   --   local diffDY = dy - (self.lastDY or 0)
+        --   --   if 0 > diffDY then diffDY = -diffDY end
+        --   --
+        --   --   local diffS = s - (self.lastSine or 0)
+        --   --   if 0 > diffS then diffS = -diffS end
+        --   --
+        --   --   local level = self.smoothingOverride or CT.settings.graphSmoothing -- How much smoothing should happen, 0 to mostly disable
+        --   --
+        --   --   if not level or level == 0 then -- Smoothing disabled, only do horizontal and vertical lines. This usually uses about 70% - 80% of the points, but can vary a ton
+        --   --     if (diffDX == 0) or (diffDY == 0) then
+        --   --       passed = true
+        --   --     end
+        --   --   elseif level == 1 then -- Very little smoothing, this will probably gradually increase the number of textures, roughly uses around 50% of the points
+        --   --     if (0 >= diffDX) or (0 >= diffDY) or (diffS > 0.999) or (0.001 > diffS) then
+        --   --       passed = true
+        --   --     end
+        --   --   elseif level == 2 then -- Medium, should be default, this tries to maintain a somewhat steady amount of textures, roughly around 400 - 600
+        --   --     if (0.001 > diffDX) or (0.001 > diffDY) or (diffS > 0.99) or (0.01 > diffS) then
+        --   --       passed = true
+        --   --     end
+        --   --   elseif level == 3 then -- Lots of smoothing, roughly around 200 - 300 textures most of the time
+        --   --     if (0.01 > diffDX) or (0.01 > diffDY) or (diffS > 0.95) or (0.05 > diffS) then
+        --   --       passed = true
+        --   --     end
+        --   --   elseif level == 4 then -- Probably too much smoothing, roughly around 140 - 200 textures
+        --   --     if (0.1 > diffDX) or (0.1 > diffDY) or (diffS > 0.9) or (0.1 > diffS) then
+        --   --       passed = true
+        --   --     end
+        --   --   elseif level == 5 then -- Complete overkill, but whatever, it's usually less than 100 textures
+        --   --     if (0.2 > diffDX) or (0.2 > diffDY) or (diffS > 0.8) or (0.2 > diffS) then
+        --   --       passed = true
+        --   --     end
+        --   --   end -- If you want to 100% disable smoothing, set the level higher than 5. I can't think of any reason to not extend straight lines though.
+        --   -- end
+        --
+        --   -- local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+        --   -- local cX, cY = data[i], data[-i] -- Current
+        --   -- local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+        --   --
+        --   -- local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
+        --   -- local nextSlope = (nY - cY) / (nX - cX)
+        --   --
+        --   -- if (prevSlope == nextSlope) then
+        --   --   passed = true
+        --   -- end
+        --
+        --   if passed then
+        --     if line then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
+        --       lineCache[#lineCache + 1] = line
+        --       line:ClearAllPoints()
+        --       line:Hide()
+        --       lines[i] = nil
+        --       line = nil
+        --     end
+        --
+        --     -- local index = i - 1
+        --     -- while (prevSlope == nextSlope) do
+        --     --   local pX, pY = data[index - 1] or 0, data[-(index - 1)] or 0 -- Previous
+        --     --   local cX, cY = data[index] or 0, data[-index] or 0 -- Current
+        --     --   local nX, nY = data[index + 1] or 0, data[-(index + 1)] or 0 -- Next
+        --     --
+        --     --   prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
+        --     --   nextSlope = (nY - cY) / (nX - cX)
+        --     --
+        --     --   if lines[index] then
+        --     --     line = lines[index]
+        --     --   end
+        --     --
+        --     --   index = index - 1
+        --     -- end
+        --
+        --     local index = i - 1
+        --     while not lines[index] and (index > 0) do -- Find the most recent line
+        --       index = index - 1
+        --     end
+        --
+        --     line = lines[index] -- Now this is used, instead of creating a brand new one
+        --
+        --     if line then
+        --       startX = graphWidth * (data[index - 1] - minX) / (maxX - minX)
+        --       startY = graphHeight * (data[-(index - 1)] - minY) / (maxY - minY)
+        --
+        --       dx, dy = stopX - startX, stopY - startY -- Redo all these calculations with the new start points
+        --       cx, cy = (startX + stopX) / 2, (startY + stopY) / 2
+        --
+        --       if (dx < 0) then
+        --         dx, dy = -dx, -dy
+        --       end
+        --
+        --       l = sqrt((dx * dx) + (dy * dy))
+        --
+        --       s, c = -dy / l, dx / l
+        --       sc = s * c
+        --     end
+        --   end
+        -- end
 
         local Bwid, Bhgt, BLx, BLy, TLx, TLy, TRx, TRy, BRx, BRy -- Calculate bounding box size and texture coordinates
         if dy >= 0 then
@@ -2819,8 +2419,8 @@ function CT:refreshNormalGraph(reset, routine)
         end
 
         if not line then
-          if self.recycling[1] then -- First try to recycle an old line, if it has at least one
-            line = tremove(self.recycling) -- Take the last one
+          if lineCache[1] then -- First try to recycle an old line, if it has at least one
+            line = tremove(lineCache) -- Take the last one
             line:Show()
           else -- Nothing to recycle, create a new one
             line = frame:CreateTexture(nil, (self.drawLayer or "ARTWORK"))
@@ -3066,9 +2666,9 @@ function CT:refreshNormalGraph(reset, routine)
           local percent = floor(((self.totalLines or 0) / num) * 100)  .. "%"
           
           if routine then
-            debug(percent, num, self.totalLines, #self.recycling, "Done refreshing (coroutine):", self.name .. ".", runTime, "MS.")
+            debug(percent, num, self.totalLines, #lineCache, "Done refreshing (coroutine):", self.name .. ".", runTime, "MS.")
           else
-            debug(percent, num, self.totalLines, #self.recycling, "Done refreshing:", self.name .. ".", runTime, "MS.")
+            debug(percent, num, self.totalLines, #lineCache, "Done refreshing:", self.name .. ".", runTime, "MS.")
           end
         end
 

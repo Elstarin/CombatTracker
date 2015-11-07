@@ -100,7 +100,7 @@ if profile then -- profile code in here
     local start = debugprofilestop()
     
     for i = 1, loop do
-      local _, _, s = ("This is a STRING"):find("(STRING)")
+      
     end
 
     -- All of these were at 10m
@@ -224,7 +224,7 @@ CT.__index = CT
 CT.settings = {}
 CT.settings.buttonSpacing = 2
 CT.settings.spellCooldownThrottle = 0.0085
-CT.settings.graphSmoothing = 1
+CT.settings.graphSmoothing = 0
 CT.settings.backgroundAlpha = 0.8
 CT.combatevents = {}
 CT.player = {}
@@ -441,7 +441,7 @@ local success = true
 CT.update = {}
 CT.settings.updateDelay = 0.1
 CT.settings.auraUpdateDelay = 0.05
-CT.settings.graphUpdateDelay = 0.1
+CT.settings.graphUpdateDelay = 0.05
 CT.settings.uptimeGraphUpdateDelay = 0.05
 
 CT.mainUpdate = CreateFrame("Frame")
