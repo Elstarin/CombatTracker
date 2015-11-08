@@ -436,3 +436,23 @@ function CT.confirmDialogue(parent)
 
   return confirm.accept, confirm.decline
 end
+
+local function rotateTexture(self, elapsed)
+  self.timer = (self.timer or 0) + elapsed;
+  
+  if ( self.timer > 0.01 ) then
+    self.hAngle = (self.hAngle or 0) - 0.25;
+    self.s = sin(self.hAngle);
+    self.c = cos(self.hAngle);
+    self.icon:SetTexCoord(0.5-self.s, 0.5+self.c,
+                          0.5+self.c, 0.5+self.s,
+                          0.5-self.c, 0.5-self.s,
+                          0.5+self.s, 0.5-self.c);
+    self.timer = 0;
+  end
+end
+
+
+-- icon:SetTexCoord("Upper left X", "Upper left Y", "Lower left X", "Lower left Y", "Upper right X", "Upper right Y", "Lower right X", "Lower right Y")
+-- Interface\\BUTTONS\\WHITE8X8
+-- Interface\\ChatFrame\\ChatFrameBackground
