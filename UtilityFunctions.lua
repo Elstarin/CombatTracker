@@ -1,4 +1,7 @@
-if not CombatTracker then return end
+local name, addon = ...
+
+if name ~= "CombatTracker" then return end
+if addon.profile then return end
 --------------------------------------------------------------------------------
 -- Locals
 --------------------------------------------------------------------------------
@@ -452,7 +455,7 @@ local function rotateTexture(self, elapsed)
   end
 end
 
-
+-- :SetBlendMode("BLEND") -- ADD, ALPHAKEY, BLEND, DISABLE, MOD
 -- icon:SetTexCoord("Upper left X", "Upper left Y", "Lower left X", "Lower left Y", "Upper right X", "Upper right Y", "Lower right X", "Lower right Y")
 -- Interface\\BUTTONS\\WHITE8X8
 -- Interface\\ChatFrame\\ChatFrameBackground

@@ -32,9 +32,10 @@
 --------------------------------------------------------------------------------
 -- Locals, Frames, and Tables
 --------------------------------------------------------------------------------
-local profile = false
+local name, addon = ...
+addon.profile = false
 
-if profile then -- profile code in here
+if addon.profile then -- profile code in here
   local infinity = math.huge
   local function round(num, decimals)
     if (num == infinity) or (num == -infinity) then num = 0 end
@@ -214,6 +215,7 @@ CT.settings.buttonSpacing = 2
 CT.settings.spellCooldownThrottle = 0.0085
 CT.settings.graphSmoothing = 0
 CT.settings.backgroundAlpha = 0.8
+CT.settings.defaultColor = {0.15, 0.15, 0.15, 1.0}
 CT.combatevents = {}
 CT.player = {}
 CT.altPower = {}
@@ -696,6 +698,10 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
     -- collectgarbage("collect")
     -- local num = (preGC - collectgarbage("count")) / 1000
     -- debug("Collected " .. CT.round(num, 3) .. " MB of garbage")
+    
+    -- C_Timer.After(2.5, function()
+    --   CT:toggleBaseExpansion()
+    -- end)
 
     if testMode then
       C_Timer.After(1.0, function()
@@ -1026,6 +1032,8 @@ function CT:OnEnable(load)
     end
   end
   
+  CT.createBaseFrameTest()
+  
   local specData = CT.getPlayerDetails()
   
   for i = 1, #specData do
@@ -1035,7 +1043,7 @@ function CT:OnEnable(load)
     specData[i]:buildNewButton()
   end
   
-  CT:setAllButtonAnchors(specData)
+  CT.contentFrame:displayMainButtons(CT.buttons)
 
   if loadBaseOnLogin or load then
     CT.createBaseFrame()
@@ -2881,35 +2889,35 @@ function CT.createBaseFrame()
       CT.contentFrame:setButtonAnchors(buttons)
     end
 
-    function CT.contentFrame:setButtonAnchors()
-      local y = -CT.settings.buttonSpacing
-
-      for i = 1, #self do
-        local button = self[i]
-        local prevButton = self[i - 1]
-
-        if i == 1 then
-          button:ClearAllPoints()
-          button:SetPoint("TOPLEFT", 0, 0)
-          button:SetPoint("TOPRIGHT")
-        else
-          if i > 2 and prevButton and prevButton.dragging then
-            local prevButtonExpander = self[i - 2].expander
-            local height = prevButton:GetHeight()
-            button:ClearAllPoints()
-            button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, (y * 2) - height)
-            button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, (y * 2) - height)
-          else
-            local prevButtonExpander = self[i - 1].expander
-            button:ClearAllPoints()
-            button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, y)
-            button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, y)
-          end
-        end
-      end
-
-      CT.contentFrame:updateMinMaxValues(self)
-    end
+    -- function CT.contentFrame:setButtonAnchors()
+    --   local y = -CT.settings.buttonSpacing
+    --
+    --   for i = 1, #self do
+    --     local button = self[i]
+    --     local prevButton = self[i - 1]
+    --
+    --     if i == 1 then
+    --       button:ClearAllPoints()
+    --       button:SetPoint("TOPLEFT", 0, 0)
+    --       button:SetPoint("TOPRIGHT")
+    --     else
+    --       if i > 2 and prevButton and prevButton.dragging then
+    --         local prevButtonExpander = self[i - 2].expander
+    --         local height = prevButton:GetHeight()
+    --         button:ClearAllPoints()
+    --         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, (y * 2) - height)
+    --         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, (y * 2) - height)
+    --       else
+    --         local prevButtonExpander = self[i - 1].expander
+    --         button:ClearAllPoints()
+    --         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, y)
+    --         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, y)
+    --       end
+    --     end
+    --   end
+    --
+    --   CT.contentFrame:updateMinMaxValues(self)
+    -- end
     
     function CT.contentFrame:updateMinMaxValues(table)
       local height = 0
@@ -3191,8 +3199,284 @@ function CT.createBaseFrame()
   tinsert(UISpecialFrames, f:GetName())
 end
 
+local mouseExitButton, mouseEnterButton, mousePushButton, mouseReleaseButton
+do -- Register general button functions
+  do -- On enter and on leave
+    local highlightButton, ticker = nil, nil
+    
+    function mouseExitButton(self) -- Sometimes the OnLeave event gets missed. All of this extra stuff is here to make sure it's caught
+      if self.Cancel then self = highlightButton end -- A ticker was passed as first arg, use local instead
+      
+      if not MouseIsOver(self) then
+        CT.setTooltip()
+        
+        self.background:SetTexture(0.1, 0.1, 0.1, 1.0)
+        highlightButton = nil
+        
+        if ticker then
+          ticker:Cancel()
+          ticker = nil
+        end
+      end
+    end
+
+    function mouseEnterButton(self)
+      -- local textString = ("The current button name is: %s"):format(self.name or "NO NAME!")
+      CT.setTooltip(self, self.titleString, self.textString)
+      
+      self.background:SetTexture(0.13, 0.13, 0.13, 1.0)
+      highlightButton = self
+      
+      if ticker then
+        ticker:Cancel()
+        ticker = nil
+      end
+      
+      ticker = newTicker(0.1, mouseExitButton)
+    end
+  end
+  
+  do -- On mouse down and on mouse up
+    local pushedButton, clickType, ticker = nil, nil, nil
+    local icon1, icon2, icon3, icon4, icon5 = nil, nil, nil, nil, nil
+    local value1, value2, value3, value4, value5 = nil, nil, nil, nil, nil
+    -- local title1, title2, title3, title4, title5 = nil, nil, nil, nil, nil
+    
+    function mouseReleaseButton(self, click)
+      if click == "LeftButton" then
+        -- if self.Cancel then self = pushedButton end -- A ticker was passed as first arg, use local instead
+        
+        self.background[1]:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+        self.background[2]:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+        
+        if self.icon then
+          self.icon:SetPoint(icon1, icon2, icon3, icon4, icon5)
+        end
+        
+        if self.value then
+          self.value:SetPoint(value1, value2, value3, value4, value5)
+        end
+        
+        if self.title then
+          self.title:SetPoint(title1, title2, title3, title4, title5)
+        end
+        
+        if self.mouseUpFunc then
+          self.mouseUpFunc()
+        end
+        
+        -- if MouseIsOver(self) then
+        --   pushedButton = nil
+        --
+        --   if ticker then
+        --     ticker:Cancel()
+        --     ticker = nil
+        --   end
+        -- else
+        --
+        -- end
+      end
+    end
+    
+    local iconOffset = 2
+    local textOffset = 1
+    function mousePushButton(self, click)
+      if click == "LeftButton" then
+        self.background[2]:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+        self.background[1]:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+        
+        if self.icon then
+          icon1, icon2, icon3, icon4, icon5 = self.icon:GetPoint()
+          self.icon:SetPoint(icon1, icon2, icon3, (icon4 + iconOffset), (icon5 - iconOffset))
+        end
+        
+        if self.value then
+          value1, value2, value3, value4, value5 = self.value:GetPoint()
+          self.value:SetPoint(value1, value2, value3, (value4 + iconOffset), (value5 - iconOffset))
+        end
+        
+        if self.title then
+          title1, title2, title3, title4, title5 = self.title:GetPoint()
+          self.title:SetPoint(title1, title2, title3, (title4 + textOffset), (title5 - textOffset))
+        end
+        
+        -- pushedButton = self
+        -- clickType = click
+        
+        -- ticker = newTicker(0.1, mouseReleaseButton)
+      end
+    end
+  end
+end
+
+local function animateExpand(self, elapsed)
+  local remaining = self.animation - GetTime()
+  
+  local baseWidth = self.stopBaseWidth - ((remaining / self.animationTotal) * (self.stopBaseWidth - self.startBaseWidth))
+  local anchorWidth = self.stopAnchorWidth - ((remaining / self.animationTotal) * (self.stopAnchorWidth - self.startAnchorWidth))
+  local buttonWidth = self.stopButtonWidth - ((remaining / self.animationTotal) * (self.stopButtonWidth - self.startButtonWidth))
+  
+  local y = -2
+  for i = 1, #self.scroll do
+    local b = self.scroll[i]
+    local mod = ((i + 1) % 2) + 1
+    
+    local p1, p2, p3, p4, p5 = unpack(b.points[1])
+    local Y = y + (remaining / self.animationTotal) * (p5 - y)
+    
+    b:ClearAllPoints()
+    b:SetPoint(p1, p2, p3, p4, Y)
+    b:SetPoint(unpack(b.points[2]))
+    b:SetWidth(buttonWidth)
+    
+    y = (y - 68)
+  end
+  
+  self:SetWidth(baseWidth)
+  self.scroll.anchor:SetWidth(anchorWidth)
+  self.scroll:SetAllPoints(self.scroll.anchor)
+  
+  if 0 >= remaining then -- Done
+    self:SetScript("OnUpdate", nil)
+    self.animation = nil
+    
+    return
+  end
+end
+
+local function animateCollapse(self, elapsed)
+  local remaining = self.animation - GetTime()
+  
+  local baseWidth = self.stopBaseWidth - ((remaining / self.animationTotal) * (self.stopBaseWidth - self.startBaseWidth))
+  local anchorWidth = self.stopAnchorWidth - ((remaining / self.animationTotal) * (self.stopAnchorWidth - self.startAnchorWidth))
+  local buttonWidth = self.stopButtonWidth - ((remaining / self.animationTotal) * (self.stopButtonWidth - self.startButtonWidth))
+  
+  local y = -2
+  for i = 1, #self.scroll do
+    local b = self.scroll[i]
+    local mod = ((i + 1) % 2) + 1
+    
+    local p1, p2, p3, p4, p5 = unpack(b.points[1])
+    local Y = p5 + ((remaining / self.animationTotal) * y)
+    
+    b:ClearAllPoints()
+    b:SetPoint(p1, p2, p3, p4, Y)
+    b:SetPoint(unpack(b.points[2]))
+    b:SetWidth(buttonWidth)
+    
+    y = (y - 68)
+  end
+  
+  self:SetWidth(baseWidth)
+  self.scroll.anchor:SetWidth(anchorWidth)
+  self.scroll:SetAllPoints(self.scroll.anchor)
+  
+  if 0 >= remaining then -- Done
+    self:SetScript("OnUpdate", nil)
+    self.animation = nil
+    
+    self.scroll.anchor:ClearAllPoints()
+    self.scroll.anchor:SetPoint("TOPLEFT", self, 10, -50)
+    self.scroll.anchor:SetPoint("TOPRIGHT", self, -10, -50)
+    self.scroll.anchor:SetPoint("BOTTOMLEFT", self, 10, 30)
+    self.scroll.anchor:SetPoint("BOTTOMRIGHT", self, -10, 30)
+    self.scroll.anchor:SetSize(self.defaultWidth, self.defaultHeight)
+    self.scroll:SetAllPoints(self.scroll.anchor)
+    
+    for i = 1, #self.scroll do
+      local b = self.scroll[i]
+      
+      b.icon:ClearAllPoints()
+      b.value:ClearAllPoints()
+      
+      b.icon:SetPoint("LEFT", b, 7.5, 0)
+      b.value:SetPoint("LEFT", b.icon, "RIGHT")
+      b.value:SetPoint("RIGHT", b, 0, 0)
+    end
+    
+    self.scroll:setButtonAnchors()
+    
+    return
+  end
+end
+
+function CT:toggleBaseExpansion()
+  local f = self.base
+  local scroll = self.base.scroll
+  local width, height = f.defaultWidth, f.defaultHeight
+  local scrollOffsetX = 10
+  f.expandedWidth = width + width
+  
+  f.animationTotal = 0.3
+  f.animation = (GetTime() + f.animationTotal)
+  
+  if f.expanded then -- Collapse it
+    for i = 1, #scroll do
+      local b = scroll[i]
+    
+      b:ClearAllPoints()
+    end
+    
+    f.startBaseWidth = f:GetWidth()
+    f.stopBaseWidth = f.defaultWidth
+    
+    f.startAnchorWidth = 100
+    f.stopAnchorWidth = scroll.anchor.defaultWidth
+    
+    f.startButtonWidth = 100
+    f.stopButtonWidth = scroll[1].defaultWidth
+    
+    self.base:SetScript("OnUpdate", animateCollapse)
+    
+    f.expanded = false
+  else -- Expand it
+    for i = 1, #scroll do
+      local b = scroll[i]
+      
+      if not b.defaultPoints then
+        b.points = {}
+        b.points[1] = {b:GetPoint(1)}
+        b.points[2] = {b:GetPoint(2)}
+      end
+      
+      b.defaultWidth, b.defaultHeight = b:GetSize()
+      
+      b.icon:ClearAllPoints()
+      b.value:ClearAllPoints()
+      
+      b.icon:SetPoint("CENTER", b, 0, 0)
+      b.value:SetPoint("CENTER", b.icon)
+      
+      b:ClearAllPoints()
+    end
+    
+    -- f.defaultWidth, f.defaultHeight = f:GetSize()
+    scroll.anchor.defaultWidth, scroll.anchor.defaultHeight = scroll.anchor:GetSize()
+    
+    scroll.anchor:ClearAllPoints()
+    scroll.anchor:SetPoint("LEFT", f, 10, 0)
+    scroll.anchor:SetPoint("TOP", f, 0, -50)
+    scroll.anchor:SetPoint("BOTTOM", f, 0, 30)
+    scroll:SetAllPoints(scroll.anchor)
+    
+    f.startBaseWidth = f.defaultWidth
+    f.stopBaseWidth = f.expandedWidth
+    
+    f.startAnchorWidth = scroll.anchor:GetWidth()
+    f.stopAnchorWidth = 100
+    
+    f.startButtonWidth = scroll[1]:GetWidth()
+    f.stopButtonWidth = 100
+    
+    self.base:SetScript("OnUpdate", animateExpand)
+    
+    f.expanded = true
+  end
+end
+
 function CT.createBaseFrameTest()
-  local r, g, b, a = 0.15, 0.15, 0.15, 1.0
+  local r, g, b, a = unpack(CT.settings.defaultColor)
+  local scrollOffsetX = 10
   
   local f = CT.base
   if not f then -- NOTE: Base frame is created at the top so that its position gets saved properly.
@@ -3201,9 +3485,73 @@ function CT.createBaseFrameTest()
     f:SetPoint("CENTER")
     f:SetSize(300, 500)
     
-    f.bg = f:CreateTexture(nil, "BACKGROUND")
-    f.bg:SetTexture(r, g, b, a) -- CT.settings.backgroundAlpha
-    f.bg:SetAllPoints()
+    f.defaultWidth, f.defaultHeight = f:GetSize()
+    
+    local bg = f.background
+    if not bg then -- Background texture and gradient
+      bg = f:CreateTexture(nil, "BACKGROUND", nil, 0)
+      bg:SetTexture(r, g, b, a)
+      
+      local cornerSize = 20
+      bg.corners = {}
+      for i = 1, 4 do
+        local c = f:CreateTexture("CT_Base_Button_Corner_" .. i, "BACKGROUND", nil, -8)
+        c:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
+        c:SetVertexColor(r, g, b, a)
+      
+        if i == 1 then
+          c:SetSize(cornerSize, cornerSize)
+          c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+          bg:SetPoint("TOPLEFT", c, (cornerSize / 2), 0)
+        elseif i == 2 then
+          c:SetSize(cornerSize, cornerSize)
+          c:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+          bg:SetPoint("TOPRIGHT", c, -(cornerSize / 2), 0)
+        elseif i == 3 then
+          c:SetSize(cornerSize, cornerSize)
+          c:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+          bg:SetPoint("BOTTOMLEFT", c, (cornerSize / 2), 0)
+        elseif i == 4 then
+          c:SetSize(cornerSize, cornerSize)
+          c:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+          bg:SetPoint("BOTTOMRIGHT", c, -(cornerSize / 2), 0)
+        end
+      
+        bg.corners[i] = c
+      end
+      
+      f.fill1 = f:CreateTexture("CT_Base_Button_Circle_Fill_1", "BACKGROUND", nil, 0)
+      f.fill1:SetTexture(r, g, b, a)
+      f.fill1:SetPoint("TOPLEFT", bg.corners[2], 0, -(cornerSize / 2))
+      f.fill1:SetPoint("BOTTOMRIGHT", bg.corners[4], 0, (cornerSize / 2))
+      
+      f.fill2 = f:CreateTexture("CT_Base_Button_Circle_Fill_2", "BACKGROUND", nil, 0)
+      f.fill2:SetTexture(r, g, b, a)
+      f.fill2:SetPoint("TOPRIGHT", bg.corners[1], 0, -(cornerSize / 2))
+      f.fill2:SetPoint("BOTTOMLEFT", bg.corners[3], 0, (cornerSize / 2))
+      
+      -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+      -- g:SetTexture(1, 1, 1, 1)
+      -- g:SetSize(width, height / 2)
+      -- g:SetPoint("CENTER", bg, 0, 0)
+      -- g:SetPoint("RIGHT", bg, 0, 0)
+      -- g:SetPoint("LEFT", bg, 0, 0)
+      -- g:SetPoint("TOP", bg, 0, 0)
+      -- bg[1] = g
+      --
+      -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+      -- g:SetTexture(1, 1, 1, 1)
+      -- g:SetSize(width, height / 2)
+      -- g:SetPoint("CENTER", bg, 0, 0)
+      -- g:SetPoint("RIGHT", bg, 0, 0)
+      -- g:SetPoint("LEFT", bg, 0, 0)
+      -- g:SetPoint("BOTTOM", bg, 0, 0)
+      -- bg[2] = g
+      
+      f.background = bg
+    end
     
     f:SetScript("OnMouseDown", function(self, click)
       if click == "LeftButton" and not self.isMoving then
@@ -3294,10 +3642,10 @@ function CT.createBaseFrameTest()
     
     local width, height = f:GetSize()
 
-    scroll.anchor:SetPoint("TOPLEFT", f, 10, -50)
-    scroll.anchor:SetPoint("TOPRIGHT", f, -15, -50)
-    scroll.anchor:SetPoint("BOTTOMLEFT", f, 10, 30)
-    scroll.anchor:SetPoint("BOTTOMRIGHT", f, -15, 30)
+    scroll.anchor:SetPoint("TOPLEFT", f, scrollOffsetX, -50)
+    scroll.anchor:SetPoint("TOPRIGHT", f, -scrollOffsetX, -50)
+    scroll.anchor:SetPoint("BOTTOMLEFT", f, scrollOffsetX, 30)
+    scroll.anchor:SetPoint("BOTTOMRIGHT", f, -scrollOffsetX, 30)
     scroll.anchor:SetSize(width, height)
     
     f.scroll = scroll
@@ -3406,36 +3754,66 @@ function CT.createBaseFrameTest()
 
       CT.contentFrame:setButtonAnchors(buttons)
     end
-
-    function CT.contentFrame:setButtonAnchors()
-      local y = -CT.settings.buttonSpacing
-
-      for i = 1, #self do
-        local button = self[i]
-        local prevButton = self[i - 1]
-
-        if i == 1 then
-          button:ClearAllPoints()
-          button:SetPoint("TOPLEFT", 0, 0)
-          button:SetPoint("TOPRIGHT")
-        else
-          if i > 2 and prevButton and prevButton.dragging then
-            local prevButtonExpander = self[i - 2].expander
-            local height = prevButton:GetHeight()
-            button:ClearAllPoints()
-            button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, (y * 2) - height)
-            button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, (y * 2) - height)
-          else
-            local prevButtonExpander = self[i - 1].expander
-            button:ClearAllPoints()
-            button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, y)
-            button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, y)
-          end
+    
+    function CT.contentFrame:setButtonAnchors(buttons)
+      if not buttons then buttons = self end
+      local y = -2
+      local width, height = self:GetSize()
+      
+      for i = 1, #buttons do
+        local b = buttons[i]
+        
+        local mod = ((i + 1) % 2) + 1
+        local opposite = (i % 2) + 1
+        
+        local anchor = "LEFT"
+        if mod == 2 then
+          anchor = "RIGHT"
+        end
+        
+        b:SetWidth((width / 2) - 5)
+        
+        b:ClearAllPoints()
+        b:SetPoint("TOP", self, "TOP", 0, y)
+        b:SetPoint(anchor, self, anchor, 0)
+        
+        if (mod == 2) then
+          y = (y - 60) - 8
         end
       end
-
+      
       CT.contentFrame:updateMinMaxValues(self)
     end
+
+    -- function CT.contentFrame:setButtonAnchors()
+    --   local y = -CT.settings.buttonSpacing
+    --
+    --   for i = 1, #self do
+    --     local button = self[i]
+    --     local prevButton = self[i - 1]
+    --
+    --     if i == 1 then
+    --       button:ClearAllPoints()
+    --       button:SetPoint("TOPLEFT", 0, 0)
+    --       button:SetPoint("TOPRIGHT")
+    --     else
+    --       if i > 2 and prevButton and prevButton.dragging then
+    --         local prevButtonExpander = self[i - 2].expander
+    --         local height = prevButton:GetHeight()
+    --         button:ClearAllPoints()
+    --         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, (y * 2) - height)
+    --         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, (y * 2) - height)
+    --       else
+    --         local prevButtonExpander = self[i - 1].expander
+    --         button:ClearAllPoints()
+    --         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, y)
+    --         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, y)
+    --       end
+    --     end
+    --   end
+    --
+    --   CT.contentFrame:updateMinMaxValues(self)
+    -- end
     
     function CT.contentFrame:updateMinMaxValues(table)
       local height = 0
@@ -3453,222 +3831,700 @@ function CT.createBaseFrameTest()
     end
   end
   
-  local logo = f.logo
-  if not logo then
-    logo = f:CreateTexture("CombatTracker_Base_Logo", "BORDER")
-    logo:SetTexture("Interface/ICONS/Ability_DualWield.png")
-    -- logo:SetTexture("Interface/ICONS/Ability_Racial_TimeIsMoney.png")
-    logo:SetPoint("TOPLEFT", f, 5, -5)
-    logo:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
-    -- logo:SetTexCoord(0.07, 0.93, 0.07, 0.93)
-    -- logo:SetMask("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
-    logo:SetAlpha(0.9)
-    
-    local edges = {}
-    for i = 1, 4 do
-      local edge = f:CreateTexture(nil, "OVERLAY")
-      edge:SetTexture(0, 0, 0, 0.9)
-      
-      if i == 1 then
-        -- edge:SetGradientAlpha("VERTICAL", 0, 0, 0, 1, 0, 0, 0, 0)
-        edge:SetSize(16, 1)
-        edge:SetPoint("TOP", logo, 0, -1)
-      elseif i == 2 then
-        edge:SetSize(1, 16)
-        edge:SetPoint("RIGHT", logo, -1, 0)
-      elseif i == 3 then
-        edge:SetSize(1, 16)
-        edge:SetPoint("LEFT", logo, 1, 0)
-      elseif i == 4 then
-        edge:SetSize(7, 1)
-        edge:SetPoint("BOTTOM", logo, 0, 1)
-      end
-      
-      edges[i] = edge
-    end
-    
-    logo:SetSize(40, 40)
-    
-    do -- Title
-      title = {}
-    
-      for i = 1, 2 do
-        title[i] = f:CreateFontString(nil, "ARTWORK")
-        title[i]:SetTextColor(0.2, 0.72, 1.0, 1)
-        title[i]:SetShadowOffset(1, -3)
-    
-        if i == 1 then
-          title[i]:SetFont("Fonts\\FRIZQT__.TTF", 23, "OUTLINE")
-          title[i]:SetPoint("CENTER", logo, -5, 3)
-          title[i]:SetText("C")
-        else
-          title[i]:SetFont("Fonts\\FRIZQT__.TTF", 25, "OUTLINE")
-          title[i]:SetPoint("CENTER", logo, 7, -5)
-          title[i]:SetText("T")
-        end
-      end
-    end
-    
-    f.logo = logo
-  end
-  
-  local header = f.header
-  if not header then
-    header = CreateFrame("Frame", "CombatTracker_Base_Header", f)
-    header:SetPoint("LEFT", logo, "RIGHT", 5, 0)
-    header:SetPoint("RIGHT", f, -20, 0)
-    -- header:SetPoint("TOPRIGHT", f, -15, -5)
-    header:SetHeight(40)
-    header.texture = header:CreateTexture(nil, "BACKGROUND")
-    header.texture:SetTexture(0.1, 0.1, 0.1, (CT.settings.backgroundAlpha or 0.7))
-    header.texture:SetAllPoints(header)
-    
-    f.header = header
-  end
-  
-  local headerObjectSize = header:GetHeight() - 3
-  
-  -- local save = f.saveButton
-  -- if not save then
-  --   save = CreateFrame("Button", "CombatTracker_Base_Saves", f)
-  --   save:SetSize(headerObjectSize - 3, headerObjectSize - 3)
-  --   -- save:SetPoint("LEFT", settings, "RIGHT", 20, 3)
-  --   save:SetPoint("LEFT", header, 10, 0)
-  --
-  --   save.bg = save:CreateTexture("CombatTracker_Base_Settings", "ARTWORK")
-  --   save.bg:SetTexture("Interface\\addons\\CombatTracker\\Media\\save.tga")
-  --   save.bg:SetAllPoints()
-  --   -- save.bg:SetAlpha(0.9)
-  --   -- save.bg:SetDesaturated(true)
-  --   save.bg:SetVertexColor(0.5, 0.5, 0.5, 1)
-  --   -- save:SetVertexColor(0.0, 0.0, 0.0, 0.1)
-  --
-  --   save.title = save:CreateFontString(nil, "OVERLAY")
-  --   save.title:SetTextColor(0.2, 0.72, 1.0, 1)
-  --   save.title:SetShadowOffset(1, -1)
-  --
-  --   save.title:SetFont("Fonts\\FRIZQT__.TTF", 15, "OUTLINE")
-  --   save.title:SetPoint("CENTER", save, 0, 0)
-  --   save.title:SetText("Saves")
-  --
-  --   f.saveButton = save
-  -- end
-  --
-  -- local reset = f.resetButton
-  -- if not reset then
-  --   reset = CreateFrame("Button", "CombatTracker_Base_Reset_Button", f)
-  --   reset:SetSize(headerObjectSize, headerObjectSize)
-  --   -- reset:SetPoint("RIGHT", header, -(headerObjectSize + 10), 0)
-  --   reset:SetPoint("LEFT", save, "RIGHT", 20, 0)
-  --
-  --   reset.bg = reset:CreateTexture("CombatTracker_Base_Settings", "ARTWORK")
-  --   reset.bg:SetTexture("Interface/ICONS/INV_Misc_Note_05.png")
-  --   reset.bg:SetAllPoints()
-  --   reset.bg:SetAlpha(0.9)
-  --   -- reset.bg:SetDesaturated(true)
-  --   -- reset.bg:SetVertexColor(0.5, 0.5, 0.5, 1)
-  --   -- reset:SetVertexColor(0.0, 0.0, 0.0, 0.1)
-  --
-  --   reset.bg:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+  -- local logo = f.logo
+  -- if not logo then
+  --   logo = f:CreateTexture("CombatTracker_Base_Logo", "BORDER")
+  --   logo:SetTexture("Interface/ICONS/Ability_DualWield.png")
+  --   -- logo:SetTexture("Interface/ICONS/Ability_Racial_TimeIsMoney.png")
+  --   logo:SetPoint("TOPLEFT", f, 5, -5)
+  --   logo:SetMask("Interface\\CharacterFrame\\TempPortraitAlphaMask")
+  --   -- logo:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+  --   -- logo:SetMask("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
+  --   logo:SetAlpha(0.9)
   --
   --   local edges = {}
   --   for i = 1, 4 do
-  --     local edge = reset:CreateTexture(nil, "OVERLAY")
+  --     local edge = f:CreateTexture(nil, "OVERLAY")
   --     edge:SetTexture(0, 0, 0, 0.9)
   --
   --     if i == 1 then
   --       -- edge:SetGradientAlpha("VERTICAL", 0, 0, 0, 1, 0, 0, 0, 0)
-  --       edge:SetSize(14, 1)
-  --       edge:SetPoint("TOP", reset, 0, -1)
+  --       edge:SetSize(16, 1)
+  --       edge:SetPoint("TOP", logo, 0, -1)
   --     elseif i == 2 then
   --       edge:SetSize(1, 16)
-  --       edge:SetPoint("RIGHT", reset, -1, 0)
+  --       edge:SetPoint("RIGHT", logo, -1, 0)
   --     elseif i == 3 then
-  --       edge:SetSize(1, 14)
-  --       edge:SetPoint("LEFT", reset, 1, 0)
+  --       edge:SetSize(1, 16)
+  --       edge:SetPoint("LEFT", logo, 1, 0)
   --     elseif i == 4 then
   --       edge:SetSize(7, 1)
-  --       edge:SetPoint("BOTTOM", reset, 0, 0)
+  --       edge:SetPoint("BOTTOM", logo, 0, 1)
   --     end
   --
   --     edges[i] = edge
   --   end
   --
-  --   reset.title = reset:CreateFontString(nil, "OVERLAY")
-  --   reset.title:SetTextColor(0.2, 0.72, 1.0, 1)
-  --   reset.title:SetShadowOffset(1, -1)
+  --   logo:SetSize(40, 40)
   --
-  --   reset.title:SetFont("Fonts\\FRIZQT__.TTF", 15, "OUTLINE")
-  --   reset.title:SetPoint("CENTER", reset, 0, 0)
-  --   reset.title:SetText("Reset")
+  --   do -- Title
+  --     title = {}
   --
-  --   f.resetButton = reset
+  --     for i = 1, 2 do
+  --       title[i] = f:CreateFontString(nil, "ARTWORK")
+  --       title[i]:SetTextColor(0.2, 0.72, 1.0, 1)
+  --       title[i]:SetShadowOffset(1, -3)
+  --
+  --       if i == 1 then
+  --         title[i]:SetFont("Fonts\\FRIZQT__.TTF", 23, "OUTLINE")
+  --         title[i]:SetPoint("CENTER", logo, -5, 3)
+  --         title[i]:SetText("C")
+  --       else
+  --         title[i]:SetFont("Fonts\\FRIZQT__.TTF", 25, "OUTLINE")
+  --         title[i]:SetPoint("CENTER", logo, 7, -5)
+  --         title[i]:SetText("T")
+  --       end
+  --     end
+  --   end
+  --
+  --   f.logo = logo
   -- end
-  --
-  -- local settings = f.settingsButton
-  -- if not settings then
-  --   settings = CreateFrame("Button", "CombatTracker_Base_Settings", f)
-  --   settings:SetSize(headerObjectSize + 15, headerObjectSize + 15)
-  --   -- settings:SetPoint("LEFT", header, 10, 0)
-  --   settings:SetPoint("LEFT", reset, "RIGHT", 20, 0)
-  --
-  --   settings.bg = settings:CreateTexture("CombatTracker_Base_Settings", "ARTWORK")
-  --   settings.bg:SetTexture("Interface/HELPFRAME/HelpIcon-CharacterStuck.png")
-  --   settings.bg:SetAllPoints()
-  --   -- settings.bg:SetAlpha(0.9)
-  --   -- settings.bg:SetDesaturated(true)
-  --   settings.bg:SetVertexColor(0.5, 0.5, 0.5, 1)
-  --   -- settings:SetVertexColor(0.0, 0.0, 0.0, 0.1)
-  --
-  --   settings.title = settings:CreateFontString(nil, "OVERLAY")
-  --   settings.title:SetTextColor(0.2, 0.72, 1.0, 1)
-  --   settings.title:SetShadowOffset(1, -1)
-  --
-  --   settings.title:SetFont("Fonts\\FRIZQT__.TTF", 15, "OUTLINE")
-  --   settings.title:SetPoint("CENTER", settings, 0, 0)
-  --   settings.title:SetText("Settings")
-  --
-  --   f.settingsButton = settings
-  -- end
+  
+  local header = f.header
+  if not header then -- Background texture and gradient
+    local r, g, b, a = 0.1, 0.1, 0.1, 1.0
+    
+    header = CreateFrame("Frame", "CombatTracker_Base_Header_Frame", f)
+    header:SetHeight(40)
+    header:SetPoint("LEFT", f, scrollOffsetX, 0)
+    header:SetPoint("RIGHT", f, -scrollOffsetX, 0)
+    header:SetPoint("TOP", f, 0, -5)
+    -- header:SetPoint("BOTTOM", scroll, "TOP", 0, 5)
+    
+    header.bg = header:CreateTexture(nil, "BACKGROUND", nil, 3)
+    header.bg:SetTexture(r, g, b, a)
+    header.bg:SetAllPoints()
+    
+    local cornerSize = 20
+    header.corners = {}
+    for i = 1, 4 do
+      local c = header:CreateTexture("CT_Base_Header_Corner_" .. i, "BACKGROUND", nil, -8)
+      c:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
+      c:SetVertexColor(r, g, b, a)
+    
+      if i == 1 then
+        c:SetSize(cornerSize, cornerSize)
+        c:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
+        header.bg:SetPoint("TOPLEFT", c, (cornerSize / 2), 0)
+      elseif i == 2 then
+        c:SetSize(cornerSize, cornerSize)
+        c:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, 0)
+        header.bg:SetPoint("TOPRIGHT", c, -(cornerSize / 2), 0)
+      elseif i == 3 then
+        c:SetSize(cornerSize, cornerSize)
+        c:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
+        header.bg:SetPoint("BOTTOMLEFT", c, (cornerSize / 2), 0)
+      elseif i == 4 then
+        c:SetSize(cornerSize, cornerSize)
+        c:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
+        header.bg:SetPoint("BOTTOMRIGHT", c, -(cornerSize / 2), 0)
+      end
+    
+      header.corners[i] = c
+    end
+    
+    header.fill1 = header:CreateTexture("CT_Base_Button_Circle_Fill_1", "BACKGROUND", nil, 0)
+    header.fill1:SetTexture(r, g, b, a)
+    header.fill1:SetPoint("TOPLEFT", header.corners[2], 0, -(cornerSize / 2))
+    header.fill1:SetPoint("BOTTOMRIGHT", header.corners[4], 0, (cornerSize / 2))
+    
+    header.fill2 = header:CreateTexture("CT_Base_Button_Circle_Fill_2", "BACKGROUND", nil, 0)
+    header.fill2:SetTexture(r, g, b, a)
+    header.fill2:SetPoint("TOPRIGHT", header.corners[1], 0, -(cornerSize / 2))
+    header.fill2:SetPoint("BOTTOMLEFT", header.corners[3], 0, (cornerSize / 2))
+    
+    f.header = header
+  end
+  
+  local headerObjectSize = header:GetHeight() - 10
+  local headerObjectSpacing = 5
   
   local close = f.closeButton
-  if not close then -- Close button
-    close = CreateFrame("Button", "CombatTracker_Base_Close_Button", f)
-    close:SetSize(40, 40)
-    close:SetPoint("RIGHT", header, 0, 0)
-    -- close:SetNormalTexture("Interface/FriendsFrame/BlockCommunicationsIcon.png")
-    -- close:SetHighlightTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
-    close:SetNormalTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
-    close:SetHighlightTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
-  
-    close.bg = close:CreateTexture(nil, "BORDER")
-    close.bg:SetAllPoints()
-    close.bg:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
-    close.bg:SetVertexColor(0, 0, 0, 0.2)
+  if not close then
+    local width, height = 160, 60
     
-    close.title = close:CreateFontString(nil, "OVERLAY")
-    close.title:SetTextColor(0.2, 0.72, 1.0, 1)
-    close.title:SetShadowOffset(1, -1)
-
-    close.title:SetFont("Fonts\\FRIZQT__.TTF", 15, "OUTLINE")
-    close.title:SetPoint("CENTER", close, 0, 0)
-    close.title:SetText("Close")
-  
-    close:SetScript("OnClick", function(self)
+    local f = header
+    local b = CreateFrame("Button", nil, f)
+    b:SetSize(width, height)
+    b:SetPoint("LEFT", f, 5, 0)
+    
+    local bg = b.background
+    if not bg then -- Background texture and gradient
+      bg = b:CreateTexture(nil, "BACKGROUND", nil, -8)
+      bg:SetTexture(0.1, 0.1, 0.1, 1.0)
+      bg:SetAllPoints()
+      b:SetNormalTexture(bg)
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.1, 0, 0, 0, 0) -- Top
+      g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("TOP", bg, 0, 0)
+      bg[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.1) -- Bottom
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("BOTTOM", bg, 0, 0)
+      bg[2] = g
+      
+      b.background = bg
+    end
+    
+    local shadow = b.shadow
+    if not shadow then
+      shadow = b:CreateTexture("CT_Base_Button_Shadow", "BACKGROUND")
+      shadow:SetTexture("Interface\\BUTTONS\\WHITE8X8")
+      shadow:SetPoint("TOPLEFT", -1, 1)
+      shadow:SetPoint("BOTTOMRIGHT", 0, -0)
+      shadow:SetVertexColor(0, 0, 0, 1)
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Bottom_Edge", "BACKGROUND")
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 1)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, 5)
+      g:SetPoint("TOP", shadow, "BOTTOM", 0, 0)
+      g:SetPoint("RIGHT", shadow, 2, 0)
+      g:SetPoint("LEFT", shadow, 0, 0)
+      shadow[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Right_Edge", "BACKGROUND")
+      g:SetGradientAlpha("HORIZONTAL", 0.01, 0.01, 0.01, 1, 0, 0, 0, 0)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(3, height)
+      g:SetPoint("LEFT", shadow, "RIGHT", 0, 0)
+      g:SetPoint("TOP", shadow, 0, 0)
+      g:SetPoint("BOTTOM", shadow, 0, -2)
+      shadow[2] = g
+    
+      b.shadow = shadow
+    end
+    
+    local icon = b.icon
+    if not icon then -- Icon
+      icon = b:CreateTexture(nil, "ARTWORK", nil, 6)
+      -- icon:SetTexture("Interface/BUTTONS/UI-GroupLoot-Pass-Up.png")
+      icon:SetTexture("Interface/RAIDFRAME/ReadyCheck-NotReady.png")
+      -- SetPortraitToTexture(icon, icon:GetTexture())
+      icon:SetPoint("CENTER", b, 0, 0)
+      -- icon:SetAllPoints()
+      icon:SetSize(height - 25, height - 25)
+      icon:SetTexCoord(0.07, 0.95, 0.08, 0.97)
+      icon:SetAlpha(0.9)
+      icon:SetDesaturated(true)
+    
+      b.icon = icon
+    end
+    
+    -- local value = b.value
+    -- if not value then
+    --   value = b:CreateFontString(nil, "ARTWORK")
+    --   value:SetAllPoints(b)
+    --   value:SetFont("Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
+    --   value:SetTextColor(0.95, 0.95, 1.0, 1)
+    --   -- value:SetJustifyH("LEFT")
+    --   -- value:SetShadowOffset(-1, 1)
+    --   value:SetText("X")
+    --
+    --   b.value = value
+    -- end
+    
+    b:SetScript("OnEnter", mouseEnterButton)
+    b:SetScript("OnLeave", mouseExitButton)
+    b:SetScript("OnMouseDown", mousePushButton)
+    b:SetScript("OnMouseUp", mouseReleaseButton)
+    
+    b.titleString = "Close"
+    b.textString = "Click to close CombatTracker. It will still be gathering data."
+    
+    close = b
+    close:SetSize(headerObjectSize, headerObjectSize)
+    close:ClearAllPoints()
+    close:SetPoint("RIGHT", header, -headerObjectSpacing - 5, 0)
+    
+    function close.mouseUpFunc()
       CT.base:Hide()
-    end)
-  
-    close:SetScript("OnEnter", function(self)
-      self.info = "Closes Combat Tracker, but it will still be recording CT.current.\n\nType /ct in chat to open it again. Type /ct help to see a full list of chat commands."
-  
-      CT.createInfoTooltip(self, "Close", nil, nil, nil, nil)
-    end)
-  
-    close:SetScript("OnLeave", function()
-      CT.createInfoTooltip()
-    end)
+    end
   
     f.closeButton = close
+  end
+  
+  local save = f.saveButton
+  if not save then
+    local width, height = 160, 60
+    
+    local f = header
+    local b = CreateFrame("Button", nil, f)
+    b:SetSize(width, height)
+    b:SetPoint("LEFT", f, 5, 0)
+    
+    local bg = b.background
+    if not bg then -- Background texture and gradient
+      bg = b:CreateTexture(nil, "BACKGROUND", nil, -8)
+      bg:SetTexture(0.1, 0.1, 0.1, 1.0)
+      bg:SetAllPoints()
+      b:SetNormalTexture(bg)
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.1, 0, 0, 0, 0) -- Top
+      g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("TOP", bg, 0, 0)
+      bg[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.1) -- Bottom
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("BOTTOM", bg, 0, 0)
+      bg[2] = g
+      
+      b.background = bg
+    end
+    
+    local shadow = b.shadow
+    if not shadow then
+      shadow = b:CreateTexture("CT_Base_Button_Shadow", "BACKGROUND")
+      shadow:SetTexture("Interface\\BUTTONS\\WHITE8X8")
+      shadow:SetPoint("TOPLEFT", -1, 1)
+      shadow:SetPoint("BOTTOMRIGHT", 0, -0)
+      shadow:SetVertexColor(0, 0, 0, 1)
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Bottom_Edge", "BACKGROUND")
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 1)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, 5)
+      g:SetPoint("TOP", shadow, "BOTTOM", 0, 0)
+      g:SetPoint("RIGHT", shadow, 2, 0)
+      g:SetPoint("LEFT", shadow, 0, 0)
+      shadow[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Right_Edge", "BACKGROUND")
+      g:SetGradientAlpha("HORIZONTAL", 0.01, 0.01, 0.01, 1, 0, 0, 0, 0)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(3, height)
+      g:SetPoint("LEFT", shadow, "RIGHT", 0, 0)
+      g:SetPoint("TOP", shadow, 0, 0)
+      g:SetPoint("BOTTOM", shadow, 0, -2)
+      shadow[2] = g
+    
+      b.shadow = shadow
+    end
+    
+    local icon = b.icon
+    if not icon then -- Icon
+      icon = b:CreateTexture(nil, "ARTWORK", nil, 6)
+      icon:SetTexture("Interface\\addons\\CombatTracker\\Media\\save.tga") -- "Interface/ICONS/Ability_DualWield.png"
+      -- SetPortraitToTexture(icon, icon:GetTexture())
+      icon:SetPoint("CENTER", b, 0, 3)
+      icon:SetSize(height - 30, height - 30)
+      -- icon:SetAllPoints()
+      icon:SetTexCoord(0.07, 0.95, 0.08, 0.97)
+      icon:SetAlpha(0.9)
+      icon:SetDesaturated(true)
+    
+      b.icon = icon
+    end
+    
+    -- local value = b.value
+    -- if not value then
+    --   value = b:CreateFontString(nil, "ARTWORK")
+    --   value:SetAllPoints()
+    --   value:SetFont("Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
+    --   value:SetTextColor(0.95, 0.95, 1.0, 1)
+    --   -- value:SetJustifyV("BOTTOM")
+    --   -- value:SetShadowOffset(1, -1)
+    --   value:SetText("*")
+    --
+    --   b.value = value
+    -- end
+    
+    b:SetScript("OnEnter", mouseEnterButton)
+    b:SetScript("OnLeave", mouseExitButton)
+    b:SetScript("OnMouseDown", mousePushButton)
+    b:SetScript("OnMouseUp", mouseReleaseButton)
+    
+    b.titleString = "Saves"
+    b.textString = "Load saved fights."
+    
+    save = b
+    save:SetSize(headerObjectSize, headerObjectSize)
+    save:ClearAllPoints()
+    save:SetPoint("RIGHT", close, "LEFT", -headerObjectSpacing, 0)
+  
+    f.saveButton = save
+  end
+
+  local reset = f.resetButton
+  if not reset then
+    local width, height = 160, 60
+    
+    local f = header
+    local b = CreateFrame("Button", nil, f)
+    b:SetSize(width, height)
+    b:SetPoint("LEFT", f, 5, 0)
+    
+    local bg = b.background
+    if not bg then -- Background texture and gradient
+      bg = b:CreateTexture(nil, "BACKGROUND", nil, -8)
+      bg:SetTexture(0.1, 0.1, 0.1, 1.0)
+      bg:SetAllPoints()
+      b:SetNormalTexture(bg)
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.1, 0, 0, 0, 0) -- Top
+      g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("TOP", bg, 0, 0)
+      bg[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.1) -- Bottom
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("BOTTOM", bg, 0, 0)
+      bg[2] = g
+      
+      b.background = bg
+    end
+    
+    local shadow = b.shadow
+    if not shadow then
+      shadow = b:CreateTexture("CT_Base_Button_Shadow", "BACKGROUND")
+      shadow:SetTexture("Interface\\BUTTONS\\WHITE8X8")
+      shadow:SetPoint("TOPLEFT", -1, 1)
+      shadow:SetPoint("BOTTOMRIGHT", 0, -0)
+      shadow:SetVertexColor(0, 0, 0, 1)
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Bottom_Edge", "BACKGROUND")
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 1)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, 5)
+      g:SetPoint("TOP", shadow, "BOTTOM", 0, 0)
+      g:SetPoint("RIGHT", shadow, 2, 0)
+      g:SetPoint("LEFT", shadow, 0, 0)
+      shadow[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Right_Edge", "BACKGROUND")
+      g:SetGradientAlpha("HORIZONTAL", 0.01, 0.01, 0.01, 1, 0, 0, 0, 0)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(3, height)
+      g:SetPoint("LEFT", shadow, "RIGHT", 0, 0)
+      g:SetPoint("TOP", shadow, 0, 0)
+      g:SetPoint("BOTTOM", shadow, 0, -2)
+      shadow[2] = g
+    
+      b.shadow = shadow
+    end
+    
+    local icon = b.icon
+    if not icon then -- Icon
+      icon = b:CreateTexture(nil, "ARTWORK", nil, 6)
+      -- icon:SetTexture("Interface/ICONS/INV_Misc_Note_05.png")
+      icon:SetTexture("Interface/HELPFRAME/HelpIcon-ReportLag.png")
+      -- SetPortraitToTexture(icon, icon:GetTexture())
+      -- icon:SetAllPoints()
+      icon:SetPoint("CENTER", b, 0, 0)
+      icon:SetSize(height - 20, height - 20)
+      icon:SetTexCoord(0.07, 0.95, 0.08, 0.97)
+      icon:SetAlpha(0.9)
+      icon:SetDesaturated(true)
+    
+      b.icon = icon
+    end
+    
+    -- local value = b.value
+    -- if not value then
+    --   value = b:CreateFontString(nil, "ARTWORK")
+    --   value:SetAllPoints()
+    --   value:SetFont("Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
+    --   value:SetTextColor(0.95, 0.95, 1.0, 1)
+    --   -- value:SetJustifyH("LEFT")
+    --   -- value:SetShadowOffset(1, -1)
+    --   value:SetText("%")
+    --
+    --   b.value = value
+    -- end
+    
+    b:SetScript("OnEnter", mouseEnterButton)
+    b:SetScript("OnLeave", mouseExitButton)
+    b:SetScript("OnMouseDown", mousePushButton)
+    b:SetScript("OnMouseUp", mouseReleaseButton)
+    
+    b.titleString = "Reset"
+    b.textString = "Reset current fight."
+    
+    reset = b
+    reset:SetSize(headerObjectSize, headerObjectSize)
+    reset:ClearAllPoints()
+    reset:SetPoint("RIGHT", save, "LEFT", -headerObjectSpacing, 0)
+  
+    f.resetButton = reset
+  end
+
+  local settings = f.settingsButton
+  if not settings then
+    local width, height = 160, 60
+    
+    local f = header
+    local b = CreateFrame("Button", nil, f)
+    b:SetSize(width, height)
+    b:SetPoint("LEFT", f, 5, 0)
+    
+    local bg = b.background
+    if not bg then -- Background texture and gradient
+      bg = b:CreateTexture(nil, "BACKGROUND", nil, -8)
+      bg:SetTexture(0.1, 0.1, 0.1, 1.0)
+      bg:SetAllPoints()
+      b:SetNormalTexture(bg)
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.1, 0, 0, 0, 0) -- Top
+      g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("TOP", bg, 0, 0)
+      bg[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.1) -- Bottom
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("BOTTOM", bg, 0, 0)
+      bg[2] = g
+      
+      b.background = bg
+    end
+    
+    local shadow = b.shadow
+    if not shadow then
+      shadow = b:CreateTexture("CT_Base_Button_Shadow", "BACKGROUND")
+      shadow:SetTexture("Interface\\BUTTONS\\WHITE8X8")
+      shadow:SetPoint("TOPLEFT", -1, 1)
+      shadow:SetPoint("BOTTOMRIGHT", 0, -0)
+      shadow:SetVertexColor(0, 0, 0, 1)
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Bottom_Edge", "BACKGROUND")
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 1)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, 5)
+      g:SetPoint("TOP", shadow, "BOTTOM", 0, 0)
+      g:SetPoint("RIGHT", shadow, 2, 0)
+      g:SetPoint("LEFT", shadow, 0, 0)
+      shadow[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Right_Edge", "BACKGROUND")
+      g:SetGradientAlpha("HORIZONTAL", 0.01, 0.01, 0.01, 1, 0, 0, 0, 0)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(3, height)
+      g:SetPoint("LEFT", shadow, "RIGHT", 0, 0)
+      g:SetPoint("TOP", shadow, 0, 0)
+      g:SetPoint("BOTTOM", shadow, 0, -2)
+      shadow[2] = g
+    
+      b.shadow = shadow
+    end
+    
+    local icon = b.icon
+    if not icon then -- Icon
+      icon = b:CreateTexture(nil, "ARTWORK", nil, 6)
+      icon:SetTexture("Interface/HELPFRAME/HelpIcon-CharacterStuck.png")
+      -- SetPortraitToTexture(icon, icon:GetTexture())
+      icon:SetPoint("CENTER", b, 0, 0)
+      -- icon:SetAllPoints()
+      icon:SetSize(height - 15, height - 15)
+      icon:SetTexCoord(0.07, 0.95, 0.08, 0.97)
+      icon:SetAlpha(0.9)
+      icon:SetDesaturated(true)
+    
+      b.icon = icon
+    end
+    
+    -- local value = b.value
+    -- if not value then
+    --   value = b:CreateFontString(nil, "ARTWORK")
+    --   value:SetAllPoints()
+    --   value:SetFont("Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
+    --   value:SetTextColor(0.95, 0.95, 1.0, 1)
+    --   value:SetText("#")
+    --
+    --   b.value = value
+    -- end
+    
+    b:SetScript("OnEnter", mouseEnterButton)
+    b:SetScript("OnLeave", mouseExitButton)
+    b:SetScript("OnMouseDown", mousePushButton)
+    b:SetScript("OnMouseUp", mouseReleaseButton)
+    
+    b.titleString = "Settings"
+    b.textString = "Load CombatTracker's settings."
+    
+    settings = b
+    settings:SetSize(headerObjectSize, headerObjectSize)
+    -- settings:SetPoint("LEFT", reset, "RIGHT", 20, 0)
+    settings:ClearAllPoints()
+    settings:SetPoint("RIGHT", reset, "LEFT", -headerObjectSpacing, 0)
+  
+    f.settingsButton = settings
+  end
+  
+  local expand = f.expandButton
+  if not expand then
+    local width, height = 160, 60
+    
+    local f = header
+    local b = CreateFrame("Button", nil, f)
+    b:SetSize(width, height)
+    b:SetPoint("LEFT", f, 5, 0)
+    
+    local bg = b.background
+    if not bg then -- Background texture and gradient
+      bg = b:CreateTexture(nil, "BACKGROUND", nil, -8)
+      bg:SetTexture(0.1, 0.1, 0.1, 1.0)
+      bg:SetAllPoints()
+      b:SetNormalTexture(bg)
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.1, 0, 0, 0, 0) -- Top
+      g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("TOP", bg, 0, 0)
+      bg[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
+      -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.1) -- Bottom
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, height / 2)
+      g:SetPoint("CENTER", bg, 0, 0)
+      g:SetPoint("RIGHT", bg, 0, 0)
+      g:SetPoint("LEFT", bg, 0, 0)
+      g:SetPoint("BOTTOM", bg, 0, 0)
+      bg[2] = g
+      
+      b.background = bg
+    end
+    
+    local shadow = b.shadow
+    if not shadow then
+      shadow = b:CreateTexture("CT_Base_Button_Shadow", "BACKGROUND")
+      shadow:SetTexture("Interface\\BUTTONS\\WHITE8X8")
+      shadow:SetPoint("TOPLEFT", -1, 1)
+      shadow:SetPoint("BOTTOMRIGHT", 0, -0)
+      shadow:SetVertexColor(0, 0, 0, 1)
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Bottom_Edge", "BACKGROUND")
+      g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 1)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(width, 5)
+      g:SetPoint("TOP", shadow, "BOTTOM", 0, 0)
+      g:SetPoint("RIGHT", shadow, 2, 0)
+      g:SetPoint("LEFT", shadow, 0, 0)
+      shadow[1] = g
+      
+      local g = b:CreateTexture("CT_Base_Button_Shadow_Right_Edge", "BACKGROUND")
+      g:SetGradientAlpha("HORIZONTAL", 0.01, 0.01, 0.01, 1, 0, 0, 0, 0)
+      g:SetTexture(1, 1, 1, 1)
+      g:SetSize(3, height)
+      g:SetPoint("LEFT", shadow, "RIGHT", 0, 0)
+      g:SetPoint("TOP", shadow, 0, 0)
+      g:SetPoint("BOTTOM", shadow, 0, -2)
+      shadow[2] = g
+    
+      b.shadow = shadow
+    end
+    
+    local icon = b.icon
+    if not icon then -- Icon
+      icon = b:CreateTexture(nil, "ARTWORK", nil, 6)
+      icon:SetTexture("Interface/HELPFRAME/ReportLagIcon-AuctionHouse.png")
+      -- SetPortraitToTexture(icon, icon:GetTexture())
+      icon:SetPoint("CENTER", b, 0, 0)
+      -- icon:SetAllPoints()
+      icon:SetSize(height - 15, height - 15)
+      icon:SetTexCoord(0.07, 0.95, 0.08, 0.97)
+      icon:SetAlpha(0.9)
+      icon:SetDesaturated(true)
+    
+      b.icon = icon
+    end
+    
+    -- local value = b.value
+    -- if not value then
+    --   value = b:CreateFontString(nil, "ARTWORK")
+    --   value:SetAllPoints()
+    --   value:SetFont("Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
+    --   value:SetTextColor(0.95, 0.95, 1.0, 1)
+    --   value:SetText("#")
+    --
+    --   b.value = value
+    -- end
+    
+    b:SetScript("OnEnter", mouseEnterButton)
+    b:SetScript("OnLeave", mouseExitButton)
+    b:SetScript("OnMouseDown", mousePushButton)
+    b:SetScript("OnMouseUp", mouseReleaseButton)
+    
+    b.titleString = "Expand"
+    b.textString = "Expand the frame to view more details."
+    
+    expand = b
+    expand:SetSize(headerObjectSize, headerObjectSize)
+    -- settings:SetPoint("LEFT", reset, "RIGHT", 20, 0)
+    expand:ClearAllPoints()
+    expand:SetPoint("RIGHT", settings, "LEFT", -headerObjectSpacing, 0)
+    
+    function expand.mouseUpFunc()
+      CT:toggleBaseExpansion()
+    end
+  
+    f.expandButton = expand
   end
   
   -- tinsert(UISpecialFrames, f:GetName())
@@ -3724,9 +4580,17 @@ do -- Register general button functions
         self.background[1]:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
         self.background[2]:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
         
-        self.icon:SetPoint(icon1, icon2, icon3, icon4, icon5)
-        self.value:SetPoint(value1, value2, value3, value4, value5)
-        -- self.title:SetPoint(title1, title2, title3, title4, title5)
+        if self.icon then
+          self.icon:SetPoint(icon1, icon2, icon3, icon4, icon5)
+        end
+        
+        if self.value then
+          self.value:SetPoint(value1, value2, value3, value4, value5)
+        end
+        
+        if self.title then
+          self.title:SetPoint(title1, title2, title3, title4, title5)
+        end
         
         -- if MouseIsOver(self) then
         --   pushedButton = nil
@@ -3741,20 +4605,27 @@ do -- Register general button functions
       end
     end
     
-    local iconOffset = 1.5
+    local iconOffset = 1
     local textOffset = 1
     function mousePushButton(self, click)
       if click == "LeftButton" then
         self.background[2]:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
         self.background[1]:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
         
-        icon1, icon2, icon3, icon4, icon5 = self.icon:GetPoint()
-        value1, value2, value3, value4, value5 = self.value:GetPoint()
-        -- title1, title2, title3, title4, title5 = self.title:GetPoint()
+        if self.icon then
+          icon1, icon2, icon3, icon4, icon5 = self.icon:GetPoint()
+          self.icon:SetPoint(icon1, icon2, icon3, (icon4 + iconOffset), (icon5 - iconOffset))
+        end
         
-        self.icon:SetPoint(icon1, icon2, icon3, (icon4 + iconOffset), (icon5 - iconOffset))
-        self.value:SetPoint(value1, value2, value3, (value4 + iconOffset), (value5 - iconOffset))
-        -- self.title:SetPoint(title1, title2, title3, (title4 + textOffset), (title5 - textOffset))
+        if self.value then
+          value1, value2, value3, value4, value5 = self.value:GetPoint()
+          self.value:SetPoint(value1, value2, value3, (value4 + iconOffset), (value5 - iconOffset))
+        end
+        
+        if self.title then
+          title1, title2, title3, title4, title5 = self.title:GetPoint()
+          self.title:SetPoint(title1, title2, title3, (title4 + textOffset), (title5 - textOffset))
+        end
         
         -- pushedButton = self
         -- clickType = click
@@ -3765,13 +4636,11 @@ do -- Register general button functions
   end
 end
 
-function CT:buildNewButton()
-  if not self.name then return end
-  
+function CT:buildNewButton(parent)
   local width, height = 160, 60
   
-  local f = CT.base.scroll
-  local b = CreateFrame("Button", nil, f)
+  local f = parent or CT.base.scroll
+  local b = CreateFrame("Button", "CombatTracker_Main_Button", f)
   b:SetSize(width, height)
   b:SetPoint("LEFT", f, 5, 0)
   
@@ -3839,7 +4708,7 @@ function CT:buildNewButton()
   local icon = b.icon
   if not icon then -- Icon
     icon = b:CreateTexture(nil, "ARTWORK", nil, 6)
-    icon:SetTexture(self.icon or GetSpellTexture(self.name) or CT.player.specIcon) -- "Interface/ICONS/Ability_DualWield.png"
+    icon:SetTexture(self.icon or GetSpellTexture(self.name) or CT.player.specIcon)
     SetPortraitToTexture(icon, icon:GetTexture())
     icon:SetPoint("LEFT", b, 7.5, 0)
     icon:SetSize(height - 15, height - 15)
@@ -3852,13 +4721,12 @@ function CT:buildNewButton()
   local value = b.value
   if not value then
     value = b:CreateFontString(nil, "ARTWORK")
-    -- value:SetPoint("RIGHT", button, -13, 0)
-    -- value:SetPoint("TOPLEFT", icon, -1.5, 0)
-    -- value:SetPoint("BOTTOMRIGHT", icon, 1.5, 0)
-    value:SetPoint("LEFT", icon, "RIGHT", 3, 0)
-    value:SetPoint("RIGHT", b, 1, 0)
-    value:SetPoint("TOP", b, 0, 0)
-    value:SetPoint("BOTTOM", b, 0, 0)
+    value:SetPoint("LEFT", icon, "RIGHT")
+    value:SetPoint("RIGHT", b, 0, 0)
+    -- value:SetPoint("BOTTOMRIGHT", b)
+    -- value:SetPoint("TOP", b, 0, 0)
+    -- value:SetPoint("BOTTOM", b, 0, 0)
+    -- value:SetPoint("LEFT", icon, "RIGHT", 3, 0)
     value:SetFont("Fonts\\FRIZQT__.TTF", 26, "OUTLINE")
     value:SetTextColor(0.95, 0.95, 1.0, 1)
     value:SetJustifyH("LEFT")
@@ -3889,253 +4757,19 @@ function CT:buildNewButton()
   b:SetScript("OnMouseUp", mouseReleaseButton)
   
   b.titleString = self.name
-  b.textString = findInfoText(b, self.name)
+  b.textString = findInfoText(b, self.name or "")
   
-  self.button = b
+  if self.name and self.name ~= "CombatTracker" then
+    self.button = b
+  end
+  
+  -- b.resize = CT.resizeButton
+  -- b.expanded = true
+  
+  CT.buttons[#CT.buttons + 1] = b
+  
+  return b
 end
-
-local buttonAnchors = {"LEFT", "RIGHT"}
-local buttonOffset = {2, -2}
-function CT:setAllButtonAnchors(specData)
-  local prev = nil
-  local y = -2
-  local parent = specData[1].button:GetParent()
-  local width, height = parent:GetSize()
-  
-  for i = 1, #specData do
-    local b = specData[i].button
-    
-    local mod = ((i + 1) % 2) + 1
-    local opposite = (i % 2) + 1
-    
-    b:SetWidth((width / 2) - 5)
-    
-    b:ClearAllPoints()
-    b:SetPoint("TOP", parent, "TOP", 0, y)
-    
-    b:SetPoint(buttonAnchors[mod], parent, buttonOffset[mod], 0)
-    
-    -- if not prev then
-    --   b:SetPoint("LEFT", parent, "LEFT", 0, 0)
-    -- elseif mod == 1 then
-    --   b:SetPoint(buttonAnchors[opposite], prev, buttonAnchors[mod], 0, 0)
-    -- else
-    --   b:SetPoint(buttonAnchors[opposite], prev, buttonAnchors[mod], 1.5, 0)
-    -- end
-    
-    if mod == 2 then
-      y = (y - 60) - 8
-    end
-    
-    prev = b
-  end
-end
-
-function CT.setTooltip(relativeTo, titleString, textString)
-  local width, height = 200, 100
-  local r, g, b, a = 0.1, 0.1, 0.1, 1.0
-  
-  local arrowOffset = 15
-  local textOffset = 5
-  
-  local f = CT.mainTooltip
-  if not f then
-    f = CreateFrame("Frame", "CombatTracker_Tooltip_Base", UIParent)
-    f:SetFrameStrata("TOOLTIP")
-    f:SetPoint("CENTER")
-    f:SetSize(width, height)
-    f.width = width
-    f.height = height
-    
-    f:SetScript("OnUpdate", function(self, elapsed)
-      if self.titleString or self.textString then
-        self.title:SetText(self.titleString)
-        self.text:SetText(self.textString)
-        
-        local textWidth, textHeight = self.text:GetSize()
-        local titleWidth, titleHeight = self.title:GetSize()
-        
-        local longest = max(titleWidth, textWidth) + 20
-        local combinedHeight = max((textHeight + titleHeight) + textOffset, 100) + 20
-        self:SetSize(longest, combinedHeight)
-        
-        self.width = longest
-        self.height = combinedHeight
-        
-        self.titleString = nil
-        self.textString = nil
-      end
-      
-      local textWidth, textHeight = self.text:GetSize()
-      local titleWidth, titleHeight = self.title:GetSize()
-      
-      if (titleWidth > self.width) or (textWidth > self.width) then
-        debug("Too long!")
-        
-        local longest = max(titleWidth, textWidth) + 20
-        
-        self:SetWidth(longest)
-        self.width = longest
-      end
-      
-      if (titleHeight + textHeight) > self.height then
-        debug("Text too tall!")
-        
-        local combinedHeight = max((textHeight + titleHeight) + textOffset, 100) + 20
-        self:SetHeight(combinedHeight)
-        
-        self.height = combinedHeight
-      end
-    end)
-    
-    CT.mainTooltip = f
-  end
-  
-  local bg = f.background
-  if not bg then -- Background texture and gradient
-    bg = f:CreateTexture(nil, "BACKGROUND", nil, 0)
-    bg:SetTexture(r, g, b, a)
-    
-    local cornerSize = 20
-    bg.corners = {}
-    for i = 1, 4 do
-      local c = f:CreateTexture("CT_Base_Button_Corner_" .. i, "BACKGROUND", nil, -8)
-      c:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
-      c:SetVertexColor(r, g, b, a)
-    
-      if i == 1 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-        bg:SetPoint("TOPLEFT", c, (cornerSize / 2), 0)
-      elseif i == 2 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
-        bg:SetPoint("TOPRIGHT", c, -(cornerSize / 2), 0)
-      elseif i == 3 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
-        bg:SetPoint("BOTTOMLEFT", c, (cornerSize / 2), 0)
-      elseif i == 4 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
-        bg:SetPoint("BOTTOMRIGHT", c, -(cornerSize / 2), 0)
-      end
-    
-      bg.corners[i] = c
-    end
-    
-    f.fill1 = f:CreateTexture("CT_Base_Button_Circle_Fill_1", "BACKGROUND", nil, 0)
-    f.fill1:SetTexture(r, g, b, a)
-    f.fill1:SetPoint("TOPLEFT", bg.circles[2], 0, -(cornerSize / 2))
-    f.fill1:SetPoint("BOTTOMRIGHT", bg.circles[4], 0, (cornerSize / 2))
-    
-    f.fill2 = f:CreateTexture("CT_Base_Button_Circle_Fill_2", "BACKGROUND", nil, 0)
-    f.fill2:SetTexture(r, g, b, a)
-    f.fill2:SetPoint("TOPRIGHT", bg.circles[1], 0, -(cornerSize / 2))
-    f.fill2:SetPoint("BOTTOMLEFT", bg.circles[3], 0, (cornerSize / 2))
-    
-    -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
-    -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
-    -- g:SetTexture(1, 1, 1, 1)
-    -- g:SetSize(width, height / 2)
-    -- g:SetPoint("CENTER", bg, 0, 0)
-    -- g:SetPoint("RIGHT", bg, 0, 0)
-    -- g:SetPoint("LEFT", bg, 0, 0)
-    -- g:SetPoint("TOP", bg, 0, 0)
-    -- bg[1] = g
-    --
-    -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
-    -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
-    -- g:SetTexture(1, 1, 1, 1)
-    -- g:SetSize(width, height / 2)
-    -- g:SetPoint("CENTER", bg, 0, 0)
-    -- g:SetPoint("RIGHT", bg, 0, 0)
-    -- g:SetPoint("LEFT", bg, 0, 0)
-    -- g:SetPoint("BOTTOM", bg, 0, 0)
-    -- bg[2] = g
-    
-    f.background = bg
-  end
-
-  local arrow = f.arrow
-  if not arrow then
-    local w, h = 40, 40
-    arrow = CreateFrame("Frame", "CombatTracker_Tooltip_Arrow", f)
-    arrow:SetPoint("TOP", f, 0, -10)
-    arrow:SetPoint("BOTTOM", f, 0, 10)
-    arrow:SetSize(w, h)
-    arrow:SetFrameLevel(0)
-    
-    local a = arrow:CreateTexture("CombatTracker_Tooltip_Arrow_Top_Texture", "BACKGROUND", nil, -8)
-    a:SetTexture("Interface\\addons\\CombatTracker\\Media\\triangle.tga")
-    a:SetSize(w, h)
-    a:SetPoint("TOP", arrow, 0, 0)
-    a:SetPoint("BOTTOM", arrow, "CENTER", 0, 0)
-    a:SetPoint("RIGHT", arrow, 0, 0)
-    a:SetPoint("LEFT", arrow, 0, 0)
-    a:SetVertexColor(r, g, b, a)
-    arrow[1] = a
-    
-    local a = arrow:CreateTexture("CombatTracker_Tooltip_Arrow_Bottom_Texture", "BACKGROUND", nil, -8)
-    a:SetTexture("Interface\\addons\\CombatTracker\\Media\\triangle.tga")
-    a:SetSize(w, h)
-    a:SetPoint("TOP", arrow, "CENTER", 0, 0)
-    a:SetPoint("BOTTOM", arrow, 0, 0)
-    a:SetPoint("RIGHT", arrow, 0, 0)
-    a:SetPoint("LEFT", arrow, 0, 0)
-    a:SetVertexColor(r, g, b, a)
-    a:SetTexCoord(0.25, 0.5, 0.75, 0.5)
-    arrow[2] = a
-    
-    f.arrow = arrow
-  end
-  
-  local title = f.title
-  if not title then
-    title = f:CreateFontString(nil, "ARTWORK", nil, 7)
-    title:SetPoint("TOPLEFT", f, 10, -5)
-    title:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
-    title:SetTextColor(0.95, 0.95, 1.0, 1)
-    title:SetJustifyH("LEFT")
-    title:SetShadowOffset(1, -1)
-    title:SetText("Title Text")
-  
-    f.title = title
-  end
-  
-  local text = f.text
-  if not text then
-    text = f:CreateFontString(nil, "ARTWORK", nil, 7)
-    text:SetPoint("LEFT", f, 10, 0)
-    text:SetPoint("TOP", title, "BOTTOM", 0, -textOffset)
-    text:SetFont("Fonts\\FRIZQT__.TTF", 16, "OUTLINE")
-    text:SetTextColor(0.95, 0.95, 1.0, 1)
-    text:SetJustifyH("LEFT")
-    text:SetShadowOffset(1, -1)
-    text:SetText("Sub text.")
-  
-    f.text = text
-  end
-  
-  do -- Basic resizing stuff
-    arrow:SetPoint("RIGHT", f, "LEFT", arrowOffset, 0)
-  end
-  
-  f.titleString = titleString
-  f.textString = textString
-  
-  if relativeTo then
-    f:ClearAllPoints()
-    f:SetPoint("LEFT", relativeTo, "RIGHT", arrowOffset, 0)
-    f:Show()
-  else
-    f:Hide()
-  end
-end
-
-CT.createBaseFrameTest()
-CT.setTooltip()
--- CT:buildNewButton()
 
 -- function CT.contentFrame:setButtonAnchors()
 --   local y = -CT.settings.buttonSpacing
@@ -4840,659 +5474,659 @@ function CT:expanderFrame(command)
   end
 end
 
-function CT.createBaseFrame_OLD() -- Create Base Frame
-  local f = CT.base
-  if not f then -- NOTE: Base frame is created at the top so that its position gets saved properly.
-    CT.base = baseFrame
-    f = CT.base
-    f:SetPoint("CENTER")
-    f:SetSize(350, 556)
-
-    local backdrop = {
-    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-    edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-    tileSize = 32,
-    edgeSize = 16,}
-
-    f:SetBackdrop(backdrop)
-    f:SetBackdropColor(0.15, 0.15, 0.15, 1)
-    f:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.7)
-
-    f:EnableMouse(true)
-    f:EnableKeyboard(true)
-    f:SetResizable(true)
-    f:SetUserPlaced(true)
-
-    f:SetScript("OnMouseDown", function(self, click)
-      if click == "LeftButton" and not self.isMoving then
-        if CT.graphFrame and CT.graphFrame.displayed and CT.graphFrame.displayed[1] then -- Hide any graphs before dragging, they can cause insane lag
-          for index = 1, #CT.graphFrame.displayed do
-            local graph = CT.graphFrame.displayed[index]
-            local lines, bars, triangles = graph.lines, graph.bars, graph.triangles
-
-            for i = 1, #graph.data do -- Show all the lines
-              if lines[i] then
-                lines[i]:Hide()
-              end
-
-              if bars and bars[i] then
-                bars[i]:Hide()
-              end
-
-              if triangles and triangles[i] then
-                triangles[i]:Hide()
-              end
-            end
-          end
-        end
-
-        self:StartMoving()
-        self.isMoving = true
-      end
-    end)
-
-    f:SetScript("OnMouseUp", function(self, button)
-      if button == "LeftButton" and self.isMoving then
-        self:StopMovingOrSizing()
-        self.isMoving = false
-        CT:updateButtonList()
-
-        if CT.graphFrame and CT.graphFrame.displayed and CT.graphFrame.displayed[1] then -- Put them all back
-          for index = 1, #CT.graphFrame.displayed do
-            local graph = CT.graphFrame.displayed[index]
-            local lines, bars, triangles = graph.lines, graph.bars, graph.triangles
-
-            for i = 1, #graph.data do -- Show all the lines
-              if lines[i] then
-                lines[i]:Show()
-              end
-
-              if bars and bars[i] then
-                bars[i]:Show()
-              end
-
-              if triangles and triangles[i] then
-                triangles[i]:Show()
-              end
-            end
-          end
-        end
-      end
-    end)
-
-    f:SetScript("OnEnter", function(self)
-      if lastMouseoverButton then
-        lastMouseoverButton.dragger:SetAlpha(0)
-        lastMouseoverButton.upArrow:SetAlpha(0)
-        lastMouseoverButton.downArrow:SetAlpha(0)
-        lastMouseoverButton:UnlockHighlight()
-      end
-    end)
-
-    f:SetScript("OnShow", function(self)
-      self.shown = true
-      
-      if not CT.current and not CT.displayed then
-        debug("CT.base (OnShow): No current set, so trying to load the last saved set.")
-        CT.loadSavedSet() -- Load the most recent set as default
-      end
-    end)
-    
-    f:SetScript("OnHide", function(self)
-      self.shown = false
-    end)
-
-    function CT.base:cycleMainButtons() -- NOTE: If order is changed, this gets all messed up. Also it revers to the old order.
-      if true then return end
-      local numBeforeUpdate = CT.totalNumButtons
-
-      for i = 1, #CT.mainButtons do
-        local button = CT.mainButtons[i]
-        if not button.AGFadeIn then
-          button.AGFadeIn = button:CreateAnimationGroup("Fade In")
-          local animation = button.AGFadeIn:CreateAnimation("Alpha")
-          animation:SetDuration(0.5)
-          animation:SetChange(1)
-          animation:SetSmoothing("IN")
-          button.AGFadeIn:SetScript("OnFinished", function(self, requested)
-            button:SetAlpha(1)
-          end)
-        end
-        if not button.AGFadeOut then
-          button.AGFadeOut = button:CreateAnimationGroup("Fade Out")
-          local animation = button.AGFadeOut:CreateAnimation("Alpha")
-          animation:SetDuration(0.5)
-          animation:SetChange(-1)
-          animation:SetStartDelay(i * 0.1)
-          animation:SetSmoothing("OUT")
-          button.AGFadeOut:SetScript("OnFinished", function(self, requested)
-            button:SetAlpha(0)
-            -- CT.updateText(button) -- removed this function, shouldn't be worth it overall. If needed, call SetText() here manually.
-            CT.updateSpellIcons(button)
-            button.AGFadeIn:Play()
-            if button.num > CT.totalNumButtons then
-              button:Hide()
-            end
-          end)
-        end
-        if button.num > numBeforeUpdate then
-          button:SetAlpha(0)
-        end
-        button.AGFadeOut:Play()
-      end
-    end
-  end
-
-  local dragger = f.dragger
-  if not dragger then -- Main size dragger
-    f:SetMaxResize(350, 700)
-    f:SetMinResize(350, 556)
-
-    f.dragger = CreateFrame("Button", nil, f)
-    dragger = f.dragger
-
-    f.dragger:SetSize(20, 20)
-    f.dragger:SetPoint("BOTTOMRIGHT", -1, 2)
-    f.dragger:SetNormalTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Up.png")
-    f.dragger:SetPushedTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Down.png")
-    f.dragger:SetHighlightTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Highlight.png")
-
-    -- NOTE: Need to get resolution properly
-    f.dragger:SetScript("OnMouseDown", function(self)
-      CT.base:StartSizing()
-
-      -- local UIScale = UIParent:GetEffectiveScale()
-      -- local startX, startY = GetCursorPosition()
-      -- local startX = startX / UIScale
-      -- local startY = startY / UIScale
-      --
-      -- local resolutionX = 1920
-      -- local resolutionY = 1080
-      --
-      -- local startLeft, startBottom, startWidth, startHeight = CT.base:GetRect()
-      -- local startScale = CT.base:GetScale()
-      -- -- GetEffectiveScale()
-      --
-      -- self.ticker = C_Timer.NewTicker(0.001, function(ticker)
-      -- local mouseX, mouseY = GetCursorPosition()
-      -- local mouseX = (mouseX / UIScale)
-      -- local mouseY = (mouseY / UIScale)
-      --
-        -- if (mouseX > startX) or (mouseY < startY) then -- Increasing Scale
-        --   local valX = (mouseX - startX) / resolutionX
-        --   local valY = (startY - mouseY) / resolutionY
-        --
-        --   local maxVal = max(valX, valY)
-        --   local newScale = startScale + maxVal
-        --
-        --   CT.base:SetScale(newScale)
-        -- else -- Decreasing Scale
-        --   local valX = (mouseX - startX) / resolutionX
-        --   local valY = (startY - mouseY) / resolutionY
-        --
-        --   local minVal = min(valX, valY)
-        --   local newScale = startScale + minVal
-        --
-        --   CT.base:SetScale(newScale)
-        -- end
-      -- end)
-    end)
-
-    f.dragger:SetScript("OnMouseUp", function(self)
-      CT.base:StopMovingOrSizing()
-
-      -- self.ticker:Cancel()
-    end)
-  end
-
-  local scrollFrame = CT.scrollFrame
-  if not scrollFrame then -- Scroll Frame, Main Content Frame, and Scroll Bar
-    CT.scrollFrame = CreateFrame("ScrollFrame", "CT_ScrollFrame", CT.base)
-    scrollFrame = CT.scrollFrame
-
-    CT.scrollFrame:SetPoint("TOPLEFT", 25, -88)
-    CT.scrollFrame:SetPoint("BOTTOMRIGHT", -25, 53)
-
-    CT.scrollBar = CreateFrame("Slider", "CT_ScrollBar", CT.scrollFrame, "UIPanelScrollBarTemplate")
-    CT.scrollBar:SetPoint("TOPRIGHT", CT.scrollFrame, 20, 0)
-    CT.scrollBar:SetPoint("BOTTOMRIGHT", CT.scrollFrame, 20, 0)
-    CT.scrollBar.background = CT.scrollBar:CreateTexture("CT_ScrollBarBackground", "BACKGROUND")
-    CT.scrollBar.background:SetTexture("Interface\\addons\\CombatTracker\\Media\\ScrollBG.tga")
-    CT.scrollBar.background:SetAllPoints()
-    CT.scrollBar.thumbTexture = CT.scrollBar:CreateTexture("CT_ScrollBarThumbTexture")
-    CT.scrollBar.thumbTexture:SetTexture("Interface\\addons\\CombatTracker\\Media\\ThumbSlider.tga")
-    CT.scrollBar.thumbTexture:SetSize(10, 32)
-    CT.scrollBar:SetThumbTexture(CT.scrollBar.thumbTexture)
-
-    CT.scrollBar.AG = CT.scrollBar:CreateAnimationGroup("ScrollHider")
-    CT.scrollBar.AG.A = CT.scrollBar.AG:CreateAnimation("Alpha")
-    CT.scrollBar.AG.A:SetChange(-1)
-    CT.scrollBar.AG.A:SetDuration(1)
-    CT.scrollBar.AG.A:SetStartDelay(1)
-    CT.scrollBar.AG.A:SetSmoothing("OUT")
-    local c1, c2 = CT.scrollBar:GetChildren()
-      c1:Hide()
-      c2:Hide()
-    CT.scrollBar:SetAlpha(0)
-    CT.scrollBar:SetValueStep(46)
-    CT.scrollBar.scrollStep = 1
-    CT.scrollBar:SetWidth(16)
-    CT.scrollBar:SetScript("OnValueChanged", function(self, value)
-      CT.scrollFrame:SetVerticalScroll(value)
-    end)
-
-    CT.scrollBar.AG:SetScript("OnFinished", function(self, requested)
-      CT.scrollBar:SetAlpha(0)
-    end)
-
-    CT.contentFrame = CreateFrame("Frame", "CT_MainContent", CT.base)
-    CT.contentFrame:SetSize(CT.scrollFrame:GetWidth(), CT.scrollFrame:GetHeight())
-    CT.scrollFrame:SetScrollChild(CT.contentFrame)
-    CT.contentFrame:SetPoint("TOPLEFT", CT.base, 25, -88)
-    CT.contentFrame:SetPoint("BOTTOMRIGHT", CT.base, -25, 100)
-
-    CT.scrollBar:SetScript("OnEnter", function(self, value)
-      CT.scrollBar:SetAlpha(1)
-    end)
-
-    CT.scrollBar:SetScript("OnLeave", function(self, value)
-      CT.scrollBar.AG:Stop()
-      CT.scrollBar.AG:Play()
-    end)
-
-    CT.scrollBar:SetScript("OnMouseWheel", function(self, value)
-      local current = CT.scrollBar:GetValue()
-      local minimum, maximum = CT.scrollBar:GetMinMaxValues()
-
-      if value < 0 and current < maximum then
-        current = min(maximum, current + 46)
-        CT.scrollBar:SetValue(current)
-      elseif value > 0 and current > minimum then
-        current = max(minimum, current - 46)
-        CT.scrollBar:SetValue(current)
-      end
-    end)
-
-    CT.scrollFrame:SetScript("OnMouseWheel", function(self, value)
-      CT.scrollBar:SetAlpha(1)
-
-      local current = CT.scrollBar:GetValue()
-      local minimum, maximum = CT.scrollBar:GetMinMaxValues()
-
-      if value < 0 and current < maximum then
-        current = min(maximum, current + 46)
-        CT.scrollBar:SetValue(current)
-      elseif value > 0 and current > minimum then
-        current = max(minimum, current - 46)
-        CT.scrollBar:SetValue(current)
-      end
-
-      CT.scrollBar.AG:Stop()
-      CT.scrollBar.AG:Play()
-    end)
-
-    local function finishCycleHide(self, requested)
-      local b = self:GetParent()
-      b:Hide()
-    end
-
-    local function finishCycleShow(self, requested)
-      local b = self:GetParent()
-      b:Show()
-      b:SetAlpha(1)
-
-      if b.done then
-        CT.contentFrame.animating = false
-      end
-    end
-
-    function CT.contentFrame:displayMainButtons(buttons)
-      if not buttons then debug("Called display buttons, but didn't pass a button table.") return end
-
-      local num = #buttons
-      self.animating = true
-      self.sourceTable = buttons
-
-      for i = 1, #self do -- Animate button out and hide
-        local b = self[i]
-
-        local fadeOut = b.fadeOut
-        if not fadeOut then
-          fadeOut = b:CreateAnimationGroup()
-          local a = fadeOut:CreateAnimation("Alpha")
-          a:SetDuration(0.2)
-          a:SetSmoothing("OUT")
-          a:SetFromAlpha(1)
-          a:SetToAlpha(-1)
-          fadeOut:SetScript("OnFinished", finishCycleHide)
-
-          fadeOut.a = a
-          b.a = fadeOut
-        end
-
-        fadeOut.a:SetStartDelay(i * 0.05)
-        fadeOut:Play()
-
-        self[i] = nil
-      end
-
-      for i = 1, num do -- Load in new button
-        local b = buttons[i]
-        b:Show()
-        b:SetAlpha(0)
-
-        local fadeIn = b.fadeIn
-        if not fadeIn then
-          fadeIn = b:CreateAnimationGroup()
-          local a = fadeIn:CreateAnimation("Alpha")
-          a:SetDuration(0.2)
-          a:SetSmoothing("IN")
-          a:SetFromAlpha(-1)
-          a:SetToAlpha(1)
-
-          fadeIn:SetScript("OnFinished", finishCycleShow)
-
-          fadeIn.a = a
-          b.a = fadeIn
-        end
-
-        if i == num then -- Last one
-          b.done = true
-        else
-          b.done = false
-        end
-
-        fadeIn.a:SetStartDelay(i * 0.05)
-        fadeIn:Play()
-
-        self[i] = buttons[i]
-      end
-
-      CT.contentFrame:setButtonAnchors(buttons)
-    end
-
-    function CT.contentFrame:setButtonAnchors()
-      local y = -CT.settings.buttonSpacing
-
-      for i = 1, #self do
-        local button = self[i]
-        local prevButton = self[i - 1]
-
-        if i == 1 then
-          button:ClearAllPoints()
-          button:SetPoint("TOPLEFT", 0, 0)
-          button:SetPoint("TOPRIGHT")
-        else
-          if i > 2 and prevButton and prevButton.dragging then
-            local prevButtonExpander = self[i - 2].expander
-            local height = prevButton:GetHeight()
-            button:ClearAllPoints()
-            button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, (y * 2) - height)
-            button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, (y * 2) - height)
-          else
-            local prevButtonExpander = self[i - 1].expander
-            button:ClearAllPoints()
-            button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, y)
-            button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, y)
-          end
-        end
-
-        -- local _, coords = button.expander:GetCenter()
-        -- button.coords = coords
-      end
-
-      CT.contentFrame:updateMinMaxValues(self)
-    end
-  end
-
-  local header, title = f.header, f.title
-  if not header and not title then -- Header and title text and close button
-    header = CreateFrame("Frame", "CT_Base_Header", f)
-    header:SetPoint("TOPLEFT", f, 15, -15)
-    header:SetPoint("TOPRIGHT", f, -15, -15)
-    header:SetHeight(40)
-    header.texture = header:CreateTexture(nil, "BACKGROUND")
-    header.texture:SetTexture(0.1, 0.1, 0.1, 1)
-    header.texture:SetAllPoints(header)
-
-    title = header:CreateFontString(nil, "ARTWORK")
-    title:SetPoint("LEFT", header.texture, 10, 0)
-    title:SetFont("Fonts\\FRIZQT__.TTF", 30)
-    title:SetTextColor(0.8, 0.8, 0, 1)
-    title:SetShadowOffset(3, -3)
-    title:SetText("Combat Tracker")
-    -- title:SetText("Combat \n  Tracker")
-
-    header:SetScript("OnEnter", function(self)
-      self.info = "Combat Tracker tries to detailed information about your performance in combat.\n\nIt is in its beta stages, so please help me out and report bugs! Thanks."
-
-      CT.createInfoTooltip(self, "Title")
-    end)
-
-    header:SetScript("OnLeave", function(self)
-      CT.createInfoTooltip()
-    end)
-
-    f.header = header
-    f.title = title
-  end
-
-  local close = f.closeButton
-  if not close then -- Close button
-    close = CreateFrame("Button", nil, header)
-    close:SetSize(40, 40)
-    close:SetPoint("RIGHT", 0, 0)
-    close:SetNormalTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
-    close:SetHighlightTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
-
-    close.BG = close:CreateTexture(nil, "BORDER")
-    close.BG:SetAllPoints()
-    close.BG:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
-    close.BG:SetVertexColor(0, 0, 0, 0.3)
-
-    close:SetScript("OnClick", function(self)
-      CT.base:Hide()
-    end)
-
-    close:SetScript("OnEnter", function(self)
-      self.info = "Closes Combat Tracker, but it will still be recording CT.current.\n\nType /ct in chat to open it again. Type /ct help to see a full list of chat commands."
-
-      CT.createInfoTooltip(self, "Close", nil, nil, nil, nil)
-    end)
-
-    close:SetScript("OnLeave", function()
-      CT.createInfoTooltip()
-    end)
-
-    f.closeButton = close
-  end
-
-  local expander = f.bottomExpander
-  if not expander then -- Popup expander
-    local width = f:GetWidth()
-
-    expander = CreateFrame("Button", "CT_Base_Expander_Button", f)
-
-    do -- Basic textures and stuff
-      local button = expander
-
-      button.background = button:CreateTexture(nil, "BACKGROUND")
-      button.background:SetPoint("TOPLEFT", button, 4.5, -4)
-      button.background:SetPoint("BOTTOMRIGHT", button, -4, 3)
-      button.background:SetTexture(0.07, 0.07, 0.07, 1.0)
-
-      button.upArrow = button:CreateTexture(nil, "ARTWORK")
-      button.upArrow:SetTexture("Interface/BUTTONS/Arrow-Up-Up.png") -- "Interface/BUTTONS/Arrow-Up-Down.png"
-      button.upArrow:SetSize(16, 16)
-      button.upArrow:SetPoint("CENTER", 0, 0)
-
-      button.normal = button:CreateTexture(nil, "BACKGROUND")
-      button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-      button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-      button.normal:SetAllPoints(button)
-      button:SetNormalTexture(button.normal)
-
-      button.highlight = button:CreateTexture(nil, "BACKGROUND")
-      button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-      button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
-      button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
-      button.highlight:SetAllPoints(button)
-      button:SetHighlightTexture(button.highlight)
-
-      button.pushed = button:CreateTexture(nil, "BACKGROUND")
-      button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
-      button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
-      button.pushed:SetAllPoints(button)
-      button:SetPushedTexture(button.pushed)
-    end
-
-    expander:SetSize(width - 40, 15)
-    expander:SetPoint("BOTTOM", f, 0, 7)
-
-    -- expander:SetScript("OnEnter", function(self)
-    --   after(0.3, function() -- Require the mouse to hover for X seconds before showing
-    --     if not (self.popup and self.popup:IsShown()) and MouseIsOver(self) then -- If hidden and mouse is still over
-    --       self:Click()
-    --     end
-    --   end)
-    -- end)
-
-    expander:SetScript("OnClick", function(self, button)
-      local cTime = GetTime()
-
-      if cTime >= (self.lastClick or 0) then -- Block rapid clicks
-        if not self.popup then
-          self.popup = CreateFrame("Frame", nil, self)
-          self.popup:SetFrameStrata("TOOLTIP")
-          self.popup:SetSize(width - 10, 120)
-          self.popup:SetPoint("BOTTOM", self, 0, 0)
-          self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
-          self.popup.bg:SetAllPoints()
-          self.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
-          self.popup:Hide()
-
-          self.popup:SetScript("OnMouseUp", function(popup)
-            popup:Hide()
-          end)
-
-          self.popup:SetScript("OnShow", function(popup)
-            self.popup.exitTime = GetTime() + 0.5
-
-            if not self.popup.ticker then
-              self.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
-                if not MouseIsOver(self.popup) and not MouseIsOver(self) then
-                  if GetTime() > self.popup.exitTime then
-                    self.popup:Hide()
-                    self.popup.ticker:Cancel()
-                    self.popup.ticker = nil
-                  end
-                else
-                  self.popup.exitTime = GetTime() + 0.5
-                end
-              end)
-            end
-          end)
-        end
-
-        local animation = self.animation
-        if not animation then
-          self.animation = self:CreateAnimationGroup()
-
-          local a = self.animation:CreateAnimation("Scale")
-          a:SetDuration(0.05)
-          -- self.a.scale:SetSmoothing("OUT")
-          a:SetOrigin("BOTTOM", 0, 0)
-          -- self.a.scale:SetScale(0.3, 0.3)
-          a:SetFromScale(1, 0)
-          a:SetToScale(1, 1)
-          -- self.popup.animation.scale:SetScale(xFactor, yFactor)
-
-          local b = self.animation:CreateAnimation("Alpha")
-          b:SetDuration(0.05)
-          b:SetFromAlpha(0)
-          b:SetToAlpha(1)
-        end
-
-        self.animation:Play()
-
-        if self.popup:IsShown() then
-          self.popup:Hide()
-        else
-          local popup = createMenuButtons(self.popup)
-          popup.shownTime = GetTime() + 0.3
-
-          if not popup[1].func then -- Load saved fights on click handler
-            popup[1].title:SetText("Load Saved Fights")
-
-            local count = 0
-            popup[1].func = function(self, click, cTime)
-              if not CT.contentFrame.animating then
-                count = count + 1
-
-                if count == 1 then
-                  local _, specName = GetSpecializationInfo(GetSpecialization())
-
-                  CT.createSavedSetButtons(CombatTrackerCharDB[specName].sets)
-                  popup[1].title:SetText("Return")
-                else
-                  CT.createSpecDataButtons(CT.specData)
-                  popup[1].title:SetText("Load Saved Fights")
-
-                  count = 0
-                end
-              end
-            end
-          end
-
-          if not popup[2].func then -- Expand frame on click handler
-            popup[2].title:SetText("Expand Frame")
-
-            popup[2].func = function(self, click, cTime)
-              CT:expanderFrame()
-            end
-          end
-
-          if not popup[3].func then -- Reset data on click handler
-            popup[3].title:SetText("Reset Data")
-
-            popup[3].func = function(self, click, cTime)
-              -- CT.resetData(click)
-              self.title:SetText("This is currently broken and will mess things up.")
-
-              after(3, function()
-                self.title:SetText("Reset Data")
-              end)
-            end
-          end
-
-          if not popup[4].func then -- Options button on click handler TODO: Make this do something
-            popup[4].title:SetText("Options\n(but not really)")
-
-            popup[4].func = function(self, click, cTime)
-              self.title:SetText("Umm, you don't need options, everything is perfect the way it is.")
-
-              after(3, function()
-                self.title:SetText("(But seriously, they're on my to-do list. I promise.)")
-
-                after(3, function()
-                  self.title:SetText("Options\n(but not really)")
-                end)
-              end)
-            end
-          end
-
-          self.popup:Show()
-        end
-
-        self.lastClick = cTime + 0.2
-      end
-    end)
-
-    f.bottomExpander = expander
-  end
-
-  tinsert(UISpecialFrames, f:GetName())
-end
+-- function CT.createBaseFrame_OLD() -- Create Base Frame
+--   local f = CT.base
+--   if not f then -- NOTE: Base frame is created at the top so that its position gets saved properly.
+--     CT.base = baseFrame
+--     f = CT.base
+--     f:SetPoint("CENTER")
+--     f:SetSize(350, 556)
+--
+--     local backdrop = {
+--     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+--     edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+--     tileSize = 32,
+--     edgeSize = 16,}
+--
+--     f:SetBackdrop(backdrop)
+--     f:SetBackdropColor(0.15, 0.15, 0.15, 1)
+--     f:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.7)
+--
+--     f:EnableMouse(true)
+--     f:EnableKeyboard(true)
+--     f:SetResizable(true)
+--     f:SetUserPlaced(true)
+--
+--     f:SetScript("OnMouseDown", function(self, click)
+--       if click == "LeftButton" and not self.isMoving then
+--         if CT.graphFrame and CT.graphFrame.displayed and CT.graphFrame.displayed[1] then -- Hide any graphs before dragging, they can cause insane lag
+--           for index = 1, #CT.graphFrame.displayed do
+--             local graph = CT.graphFrame.displayed[index]
+--             local lines, bars, triangles = graph.lines, graph.bars, graph.triangles
+--
+--             for i = 1, #graph.data do -- Show all the lines
+--               if lines[i] then
+--                 lines[i]:Hide()
+--               end
+--
+--               if bars and bars[i] then
+--                 bars[i]:Hide()
+--               end
+--
+--               if triangles and triangles[i] then
+--                 triangles[i]:Hide()
+--               end
+--             end
+--           end
+--         end
+--
+--         self:StartMoving()
+--         self.isMoving = true
+--       end
+--     end)
+--
+--     f:SetScript("OnMouseUp", function(self, button)
+--       if button == "LeftButton" and self.isMoving then
+--         self:StopMovingOrSizing()
+--         self.isMoving = false
+--         CT:updateButtonList()
+--
+--         if CT.graphFrame and CT.graphFrame.displayed and CT.graphFrame.displayed[1] then -- Put them all back
+--           for index = 1, #CT.graphFrame.displayed do
+--             local graph = CT.graphFrame.displayed[index]
+--             local lines, bars, triangles = graph.lines, graph.bars, graph.triangles
+--
+--             for i = 1, #graph.data do -- Show all the lines
+--               if lines[i] then
+--                 lines[i]:Show()
+--               end
+--
+--               if bars and bars[i] then
+--                 bars[i]:Show()
+--               end
+--
+--               if triangles and triangles[i] then
+--                 triangles[i]:Show()
+--               end
+--             end
+--           end
+--         end
+--       end
+--     end)
+--
+--     f:SetScript("OnEnter", function(self)
+--       if lastMouseoverButton then
+--         lastMouseoverButton.dragger:SetAlpha(0)
+--         lastMouseoverButton.upArrow:SetAlpha(0)
+--         lastMouseoverButton.downArrow:SetAlpha(0)
+--         lastMouseoverButton:UnlockHighlight()
+--       end
+--     end)
+--
+--     f:SetScript("OnShow", function(self)
+--       self.shown = true
+--
+--       if not CT.current and not CT.displayed then
+--         debug("CT.base (OnShow): No current set, so trying to load the last saved set.")
+--         CT.loadSavedSet() -- Load the most recent set as default
+--       end
+--     end)
+--
+--     f:SetScript("OnHide", function(self)
+--       self.shown = false
+--     end)
+--
+--     function CT.base:cycleMainButtons() -- NOTE: If order is changed, this gets all messed up. Also it revers to the old order.
+--       if true then return end
+--       local numBeforeUpdate = CT.totalNumButtons
+--
+--       for i = 1, #CT.mainButtons do
+--         local button = CT.mainButtons[i]
+--         if not button.AGFadeIn then
+--           button.AGFadeIn = button:CreateAnimationGroup("Fade In")
+--           local animation = button.AGFadeIn:CreateAnimation("Alpha")
+--           animation:SetDuration(0.5)
+--           animation:SetChange(1)
+--           animation:SetSmoothing("IN")
+--           button.AGFadeIn:SetScript("OnFinished", function(self, requested)
+--             button:SetAlpha(1)
+--           end)
+--         end
+--         if not button.AGFadeOut then
+--           button.AGFadeOut = button:CreateAnimationGroup("Fade Out")
+--           local animation = button.AGFadeOut:CreateAnimation("Alpha")
+--           animation:SetDuration(0.5)
+--           animation:SetChange(-1)
+--           animation:SetStartDelay(i * 0.1)
+--           animation:SetSmoothing("OUT")
+--           button.AGFadeOut:SetScript("OnFinished", function(self, requested)
+--             button:SetAlpha(0)
+--             -- CT.updateText(button) -- removed this function, shouldn't be worth it overall. If needed, call SetText() here manually.
+--             CT.updateSpellIcons(button)
+--             button.AGFadeIn:Play()
+--             if button.num > CT.totalNumButtons then
+--               button:Hide()
+--             end
+--           end)
+--         end
+--         if button.num > numBeforeUpdate then
+--           button:SetAlpha(0)
+--         end
+--         button.AGFadeOut:Play()
+--       end
+--     end
+--   end
+--
+--   local dragger = f.dragger
+--   if not dragger then -- Main size dragger
+--     f:SetMaxResize(350, 700)
+--     f:SetMinResize(350, 556)
+--
+--     f.dragger = CreateFrame("Button", nil, f)
+--     dragger = f.dragger
+--
+--     f.dragger:SetSize(20, 20)
+--     f.dragger:SetPoint("BOTTOMRIGHT", -1, 2)
+--     f.dragger:SetNormalTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Up.png")
+--     f.dragger:SetPushedTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Down.png")
+--     f.dragger:SetHighlightTexture("Interface/CHATFRAME/UI-ChatIM-SizeGrabber-Highlight.png")
+--
+--     -- NOTE: Need to get resolution properly
+--     f.dragger:SetScript("OnMouseDown", function(self)
+--       CT.base:StartSizing()
+--
+--       -- local UIScale = UIParent:GetEffectiveScale()
+--       -- local startX, startY = GetCursorPosition()
+--       -- local startX = startX / UIScale
+--       -- local startY = startY / UIScale
+--       --
+--       -- local resolutionX = 1920
+--       -- local resolutionY = 1080
+--       --
+--       -- local startLeft, startBottom, startWidth, startHeight = CT.base:GetRect()
+--       -- local startScale = CT.base:GetScale()
+--       -- -- GetEffectiveScale()
+--       --
+--       -- self.ticker = C_Timer.NewTicker(0.001, function(ticker)
+--       -- local mouseX, mouseY = GetCursorPosition()
+--       -- local mouseX = (mouseX / UIScale)
+--       -- local mouseY = (mouseY / UIScale)
+--       --
+--         -- if (mouseX > startX) or (mouseY < startY) then -- Increasing Scale
+--         --   local valX = (mouseX - startX) / resolutionX
+--         --   local valY = (startY - mouseY) / resolutionY
+--         --
+--         --   local maxVal = max(valX, valY)
+--         --   local newScale = startScale + maxVal
+--         --
+--         --   CT.base:SetScale(newScale)
+--         -- else -- Decreasing Scale
+--         --   local valX = (mouseX - startX) / resolutionX
+--         --   local valY = (startY - mouseY) / resolutionY
+--         --
+--         --   local minVal = min(valX, valY)
+--         --   local newScale = startScale + minVal
+--         --
+--         --   CT.base:SetScale(newScale)
+--         -- end
+--       -- end)
+--     end)
+--
+--     f.dragger:SetScript("OnMouseUp", function(self)
+--       CT.base:StopMovingOrSizing()
+--
+--       -- self.ticker:Cancel()
+--     end)
+--   end
+--
+--   local scrollFrame = CT.scrollFrame
+--   if not scrollFrame then -- Scroll Frame, Main Content Frame, and Scroll Bar
+--     CT.scrollFrame = CreateFrame("ScrollFrame", "CT_ScrollFrame", CT.base)
+--     scrollFrame = CT.scrollFrame
+--
+--     CT.scrollFrame:SetPoint("TOPLEFT", 25, -88)
+--     CT.scrollFrame:SetPoint("BOTTOMRIGHT", -25, 53)
+--
+--     CT.scrollBar = CreateFrame("Slider", "CT_ScrollBar", CT.scrollFrame, "UIPanelScrollBarTemplate")
+--     CT.scrollBar:SetPoint("TOPRIGHT", CT.scrollFrame, 20, 0)
+--     CT.scrollBar:SetPoint("BOTTOMRIGHT", CT.scrollFrame, 20, 0)
+--     CT.scrollBar.background = CT.scrollBar:CreateTexture("CT_ScrollBarBackground", "BACKGROUND")
+--     CT.scrollBar.background:SetTexture("Interface\\addons\\CombatTracker\\Media\\ScrollBG.tga")
+--     CT.scrollBar.background:SetAllPoints()
+--     CT.scrollBar.thumbTexture = CT.scrollBar:CreateTexture("CT_ScrollBarThumbTexture")
+--     CT.scrollBar.thumbTexture:SetTexture("Interface\\addons\\CombatTracker\\Media\\ThumbSlider.tga")
+--     CT.scrollBar.thumbTexture:SetSize(10, 32)
+--     CT.scrollBar:SetThumbTexture(CT.scrollBar.thumbTexture)
+--
+--     CT.scrollBar.AG = CT.scrollBar:CreateAnimationGroup("ScrollHider")
+--     CT.scrollBar.AG.A = CT.scrollBar.AG:CreateAnimation("Alpha")
+--     CT.scrollBar.AG.A:SetChange(-1)
+--     CT.scrollBar.AG.A:SetDuration(1)
+--     CT.scrollBar.AG.A:SetStartDelay(1)
+--     CT.scrollBar.AG.A:SetSmoothing("OUT")
+--     local c1, c2 = CT.scrollBar:GetChildren()
+--       c1:Hide()
+--       c2:Hide()
+--     CT.scrollBar:SetAlpha(0)
+--     CT.scrollBar:SetValueStep(46)
+--     CT.scrollBar.scrollStep = 1
+--     CT.scrollBar:SetWidth(16)
+--     CT.scrollBar:SetScript("OnValueChanged", function(self, value)
+--       CT.scrollFrame:SetVerticalScroll(value)
+--     end)
+--
+--     CT.scrollBar.AG:SetScript("OnFinished", function(self, requested)
+--       CT.scrollBar:SetAlpha(0)
+--     end)
+--
+--     CT.contentFrame = CreateFrame("Frame", "CT_MainContent", CT.base)
+--     CT.contentFrame:SetSize(CT.scrollFrame:GetWidth(), CT.scrollFrame:GetHeight())
+--     CT.scrollFrame:SetScrollChild(CT.contentFrame)
+--     CT.contentFrame:SetPoint("TOPLEFT", CT.base, 25, -88)
+--     CT.contentFrame:SetPoint("BOTTOMRIGHT", CT.base, -25, 100)
+--
+--     CT.scrollBar:SetScript("OnEnter", function(self, value)
+--       CT.scrollBar:SetAlpha(1)
+--     end)
+--
+--     CT.scrollBar:SetScript("OnLeave", function(self, value)
+--       CT.scrollBar.AG:Stop()
+--       CT.scrollBar.AG:Play()
+--     end)
+--
+--     CT.scrollBar:SetScript("OnMouseWheel", function(self, value)
+--       local current = CT.scrollBar:GetValue()
+--       local minimum, maximum = CT.scrollBar:GetMinMaxValues()
+--
+--       if value < 0 and current < maximum then
+--         current = min(maximum, current + 46)
+--         CT.scrollBar:SetValue(current)
+--       elseif value > 0 and current > minimum then
+--         current = max(minimum, current - 46)
+--         CT.scrollBar:SetValue(current)
+--       end
+--     end)
+--
+--     CT.scrollFrame:SetScript("OnMouseWheel", function(self, value)
+--       CT.scrollBar:SetAlpha(1)
+--
+--       local current = CT.scrollBar:GetValue()
+--       local minimum, maximum = CT.scrollBar:GetMinMaxValues()
+--
+--       if value < 0 and current < maximum then
+--         current = min(maximum, current + 46)
+--         CT.scrollBar:SetValue(current)
+--       elseif value > 0 and current > minimum then
+--         current = max(minimum, current - 46)
+--         CT.scrollBar:SetValue(current)
+--       end
+--
+--       CT.scrollBar.AG:Stop()
+--       CT.scrollBar.AG:Play()
+--     end)
+--
+--     local function finishCycleHide(self, requested)
+--       local b = self:GetParent()
+--       b:Hide()
+--     end
+--
+--     local function finishCycleShow(self, requested)
+--       local b = self:GetParent()
+--       b:Show()
+--       b:SetAlpha(1)
+--
+--       if b.done then
+--         CT.contentFrame.animating = false
+--       end
+--     end
+--
+--     function CT.contentFrame:displayMainButtons(buttons)
+--       if not buttons then debug("Called display buttons, but didn't pass a button table.") return end
+--
+--       local num = #buttons
+--       self.animating = true
+--       self.sourceTable = buttons
+--
+--       for i = 1, #self do -- Animate button out and hide
+--         local b = self[i]
+--
+--         local fadeOut = b.fadeOut
+--         if not fadeOut then
+--           fadeOut = b:CreateAnimationGroup()
+--           local a = fadeOut:CreateAnimation("Alpha")
+--           a:SetDuration(0.2)
+--           a:SetSmoothing("OUT")
+--           a:SetFromAlpha(1)
+--           a:SetToAlpha(-1)
+--           fadeOut:SetScript("OnFinished", finishCycleHide)
+--
+--           fadeOut.a = a
+--           b.a = fadeOut
+--         end
+--
+--         fadeOut.a:SetStartDelay(i * 0.05)
+--         fadeOut:Play()
+--
+--         self[i] = nil
+--       end
+--
+--       for i = 1, num do -- Load in new button
+--         local b = buttons[i]
+--         b:Show()
+--         b:SetAlpha(0)
+--
+--         local fadeIn = b.fadeIn
+--         if not fadeIn then
+--           fadeIn = b:CreateAnimationGroup()
+--           local a = fadeIn:CreateAnimation("Alpha")
+--           a:SetDuration(0.2)
+--           a:SetSmoothing("IN")
+--           a:SetFromAlpha(-1)
+--           a:SetToAlpha(1)
+--
+--           fadeIn:SetScript("OnFinished", finishCycleShow)
+--
+--           fadeIn.a = a
+--           b.a = fadeIn
+--         end
+--
+--         if i == num then -- Last one
+--           b.done = true
+--         else
+--           b.done = false
+--         end
+--
+--         fadeIn.a:SetStartDelay(i * 0.05)
+--         fadeIn:Play()
+--
+--         self[i] = buttons[i]
+--       end
+--
+--       CT.contentFrame:setButtonAnchors(buttons)
+--     end
+--
+--     -- function CT.contentFrame:setButtonAnchors()
+--     --   local y = -CT.settings.buttonSpacing
+--     --
+--     --   for i = 1, #self do
+--     --     local button = self[i]
+--     --     local prevButton = self[i - 1]
+--     --
+--     --     if i == 1 then
+--     --       button:ClearAllPoints()
+--     --       button:SetPoint("TOPLEFT", 0, 0)
+--     --       button:SetPoint("TOPRIGHT")
+--     --     else
+--     --       if i > 2 and prevButton and prevButton.dragging then
+--     --         local prevButtonExpander = self[i - 2].expander
+--     --         local height = prevButton:GetHeight()
+--     --         button:ClearAllPoints()
+--     --         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, (y * 2) - height)
+--     --         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, (y * 2) - height)
+--     --       else
+--     --         local prevButtonExpander = self[i - 1].expander
+--     --         button:ClearAllPoints()
+--     --         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, y)
+--     --         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, y)
+--     --       end
+--     --     end
+--     --
+--     --     -- local _, coords = button.expander:GetCenter()
+--     --     -- button.coords = coords
+--     --   end
+--     --
+--     --   CT.contentFrame:updateMinMaxValues(self)
+--     -- end
+--   end
+--
+--   local header, title = f.header, f.title
+--   if not header and not title then -- Header and title text and close button
+--     header = CreateFrame("Frame", "CT_Base_Header", f)
+--     header:SetPoint("TOPLEFT", f, 15, -15)
+--     header:SetPoint("TOPRIGHT", f, -15, -15)
+--     header:SetHeight(40)
+--     header.texture = header:CreateTexture(nil, "BACKGROUND")
+--     header.texture:SetTexture(0.1, 0.1, 0.1, 1)
+--     header.texture:SetAllPoints(header)
+--
+--     title = header:CreateFontString(nil, "ARTWORK")
+--     title:SetPoint("LEFT", header.texture, 10, 0)
+--     title:SetFont("Fonts\\FRIZQT__.TTF", 30)
+--     title:SetTextColor(0.8, 0.8, 0, 1)
+--     title:SetShadowOffset(3, -3)
+--     title:SetText("Combat Tracker")
+--     -- title:SetText("Combat \n  Tracker")
+--
+--     header:SetScript("OnEnter", function(self)
+--       self.info = "Combat Tracker tries to detailed information about your performance in combat.\n\nIt is in its beta stages, so please help me out and report bugs! Thanks."
+--
+--       CT.createInfoTooltip(self, "Title")
+--     end)
+--
+--     header:SetScript("OnLeave", function(self)
+--       CT.createInfoTooltip()
+--     end)
+--
+--     f.header = header
+--     f.title = title
+--   end
+--
+--   local close = f.closeButton
+--   if not close then -- Close button
+--     close = CreateFrame("Button", nil, header)
+--     close:SetSize(40, 40)
+--     close:SetPoint("RIGHT", 0, 0)
+--     close:SetNormalTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
+--     close:SetHighlightTexture("Interface\\RaidFrame\\ReadyCheck-NotReady.png")
+--
+--     close.BG = close:CreateTexture(nil, "BORDER")
+--     close.BG:SetAllPoints()
+--     close.BG:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
+--     close.BG:SetVertexColor(0, 0, 0, 0.3)
+--
+--     close:SetScript("OnClick", function(self)
+--       CT.base:Hide()
+--     end)
+--
+--     close:SetScript("OnEnter", function(self)
+--       self.info = "Closes Combat Tracker, but it will still be recording CT.current.\n\nType /ct in chat to open it again. Type /ct help to see a full list of chat commands."
+--
+--       CT.createInfoTooltip(self, "Close", nil, nil, nil, nil)
+--     end)
+--
+--     close:SetScript("OnLeave", function()
+--       CT.createInfoTooltip()
+--     end)
+--
+--     f.closeButton = close
+--   end
+--
+--   local expander = f.bottomExpander
+--   if not expander then -- Popup expander
+--     local width = f:GetWidth()
+--
+--     expander = CreateFrame("Button", "CT_Base_Expander_Button", f)
+--
+--     do -- Basic textures and stuff
+--       local button = expander
+--
+--       button.background = button:CreateTexture(nil, "BACKGROUND")
+--       button.background:SetPoint("TOPLEFT", button, 4.5, -4)
+--       button.background:SetPoint("BOTTOMRIGHT", button, -4, 3)
+--       button.background:SetTexture(0.07, 0.07, 0.07, 1.0)
+--
+--       button.upArrow = button:CreateTexture(nil, "ARTWORK")
+--       button.upArrow:SetTexture("Interface/BUTTONS/Arrow-Up-Up.png") -- "Interface/BUTTONS/Arrow-Up-Down.png"
+--       button.upArrow:SetSize(16, 16)
+--       button.upArrow:SetPoint("CENTER", 0, 0)
+--
+--       button.normal = button:CreateTexture(nil, "BACKGROUND")
+--       button.normal:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+--       button.normal:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+--       button.normal:SetAllPoints(button)
+--       button:SetNormalTexture(button.normal)
+--
+--       button.highlight = button:CreateTexture(nil, "BACKGROUND")
+--       button.highlight:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+--       button.highlight:SetTexCoord(0.00195313, 0.58789063, 0.87304688, 0.92773438)
+--       button.highlight:SetVertexColor(0.7, 0.7, 0.7, 1.0)
+--       button.highlight:SetAllPoints(button)
+--       button:SetHighlightTexture(button.highlight)
+--
+--       button.pushed = button:CreateTexture(nil, "BACKGROUND")
+--       button.pushed:SetTexture("Interface\\PVPFrame\\PvPMegaQueue")
+--       button.pushed:SetTexCoord(0.00195313, 0.58789063, 0.92968750, 0.98437500)
+--       button.pushed:SetAllPoints(button)
+--       button:SetPushedTexture(button.pushed)
+--     end
+--
+--     expander:SetSize(width - 40, 15)
+--     expander:SetPoint("BOTTOM", f, 0, 7)
+--
+--     -- expander:SetScript("OnEnter", function(self)
+--     --   after(0.3, function() -- Require the mouse to hover for X seconds before showing
+--     --     if not (self.popup and self.popup:IsShown()) and MouseIsOver(self) then -- If hidden and mouse is still over
+--     --       self:Click()
+--     --     end
+--     --   end)
+--     -- end)
+--
+--     expander:SetScript("OnClick", function(self, button)
+--       local cTime = GetTime()
+--
+--       if cTime >= (self.lastClick or 0) then -- Block rapid clicks
+--         if not self.popup then
+--           self.popup = CreateFrame("Frame", nil, self)
+--           self.popup:SetFrameStrata("TOOLTIP")
+--           self.popup:SetSize(width - 10, 120)
+--           self.popup:SetPoint("BOTTOM", self, 0, 0)
+--           self.popup.bg = self.popup:CreateTexture(nil, "BACKGROUND")
+--           self.popup.bg:SetAllPoints()
+--           self.popup.bg:SetTexture(0.05, 0.05, 0.05, 1.0)
+--           self.popup:Hide()
+--
+--           self.popup:SetScript("OnMouseUp", function(popup)
+--             popup:Hide()
+--           end)
+--
+--           self.popup:SetScript("OnShow", function(popup)
+--             self.popup.exitTime = GetTime() + 0.5
+--
+--             if not self.popup.ticker then
+--               self.popup.ticker = C_Timer.NewTicker(0.1, function(ticker)
+--                 if not MouseIsOver(self.popup) and not MouseIsOver(self) then
+--                   if GetTime() > self.popup.exitTime then
+--                     self.popup:Hide()
+--                     self.popup.ticker:Cancel()
+--                     self.popup.ticker = nil
+--                   end
+--                 else
+--                   self.popup.exitTime = GetTime() + 0.5
+--                 end
+--               end)
+--             end
+--           end)
+--         end
+--
+--         local animation = self.animation
+--         if not animation then
+--           self.animation = self:CreateAnimationGroup()
+--
+--           local a = self.animation:CreateAnimation("Scale")
+--           a:SetDuration(0.05)
+--           -- self.a.scale:SetSmoothing("OUT")
+--           a:SetOrigin("BOTTOM", 0, 0)
+--           -- self.a.scale:SetScale(0.3, 0.3)
+--           a:SetFromScale(1, 0)
+--           a:SetToScale(1, 1)
+--           -- self.popup.animation.scale:SetScale(xFactor, yFactor)
+--
+--           local b = self.animation:CreateAnimation("Alpha")
+--           b:SetDuration(0.05)
+--           b:SetFromAlpha(0)
+--           b:SetToAlpha(1)
+--         end
+--
+--         self.animation:Play()
+--
+--         if self.popup:IsShown() then
+--           self.popup:Hide()
+--         else
+--           local popup = createMenuButtons(self.popup)
+--           popup.shownTime = GetTime() + 0.3
+--
+--           if not popup[1].func then -- Load saved fights on click handler
+--             popup[1].title:SetText("Load Saved Fights")
+--
+--             local count = 0
+--             popup[1].func = function(self, click, cTime)
+--               if not CT.contentFrame.animating then
+--                 count = count + 1
+--
+--                 if count == 1 then
+--                   local _, specName = GetSpecializationInfo(GetSpecialization())
+--
+--                   CT.createSavedSetButtons(CombatTrackerCharDB[specName].sets)
+--                   popup[1].title:SetText("Return")
+--                 else
+--                   CT.createSpecDataButtons(CT.specData)
+--                   popup[1].title:SetText("Load Saved Fights")
+--
+--                   count = 0
+--                 end
+--               end
+--             end
+--           end
+--
+--           if not popup[2].func then -- Expand frame on click handler
+--             popup[2].title:SetText("Expand Frame")
+--
+--             popup[2].func = function(self, click, cTime)
+--               CT:expanderFrame()
+--             end
+--           end
+--
+--           if not popup[3].func then -- Reset data on click handler
+--             popup[3].title:SetText("Reset Data")
+--
+--             popup[3].func = function(self, click, cTime)
+--               -- CT.resetData(click)
+--               self.title:SetText("This is currently broken and will mess things up.")
+--
+--               after(3, function()
+--                 self.title:SetText("Reset Data")
+--               end)
+--             end
+--           end
+--
+--           if not popup[4].func then -- Options button on click handler TODO: Make this do something
+--             popup[4].title:SetText("Options\n(but not really)")
+--
+--             popup[4].func = function(self, click, cTime)
+--               self.title:SetText("Umm, you don't need options, everything is perfect the way it is.")
+--
+--               after(3, function()
+--                 self.title:SetText("(But seriously, they're on my to-do list. I promise.)")
+--
+--                 after(3, function()
+--                   self.title:SetText("Options\n(but not really)")
+--                 end)
+--               end)
+--             end
+--           end
+--
+--           self.popup:Show()
+--         end
+--
+--         self.lastClick = cTime + 0.2
+--       end
+--     end)
+--
+--     f.bottomExpander = expander
+--   end
+--
+--   tinsert(UISpecialFrames, f:GetName())
+-- end
 --------------------------------------------------------------------------------
 -- Utility Functions
 --------------------------------------------------------------------------------

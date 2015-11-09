@@ -1,4 +1,7 @@
-if not CombatTracker then return end
+local name, addon = ...
+
+if name ~= "CombatTracker" then return end
+if addon.profile then return end
 --------------------------------------------------------------------------------
 -- Locals
 --------------------------------------------------------------------------------

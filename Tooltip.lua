@@ -1,4 +1,7 @@
-if not CombatTracker then return end
+local name, addon = ...
+
+if name ~= "CombatTracker" then return end
+if addon.profile then return end
 --------------------------------------------------------------------------------
 -- Locals
 --------------------------------------------------------------------------------
@@ -27,6 +30,319 @@ function CT:getParser()
   end
 
   return parser, LT1, LT2, LT3, RT1, RT2, RT3
+end
+
+local tooltip
+function CT.updateTooltip(titleValue, textValue) -- Quick access for setting new title/text
+  if not tooltip then CT.setTooltip() end
+  
+  tooltip.titleString = titleValue
+  tooltip.textString = textValue
+  
+  return tooltip, tooltip.title, tooltip.text
+end
+
+function CT.setTooltip(relativeTo, titleString, textString)
+  local width, height = 200, 100
+  local r, g, b, a = 0.075, 0.075, 0.075, 1.0
+  
+  local arrowOffset = 15
+  local textOffset = 5
+  local animationDuration = 0.1
+  
+  local f = CT.mainTooltip
+  if not f then
+    f = CreateFrame("Frame", "CombatTracker_Tooltip_Base", UIParent)
+    f:SetFrameStrata("TOOLTIP")
+    f:SetPoint("CENTER")
+    f:SetSize(width, height)
+    f.width = width
+    f.height = height
+    
+    function f:scaling(remaining)
+      local newValue
+      
+      if self.direction == "IN" then
+        local percent = 100 - ((remaining / animationDuration) * 100)
+        newValue = percent / 100
+        
+        if 0 >= remaining then
+          self.animating = false
+          self:SetScale(1)
+          self:updateSize()
+          return
+        end
+      elseif self.direction == "OUT" then
+        local percent = (remaining / animationDuration) * 100
+        newValue = percent / 100
+        
+        if 0 >= remaining then
+          self.animating = false
+          self:Hide()
+          self:SetScale(1)
+          self:updateSize()
+          return
+        end
+      end
+      
+      if newValue > 1 then newValue = 1 end
+      if 0 >= newValue then newValue = 0.001 end
+      
+      self:SetScale(newValue)
+      self:updateSize()
+    end
+    
+    function f:updateSize()
+      local textWidth, textHeight = self.text:GetSize()
+      local titleWidth, titleHeight = self.title:GetSize()
+      
+      local longest = max(titleWidth, textWidth) + 20
+      local combinedHeight = max((textHeight + titleHeight) + textOffset, 40) + 20
+      self:SetSize(longest, combinedHeight)
+      
+      self.width = longest
+      self.height = combinedHeight
+    end
+    
+    function f:onUpdateFunc(elapsed)
+      local cTime = GetTime()
+      
+      if self.animating then
+        self:scaling(self.animating - cTime)
+      end
+      
+      if self.titleString or self.textString then
+        if self.textString then -- Any time textString is set, chop it up for proper sizing
+          for i = 1, #f.text do f.text[i] = nil end -- Wipe the array that holds the chopped strings
+          
+          local string = self.textString:gsub("(|c)(%x%x%x%x%x%x%x%x.+)(|r)", "##%2~~") -- Sub any color sequences to make them normally visible
+          
+          local length = min(60, #string)
+          local position, pattern = 1, nil
+          for i = 1, #string, length do
+            local str = string:sub(position, position + (length))
+            
+            if #str <= length then
+              pattern = ".+"
+            else
+              pattern = "(.+)%s"
+            end
+            
+            for capture in str:gmatch(pattern) do
+              f.text[#f.text + 1] = capture
+              
+              position = position + #capture + 1
+            end
+          end
+          
+          local str = table.concat(f.text, "\n")
+          str = str:gsub("##", "|c") -- Rebuild color sequences
+          str = str:gsub("~~", "|r") -- Rebuild color sequences
+          
+          self.textString = str
+        end
+        
+        self.title:SetText(self.titleString)
+        self.text:SetText(self.textString)
+        
+        self.titleString = nil
+        self.textString = nil
+        
+        self:updateSize()
+      end
+      
+      -- local textWidth, textHeight = self.text:GetSize()
+      -- local titleWidth, titleHeight = self.title:GetSize()
+      --
+      -- if (titleWidth > self.width) or (textWidth > self.width) then
+      --   debug("Too long!")
+      --
+      --   local longest = max(titleWidth, textWidth) + 20
+      --
+      --   self:SetWidth(longest)
+      --   self.width = longest
+      -- end
+      --
+      -- if (titleHeight + textHeight) > self.height then
+      --   debug("Text too tall!")
+      --
+      --   local combinedHeight = max((textHeight + titleHeight) + textOffset, 100) + 20
+      --   self:SetHeight(combinedHeight)
+      --
+      --   self.height = combinedHeight
+      -- end
+    end
+    
+    f:SetScript("OnUpdate", f.onUpdateFunc)
+    
+    tooltip = f
+    CT.mainTooltip = f
+    f:Hide()
+  end
+  
+  local bg = f.background
+  if not bg then -- Background texture and gradient
+    bg = f:CreateTexture(nil, "BORDER", nil, 0)
+    bg:SetTexture(r, g, b, a)
+    
+    local cornerSize = 20
+    bg.corners = {}
+    for i = 1, 4 do
+      local c = f:CreateTexture("CT_Base_Button_Corner_" .. i, "BACKGROUND", nil, -8)
+      c:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
+      c:SetVertexColor(r, g, b, a)
+    
+      if i == 1 then
+        c:SetSize(cornerSize, cornerSize)
+        c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+        bg:SetPoint("TOPLEFT", c, (cornerSize / 2), 0)
+      elseif i == 2 then
+        c:SetSize(cornerSize, cornerSize)
+        c:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+        bg:SetPoint("TOPRIGHT", c, -(cornerSize / 2), 0)
+      elseif i == 3 then
+        c:SetSize(cornerSize, cornerSize)
+        c:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
+        bg:SetPoint("BOTTOMLEFT", c, (cornerSize / 2), 0)
+      elseif i == 4 then
+        c:SetSize(cornerSize, cornerSize)
+        c:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+        bg:SetPoint("BOTTOMRIGHT", c, -(cornerSize / 2), 0)
+      end
+    
+      bg.corners[i] = c
+    end
+    
+    f.fill1 = f:CreateTexture("CT_Base_Button_Circle_Fill_1", "BACKGROUND", nil, 0)
+    f.fill1:SetTexture(r, g, b, a)
+    f.fill1:SetPoint("TOPLEFT", bg.corners[2], 0, -(cornerSize / 2))
+    f.fill1:SetPoint("BOTTOMRIGHT", bg.corners[4], 0, (cornerSize / 2))
+    
+    f.fill2 = f:CreateTexture("CT_Base_Button_Circle_Fill_2", "BACKGROUND", nil, 0)
+    f.fill2:SetTexture(r, g, b, a)
+    f.fill2:SetPoint("TOPRIGHT", bg.corners[1], 0, -(cornerSize / 2))
+    f.fill2:SetPoint("BOTTOMLEFT", bg.corners[3], 0, (cornerSize / 2))
+
+    -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
+    -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+    -- g:SetTexture(1, 1, 1, 1)
+    -- g:SetSize(width, height / 2)
+    -- g:SetPoint("CENTER", bg, 0, 0)
+    -- g:SetPoint("RIGHT", bg, 0, 0)
+    -- g:SetPoint("LEFT", bg, 0, 0)
+    -- g:SetPoint("TOP", bg, 0, 0)
+    -- bg[1] = g
+    --
+    -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
+    -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+    -- g:SetTexture(1, 1, 1, 1)
+    -- g:SetSize(width, height / 2)
+    -- g:SetPoint("CENTER", bg, 0, 0)
+    -- g:SetPoint("RIGHT", bg, 0, 0)
+    -- g:SetPoint("LEFT", bg, 0, 0)
+    -- g:SetPoint("BOTTOM", bg, 0, 0)
+    -- bg[2] = g
+    
+    f.background = bg
+  end
+
+  local arrow = f.arrow
+  if not arrow then
+    local w, h = 40, 40
+    arrow = CreateFrame("Frame", "CombatTracker_Tooltip_Arrow", f)
+    arrow:SetPoint("TOP", f, 0, -10)
+    arrow:SetPoint("BOTTOM", f, 0, 10)
+    arrow:SetSize(w, h)
+    arrow:SetFrameLevel(0)
+    
+    local a = arrow:CreateTexture("CombatTracker_Tooltip_Arrow_Top_Texture", "BACKGROUND", nil, -8)
+    a:SetTexture("Interface\\addons\\CombatTracker\\Media\\triangle.tga")
+    a:SetSize(w, h)
+    a:SetPoint("TOP", arrow, 0, 0)
+    a:SetPoint("BOTTOM", arrow, "CENTER", 0, 0)
+    a:SetPoint("RIGHT", arrow, 0, 0)
+    a:SetPoint("LEFT", arrow, 0, 0)
+    a:SetVertexColor(r, g, b, a)
+    arrow[1] = a
+    
+    local a = arrow:CreateTexture("CombatTracker_Tooltip_Arrow_Bottom_Texture", "BACKGROUND", nil, -8)
+    a:SetTexture("Interface\\addons\\CombatTracker\\Media\\triangle.tga")
+    a:SetSize(w, h)
+    a:SetPoint("TOP", arrow, "CENTER", 0, 0)
+    a:SetPoint("BOTTOM", arrow, 0, 0)
+    a:SetPoint("RIGHT", arrow, 0, 0)
+    a:SetPoint("LEFT", arrow, 0, 0)
+    a:SetVertexColor(r, g, b, a)
+    a:SetTexCoord(0.25, 0.5, 0.75, 0.5)
+    arrow[2] = a
+    
+    f.arrow = arrow
+  end
+  
+  local title = f.title
+  if not title then
+    title = f:CreateFontString(nil, "ARTWORK", nil, 7)
+    title:SetPoint("TOPLEFT", f, 10, -5)
+    title:SetFont("Fonts\\FRIZQT__.TTF", 20, "OUTLINE")
+    title:SetTextColor(0.95, 0.95, 1.0, 1)
+    title:SetJustifyH("LEFT")
+    title:SetShadowOffset(1, -1)
+    title:SetText("Title Text")
+  
+    f.title = title
+  end
+  
+  local text = f.text
+  if not text then
+    text = f:CreateFontString(nil, "ARTWORK", nil, 7)
+    text:SetPoint("LEFT", f, 10, 0)
+    text:SetPoint("TOP", title, "BOTTOM", 0, -textOffset)
+    text:SetFont("Fonts\\FRIZQT__.TTF", 16, "OUTLINE")
+    text:SetTextColor(0.95, 0.95, 1.0, 1)
+    text:SetJustifyH("LEFT")
+    text:SetShadowOffset(1, -1)
+    text:SetText("Sub text.")
+  
+    f.text = text
+  end
+  
+  do -- Basic resizing stuff
+    arrow:SetPoint("RIGHT", f, "LEFT", arrowOffset, 0)
+  end
+  
+  do -- Handle text
+    f.titleString = titleString or nil
+    f.textString = textString or nil
+  end
+  
+  if not f.fadeGroup then -- Gather up everything to be faded in/out in an array for convenience
+    f.fadeGroup = {
+      f.background,
+      f.background.corners[1],
+      f.background.corners[2],
+      f.background.corners[3],
+      f.background.corners[4],
+      f.fill1,
+      f.fill2,
+      f.arrow,
+      f.title,
+      f.text,
+    }
+  end
+  
+  if relativeTo then
+    f:ClearAllPoints()
+    f:SetPoint("LEFT", relativeTo, "RIGHT", arrowOffset, 0)
+    f.direction = "IN"
+    f.animating = GetTime() + animationDuration
+    f:SetScale(0.001)
+    f:Show()
+  else
+    f.direction = "OUT"
+    f.animating = GetTime() + animationDuration
+  end
+  
+  -- f:onUpdateFunc() -- Force an instant update NOTE: Does this do anything different?
 end
 
 local function adjustTooltipSize()

@@ -1,8 +1,10 @@
 -- This amazing list was completely done by the developer/developers of the addon Details!, which can be found at http://www.curse.com/addons/wow/details
 -- This must have taken a lot of time to put together... Thank you very much for doing all this work!
 
+local name, addon = ...
 
-if not CombatTracker then return end
+if name ~= "CombatTracker" then return end
+if addon.profile then return end
 
 local CT = CombatTracker
 local debug = CT.debug
