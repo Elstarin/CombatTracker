@@ -72,9 +72,9 @@ function CT.nameCurrentSet()
 
     CT.fightName = name
     CT.current.fightName = name -- Add the fight name to the active set
-
-    if CT.base.expander then
-      CT.base.expander.titleData.rightText1:SetText(name)
+    
+    if CT.base then
+      CT.base.nameText:update(name)
     end
   end
 end
@@ -602,9 +602,9 @@ function CT.buildNewSet()
 
   CT.loadDefaultGraphs()
   CT.loadDefaultUptimeGraph()
-
-  if CT.base and CT.base.expander then -- If base is loaded, set the name right away, otherwise it'll get set when expander is shown
-    CT.base.expander.titleData.rightText1:SetText(db.setName)
+  
+  if CT.base then -- If base is loaded, set the name right away
+    CT.base.nameText:update(db.setName)
   end
 
   return set, db
