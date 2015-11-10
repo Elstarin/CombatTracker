@@ -32,7 +32,7 @@
 --------------------------------------------------------------------------------
 -- Locals, Frames, and Tables
 --------------------------------------------------------------------------------
-local name, addon = ...
+local addonName, addon = ...
 addon.profile = false
 
 if addon.profile then -- profile code in here
@@ -85,30 +85,35 @@ if addon.profile then -- profile code in here
     -- local loop = 10000 -- 10 thousand
     -- local loop = 100000 -- 100 thousand
     -- local loop = 500000 -- 500 thousand
-    local loop = 1000000 -- 1 million
+    -- local loop = 1000000 -- 1 million
     -- local loop = 10000000 -- 10 million
     -- local loop = 100000000 -- 100 million
 
     local t = {}
     
-    local function testingFunc()
-      return
+    local function returnedFunc()
+      local num = 100
+    end
+    
+    local function tailFunc()
+      return returnedFunc()
+    end
+    
+    local function regularFunc()
+      returnedFunc()
     end
 
     local loop = loop or 1
     
     local var1, var2, var3, var4, var5 = 1, 2, 3, 4, 5
     local var6, var7, var8, var9, var10 = 1, 2, 3, 4, 5
-
+    
     collectgarbage("collect")
     collectgarbage("setpause", 10000)
     local start = debugprofilestop()
     
     for i = 1, loop do
-      function t:func()
-        -- local self = self
-        return self
-      end
+
     end
 
     local MS = debugprofilestop() - start
@@ -3746,20 +3751,21 @@ function CT:toggleBaseExpansion(command) -- NOTE: Maybe make the sizing changes 
     f.startButtonWidth = 90
     f.stopButtonWidth = scroll[1].defaultWidth
     
+    f.startBaseWidth = f:GetWidth()
+    f.stopBaseWidth = f.defaultWidth
+    
+    f.startAnchorWidth = 100
+    f.stopAnchorWidth = scroll.anchor.defaultWidth
+    
+    f.startButtonWidth = 90
+    f.stopButtonWidth = scroll[1].defaultWidth
+    
     self.base:SetScript("OnUpdate", animateCollapse)
     
     f.expanded = false
   elseif (command and command == "show" and not f.expanded) or (not command and not f.expanded) then -- Expand it
     for i = 1, #scroll do
       local b = scroll[i]
-      
-      if not b.defaultPoints then
-        b.points = {}
-        b.points[1] = {b:GetPoint(1)}
-        b.points[2] = {b:GetPoint(2)}
-      end
-      
-      b.defaultWidth, b.defaultHeight = b:GetSize()
       
       b.icon:ClearAllPoints()
       b.value:ClearAllPoints()
@@ -3789,9 +3795,6 @@ function CT:toggleBaseExpansion(command) -- NOTE: Maybe make the sizing changes 
     f.stopButtonWidth = 90
     
     CT:expanderFrame(command)
-    
-    -- f.expander:Show()
-    -- f.expander.shown = true
     
     f:SetScript("OnUpdate", animateExpand)
     
@@ -4102,6 +4105,13 @@ function CT.createBaseFrame()
         b:SetPoint("TOP", self, "TOP", 0, y)
         b:SetPoint(anchor, self, anchor, 0)
         
+        if not b.points then
+          b.points = {
+            [1] = {b:GetPoint(1)},
+            [2] = {b:GetPoint(2)},
+          }
+        end
+        
         if (mod == 2) then
           y = (y - 60) - 8
         end
@@ -4109,36 +4119,6 @@ function CT.createBaseFrame()
       
       CT.contentFrame:updateMinMaxValues(self)
     end
-
-    -- function CT.contentFrame:setButtonAnchors()
-    --   local y = -CT.settings.buttonSpacing
-    --
-    --   for i = 1, #self do
-    --     local button = self[i]
-    --     local prevButton = self[i - 1]
-    --
-    --     if i == 1 then
-    --       button:ClearAllPoints()
-    --       button:SetPoint("TOPLEFT", 0, 0)
-    --       button:SetPoint("TOPRIGHT")
-    --     else
-    --       if i > 2 and prevButton and prevButton.dragging then
-    --         local prevButtonExpander = self[i - 2].expander
-    --         local height = prevButton:GetHeight()
-    --         button:ClearAllPoints()
-    --         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, (y * 2) - height)
-    --         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, (y * 2) - height)
-    --       else
-    --         local prevButtonExpander = self[i - 1].expander
-    --         button:ClearAllPoints()
-    --         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, y)
-    --         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, y)
-    --       end
-    --     end
-    --   end
-    --
-    --   CT.contentFrame:updateMinMaxValues(self)
-    -- end
     
     function CT.contentFrame:updateMinMaxValues(table)
       local height = 0
@@ -5021,134 +5001,125 @@ function CT.createBaseFrame()
   tinsert(UISpecialFrames, f:GetName())
 end
 
-local mouseExitButton, mouseEnterButton, mousePushButton, mouseReleaseButton
-do -- Register general button functions
-  do -- On enter and on leave
-    local highlightButton, ticker = nil, nil
+local highlightButton, ticker = nil, nil
+local function mouseExitButton(self) -- Sometimes the OnLeave event gets missed. All of this extra stuff is here to make sure it's caught
+  if self.Cancel then self = highlightButton end -- A ticker was passed as first arg, use local instead
+  
+  if not MouseIsOver(self) then
+    CT.setTooltip()
     
-    function mouseExitButton(self) -- Sometimes the OnLeave event gets missed. All of this extra stuff is here to make sure it's caught
-      if self.Cancel then self = highlightButton end -- A ticker was passed as first arg, use local instead
-      
-      if not MouseIsOver(self) then
-        CT.setTooltip()
-        
-        self.background:SetTexture(0.1, 0.1, 0.1, 1.0)
-        highlightButton = nil
-        
-        if ticker then
-          ticker:Cancel()
-          ticker = nil
-        end
-      end
-    end
-
-    function mouseEnterButton(self)
-      -- local textString = ("The current button name is: %s"):format(self.name or "NO NAME!")
-      CT.setTooltip(self, self.titleString, self.textString)
-      
-      self.background:SetTexture(0.13, 0.13, 0.13, 1.0)
-      highlightButton = self
-      
-      if ticker then
-        ticker:Cancel()
-        ticker = nil
-      end
-      
-      ticker = newTicker(0.1, mouseExitButton)
+    self.background:SetTexture(0.1, 0.1, 0.1, 1.0)
+    highlightButton = nil
+    
+    if ticker then
+      ticker:Cancel()
+      ticker = nil
     end
   end
+end
+
+local function mouseEnterButton(self)
+  -- local textString = ("The current button name is: %s"):format(self.name or "NO NAME!")
+  CT.setTooltip(self, self.titleString, self.textString)
   
-  do -- On mouse down and on mouse up
-    local pushedButton, clickType, ticker = nil, nil, nil
-    local icon1, icon2, icon3, icon4, icon5 = nil, nil, nil, nil, nil
-    local value1, value2, value3, value4, value5 = nil, nil, nil, nil, nil
-    -- local title1, title2, title3, title4, title5 = nil, nil, nil, nil, nil
+  self.background:SetTexture(0.13, 0.13, 0.13, 1.0)
+  highlightButton = self
+  
+  if ticker then
+    ticker:Cancel()
+    ticker = nil
+  end
+  
+  ticker = newTicker(0.1, mouseExitButton)
+end
+
+local pushedButton, clickType, ticker = nil, nil, nil
+local icon1, icon2, icon3, icon4, icon5 = nil, nil, nil, nil, nil
+local value1, value2, value3, value4, value5 = nil, nil, nil, nil, nil
+local title1, title2, title3, title4, title5 = nil, nil, nil, nil, nil
+local function mouseReleaseButton(self, click)
+  if click == "LeftButton" then
+    -- if self.Cancel then self = pushedButton end -- A ticker was passed as first arg, use local instead
     
-    function mouseReleaseButton(self, click)
-      if click == "LeftButton" then
-        -- if self.Cancel then self = pushedButton end -- A ticker was passed as first arg, use local instead
-        
-        self.background[1]:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
-        self.background[2]:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
-        
-        if self.icon then
-          self.icon:SetPoint(icon1, icon2, icon3, icon4, icon5)
-        end
-        
-        if self.value then
-          self.value:SetPoint(value1, value2, value3, value4, value5)
-        end
-        
-        if self.title then
-          self.title:SetPoint(title1, title2, title3, title4, title5)
-        end
-
-        if MouseIsOver(self) then
-          CT:toggleBaseExpansion("show")
-          
-          if not self.checked then
-            self.checked = self:CreateTexture(nil, "BACKGROUND")
-            self.checked:SetTexture("Interface\\PetBattles\\PetJournal")
-            self.checked:SetTexCoord(0.49804688, 0.90625000, 0.17480469, 0.21972656) -- Blue highlight border
-            self.checked:SetBlendMode("ADD")
-            self.checked:SetPoint("TOPLEFT", 0, 0)
-            self.checked:SetPoint("BOTTOMRIGHT", 0, 0)
-            self:SetCheckedTexture(self.checked)
-
-            self.checked:SetVertexColor(0.3, 0.5, 0.8, 0.8) -- Blue: Dark and more subtle blue
-          end
-          
-          if CT.displayed then
-            local time = GetTime()
-            local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
-
-            if self.expanded and self.expanderUpdate then
-              self:expanderUpdate(time, timer)
-            elseif self.shown and self.update then
-              self:update(time, timer)
-            end
-          end
-          
-          for i = 1, #CT.buttons do
-            if CT.buttons[i] ~= self and CT.buttons[i]:GetChecked() then
-              CT.buttons[i]:SetChecked(false)
-              CT.buttons[i].expanded = false
-            end
-          end
-          
-          PlaySound("igMainMenuOptionCheckBoxOn")
-        end
-      end
+    self.background[1]:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+    self.background[2]:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+    
+    if self.icon then
+      self.icon:SetPoint(icon1, icon2, icon3, icon4, icon5)
     end
     
-    local iconOffset = 1
-    local textOffset = 1
-    function mousePushButton(self, click)
-      if click == "LeftButton" then
-        self.background[2]:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
-        self.background[1]:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
-        
-        if self.icon then
-          icon1, icon2, icon3, icon4, icon5 = self.icon:GetPoint()
-          self.icon:SetPoint(icon1, icon2, icon3, (icon4 + iconOffset), (icon5 - iconOffset))
-        end
-        
-        if self.value then
-          value1, value2, value3, value4, value5 = self.value:GetPoint()
-          self.value:SetPoint(value1, value2, value3, (value4 + iconOffset), (value5 - iconOffset))
-        end
-        
-        if self.title then
-          title1, title2, title3, title4, title5 = self.title:GetPoint()
-          self.title:SetPoint(title1, title2, title3, (title4 + textOffset), (title5 - textOffset))
-        end
-        
-        -- pushedButton = self
-        -- clickType = click
-        
-        -- ticker = newTicker(0.1, mouseReleaseButton)
-      end
+    if self.value then
+      self.value:SetPoint(value1, value2, value3, value4, value5)
     end
+    
+    if self.title then
+      self.title:SetPoint(title1, title2, title3, title4, title5)
+    end
+
+    if MouseIsOver(self) then
+      CT:toggleBaseExpansion("show")
+      
+      if not self.checked then
+        self.checked = self:CreateTexture(nil, "BACKGROUND")
+        self.checked:SetTexture("Interface\\PetBattles\\PetJournal")
+        self.checked:SetTexCoord(0.49804688, 0.90625000, 0.17480469, 0.21972656) -- Blue highlight border
+        self.checked:SetBlendMode("ADD")
+        self.checked:SetPoint("TOPLEFT", 0, 0)
+        self.checked:SetPoint("BOTTOMRIGHT", 0, 0)
+        self:SetCheckedTexture(self.checked)
+
+        self.checked:SetVertexColor(0.3, 0.5, 0.8, 0.8) -- Blue: Dark and more subtle blue
+      end
+      
+      if CT.displayed then
+        local time = GetTime()
+        local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
+
+        if self.expanded and self.expanderUpdate then
+          self:expanderUpdate(time, timer)
+        elseif self.shown and self.update then
+          self:update(time, timer)
+        end
+      end
+      
+      for i = 1, #CT.buttons do
+        if CT.buttons[i] ~= self and CT.buttons[i]:GetChecked() then
+          CT.buttons[i]:SetChecked(false)
+          CT.buttons[i].expanded = false
+        end
+      end
+      
+      PlaySound("igMainMenuOptionCheckBoxOn")
+    end
+  end
+end
+
+local iconOffset = 1
+local textOffset = 1
+local function mousePushButton(self, click)
+  if click == "LeftButton" then
+    self.background[2]:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
+    self.background[1]:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
+    
+    if self.icon then
+      icon1, icon2, icon3, icon4, icon5 = self.icon:GetPoint()
+      self.icon:SetPoint(icon1, icon2, icon3, (icon4 + iconOffset), (icon5 - iconOffset))
+    end
+    
+    if self.value then
+      value1, value2, value3, value4, value5 = self.value:GetPoint()
+      self.value:SetPoint(value1, value2, value3, (value4 + iconOffset), (value5 - iconOffset))
+    end
+    
+    if self.title then
+      title1, title2, title3, title4, title5 = self.title:GetPoint()
+      self.title:SetPoint(title1, title2, title3, (title4 + textOffset), (title5 - textOffset))
+    end
+    
+    -- pushedButton = self
+    -- clickType = click
+    
+    -- ticker = newTicker(0.1, mouseReleaseButton)
   end
 end
 
@@ -5268,21 +5239,6 @@ function CT:buildNewButton(index, parent)
     
     b.value = value
   end
-
-  -- local title = b.title
-  -- if not title then
-  --   title = b:CreateFontString(nil, "ARTWORK", nil, 7)
-  --   title:SetPoint("LEFT", icon, "RIGHT", 3, 0)
-  --   title:SetPoint("RIGHT", b, 1, 0)
-  --   title:SetFont("Fonts\\FRIZQT__.TTF", 17, "OUTLINE")
-  --   title:SetTextColor(0.95, 0.95, 1.0, 1)
-  --   title:SetJustifyH("LEFT")
-  --   title:SetAlpha(0.9)
-  --   title:SetShadowOffset(1, -1)
-  --   title:SetText(self.name or "Holy Shock")
-  --
-  --   b.title = title
-  -- end
   
   b:SetScript("OnEnter", mouseEnterButton)
   b:SetScript("OnLeave", mouseExitButton)
@@ -5296,40 +5252,12 @@ function CT:buildNewButton(index, parent)
     self.button = b
   end
   
+  b.defaultWidth, b.defaultHeight = b:GetSize()
+  
   CT.buttons[#CT.buttons + 1] = b
   
   return b
 end
-
--- function CT.contentFrame:setButtonAnchors()
---   local y = -CT.settings.buttonSpacing
---
---   for i = 1, #self do
---     local button = self[i]
---     local prevButton = self[i - 1]
---
---     if i == 1 then
---       button:ClearAllPoints()
---       button:SetPoint("TOPLEFT", 0, 0)
---       button:SetPoint("TOPRIGHT")
---     else
---       if i > 2 and prevButton and prevButton.dragging then
---         local prevButtonExpander = self[i - 2].expander
---         local height = prevButton:GetHeight()
---         button:ClearAllPoints()
---         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, (y * 2) - height)
---         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, (y * 2) - height)
---       else
---         local prevButtonExpander = self[i - 1].expander
---         button:ClearAllPoints()
---         button:SetPoint("TOPRIGHT", prevButtonExpander, "BOTTOMRIGHT", 0, y)
---         button:SetPoint("TOPLEFT", prevButtonExpander, "BOTTOMLEFT", 0, y)
---       end
---     end
---   end
---
---   CT.contentFrame:updateMinMaxValues(self)
--- end
 
 function CT:expanderFrame_OLD(command)
   if true then return error("Called CT:expanderFrame") end
