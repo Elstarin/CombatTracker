@@ -254,7 +254,7 @@ do -- Debugging stuff
     testMode = true
     trackingOnLogIn = true
     loadBaseOnLogin = true
-    -- expandBaseOnLogin = true
+    expandBaseOnLogin = true
     matched = true
   end
 
@@ -3802,6 +3802,179 @@ function CT:toggleBaseExpansion(command) -- NOTE: Maybe make the sizing changes 
   end
 end
 
+function CT:updatePoints(multiplier)
+  local X = multiplier * (self.stopPoints.width - self.startPoints.width)
+  self:SetWidth(self.startPoints.width + X)
+  
+  for i = 1, #self.startPoints do
+    local p = self.startPoints[1]
+    self:SetPoint(p[1], p[2], p[3], p[4], p[5])
+  end
+end
+
+local function runAnimation(self, elapsed)
+  local remaining = self.animation - GetTime()
+  
+  if 0 >= remaining then -- Done
+    self:SetScript("OnUpdate", nil)
+    
+    CT.setToStopPoints(self)
+    CT.setToStopPoints(self.expander.anchor)
+    CT.setToStopPoints(self.scroll.anchor)
+    
+    for i = 1, #self.scroll do
+      local b = self.scroll[i]
+      
+      CT.setToStopPoints(b)
+      CT.setToStopPoints(b.icon)
+      CT.setToStopPoints(b.value)
+    end
+    
+    return
+  end
+  
+  local multiplier = 1 - (remaining / self.animationTotal)
+  
+  local f = self
+  do -- Handle the base frame
+    local width = multiplier * (f.stopPoints.width - f.startPoints.width)
+    local height = multiplier * (f.stopPoints.height - f.startPoints.height)
+    f:SetSize(f.startPoints.width + width, f.startPoints.height + height)
+  end
+  
+  local f = self.scroll.anchor
+  do -- Handle the scroll frame buttons are on
+    local width = multiplier * (f.stopPoints.width - f.startPoints.width)
+    local height = multiplier * (f.stopPoints.height - f.startPoints.height)
+    f:SetSize(f.startPoints.width + width, f.startPoints.height + height)
+  end
+  
+  local f = self.expander.anchor
+  do -- Expander sizing
+    local width = multiplier * (f.stopPoints.width - f.startPoints.width)
+    local height = multiplier * (f.stopPoints.height - f.startPoints.height)
+    f:SetSize(f.startPoints.width + width, f.startPoints.height + height)
+  end
+  
+  for i = 1, #self.scroll do
+    local b = self.scroll[i]
+  
+    local width = multiplier * (b.stopPoints.width - b.startPoints.width)
+    local height = multiplier * (b.stopPoints.height - b.startPoints.height)
+    b:SetSize(b.startPoints.width + width, b.startPoints.height + height)
+    
+    local X = multiplier * (b.stopPoints.centerX - b.startPoints.centerX)
+    local Y = multiplier * (b.stopPoints.centerY - b.startPoints.centerY)
+    
+    b:ClearAllPoints()
+    
+    local p1 = b.startPoints[1]
+    local p2 = b.stopPoints[1]
+    b:SetPoint(p1[1], p1[2], p1[3], p1[4], p1[5] + Y)
+    
+    local p1 = b.startPoints[2]
+    local p2 = b.stopPoints[2]
+    b:SetPoint(p1[1], p1[2], p1[3], p1[4], p1[5])
+  end
+end
+
+function CT:toggleBaseExpansion(command)
+  if (command and command == "hide" and self.base.expanded) or (not command and self.base.expanded) then -- Collapse it
+    -- CT:expanderFrame("hide")
+    
+    do -- Set to START points
+      CT.setToStartPoints(self.base, true)
+      CT.setToStartPoints(self.base.expander.anchor)
+      CT.setToStartPoints(self.base.scroll.anchor)
+    
+      for i = 1, #self.base.scroll do
+        local b = self.base.scroll[i]
+    
+        CT.setToStartPoints(b)
+        CT.setToStartPoints(b.icon)
+        CT.setToStartPoints(b.value)
+      end
+    end
+    
+    do -- Set to START points
+      CT.swapStartAndStop(self.base)
+      CT.swapStartAndStop(self.base.expander.anchor)
+      CT.swapStartAndStop(self.base.scroll.anchor)
+    
+      for i = 1, #self.base.scroll do
+        local b = self.base.scroll[i]
+    
+        CT.swapStartAndStop(b)
+        CT.swapStartAndStop(b.icon)
+        CT.swapStartAndStop(b.value)
+      end
+    end
+    
+    debug("Returning to default size")
+    self.base.expanded = false
+  elseif (command and command == "show" and not self.base.expanded) or (not command and not self.base.expanded) then -- Expand it
+    CT:expanderFrame("show")
+    
+    do -- Store START points
+      CT.storeStartPoints(self.base, true)
+      CT.storeStartPoints(self.base.expander.anchor)
+      CT.storeStartPoints(self.base.scroll.anchor)
+      
+      for i = 1, #self.base.scroll do
+        local b = self.base.scroll[i]
+        
+        CT.storeStartPoints(b)
+        CT.storeStartPoints(b.icon)
+        CT.storeStartPoints(b.value)
+      end
+    end
+    
+    self.base:SetWidth(600)
+    
+    self.base.expander.anchor:SetPoint("TOPLEFT", self.base.scroll.anchor, "TOPRIGHT", 10, 0)
+    self.base.expander.anchor:SetPoint("BOTTOMRIGHT", self.base, -10, 10)
+    
+    self.base.scroll.anchor:SetWidth(100)
+    self.base.scroll.anchor:SetPoint("LEFT", self.base, 10, 0)
+    self.base.scroll.anchor:SetPoint("TOP", self.base, 0, -50)
+    self.base.scroll.anchor:SetPoint("BOTTOM", self.base, 0, 30)
+    self.base.scroll:SetAllPoints(self.base.scroll.anchor)
+    
+    local y = -2
+    for i = 1, #self.base.scroll do
+      local b = self.base.scroll[i]
+      
+      b:SetPoint("TOPLEFT", self.base.scroll, 2, y)
+      b:SetPoint("TOPRIGHT", self.base.scroll, -2, y)
+      b.icon:SetPoint("CENTER", b, 0, 0)
+      b.value:SetPoint("CENTER", b.icon)
+      
+      y = (y - 68)
+    end
+    
+    do -- Store STOP points
+      CT.storeStopPoints(self.base, true)
+      CT.storeStopPoints(self.base.expander.anchor, true)
+      CT.storeStopPoints(self.base.scroll.anchor)
+      
+      for i = 1, #self.base.scroll do
+        local b = self.base.scroll[i]
+        
+        CT.storeStopPoints(b)
+        CT.storeStopPoints(b.icon)
+        CT.storeStopPoints(b.value)
+      end
+    end
+    
+    debug("Setting to expanded size.")
+    self.base.expanded = true
+  end
+  
+  self.base.animationTotal = 2.3
+  self.base.animation = (GetTime() + self.base.animationTotal)
+  self.base:SetScript("OnUpdate", runAnimation)
+end
+
 function CT.createBaseFrame()
   local r, g, b, a = unpack(CT.settings.defaultColor)
   local scrollOffsetX = 10
@@ -4104,13 +4277,6 @@ function CT.createBaseFrame()
         b:ClearAllPoints()
         b:SetPoint("TOP", self, "TOP", 0, y)
         b:SetPoint(anchor, self, anchor, 0)
-        
-        if not b.points then
-          b.points = {
-            [1] = {b:GetPoint(1)},
-            [2] = {b:GetPoint(2)},
-          }
-        end
         
         if (mod == 2) then
           y = (y - 60) - 8

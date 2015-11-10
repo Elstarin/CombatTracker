@@ -440,6 +440,122 @@ function CT.confirmDialogue(parent)
   return confirm.accept, confirm.decline
 end
 
+function CT:storeStartPoints(dontClear)
+  if not self.startPoints then self.startPoints = {} end
+  
+  local numPoints = self:GetNumPoints()
+  
+  for i = 1, numPoints do
+    if self.startPoints[i] then
+      local p = self.startPoints[i]
+      p[1], p[2], p[3], p[4], p[5] = self:GetPoint(i)
+    else
+      self.startPoints[i] = {self:GetPoint(i)} -- Create a new table if necessary
+    end
+  end
+  
+  -- if #self.startPoints > numPoints then
+  --   for i = numPoints, #self.startPoints do
+  --     self.startPoints[i] = nil
+  --   end
+  -- end
+  
+  self.startPoints.width, self.startPoints.height = self:GetSize()
+  self.startPoints.centerX, self.startPoints.centerY = self:GetCenter()
+  self.startPoints.left = self:GetLeft()
+  self.startPoints.right = self:GetRight()
+  self.startPoints.top = self:GetTop()
+  self.startPoints.bottom = self:GetBottom()
+  self.startPoints.parent = self:GetParent()
+  
+  if not dontClear then
+    self:ClearAllPoints()
+  end
+end
+
+function CT:storeStopPoints(dontClear)
+  if not self.stopPoints then self.stopPoints = {} end
+  
+  local numPoints = self:GetNumPoints()
+  
+  for i = 1, numPoints do
+    if self.stopPoints[i] then
+      local p = self.stopPoints[i]
+      p[1], p[2], p[3], p[4], p[5] = self:GetPoint(i)
+    else
+      self.stopPoints[i] = {self:GetPoint(i)} -- Create a new table if necessary
+    end
+  end
+  
+  -- if #self.stopPoints > numPoints then
+  --   for i = numPoints, #self.stopPoints do
+  --     self.stopPoints[i] = nil
+  --   end
+  -- end
+  
+  self.stopPoints.width, self.stopPoints.height = self:GetSize()
+  self.stopPoints.centerX, self.stopPoints.centerY = self:GetCenter()
+  self.stopPoints.left = self:GetLeft()
+  self.stopPoints.right = self:GetRight()
+  self.stopPoints.top = self:GetTop()
+  self.stopPoints.bottom = self:GetBottom()
+  self.stopPoints.parent = self:GetParent()
+end
+
+function CT:swapStartAndStop()
+  local numPoints = self:GetNumPoints()
+  
+  local start = self.startPoints
+  local stop = self.stopPoints
+  
+  start.width, stop.width = stop.width, start.width
+  start.height, stop.height = stop.height, start.height
+  
+  -- start.left, stop.left = stop.left, start.left
+  
+  start.centerX, stop.centerX = stop.centerX, start.centerX
+  start.centerY, stop.centerY = stop.centerY, start.centerY
+  
+  for i = 1, numPoints do
+    local start = start[i]
+    local stop = stop[i]
+    
+    if start and stop then
+      start[1], stop[1] = stop[1], start[1]
+      start[2], stop[2] = stop[2], start[2]
+      start[3], stop[3] = stop[3], start[3]
+      start[4], stop[4] = stop[4], start[4]
+      start[5], stop[5] = stop[5], start[5]
+    end
+  end
+end
+
+function CT:setToStartPoints()
+  if not self.startPoints then return end
+  
+  self:SetSize(self.startPoints.width, self.startPoints.height)
+  self:SetParent(self.startPoints.parent)
+  
+  self:ClearAllPoints()
+  for i = 1, #self.startPoints do
+    local p = self.startPoints[i]
+    self:SetPoint(p[1], p[2], p[3], p[4], p[5])
+  end
+end
+
+function CT:setToStopPoints()
+  if not self.stopPoints then return end
+  
+  self:SetSize(self.stopPoints.width, self.stopPoints.height)
+  self:SetParent(self.stopPoints.parent)
+  
+  self:ClearAllPoints()
+  for i = 1, #self.stopPoints do
+    local p = self.stopPoints[i]
+    self:SetPoint(p[1], p[2], p[3], p[4], p[5])
+  end
+end
+
 local function rotateTexture(self, elapsed)
   self.timer = (self.timer or 0) + elapsed;
   
