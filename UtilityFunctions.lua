@@ -442,6 +442,7 @@ end
 
 function CT:storeStartPoints(dontClear)
   if not self.startPoints then self.startPoints = {} end
+  if not self.originalPoints then self.originalPoints = {} end
   
   local numPoints = self:GetNumPoints()
   
@@ -450,7 +451,13 @@ function CT:storeStartPoints(dontClear)
       local p = self.startPoints[i]
       p[1], p[2], p[3], p[4], p[5] = self:GetPoint(i)
     else
-      self.startPoints[i] = {self:GetPoint(i)} -- Create a new table if necessary
+      local p1, p2, p3, p4, p5 = self:GetPoint(i)
+      
+      self.startPoints[i] = {p1, p2, p3, p4, p5} -- Create a new table if necessary
+      
+      if not self.originalPoints[i] then
+        self.originalPoints[i] = {p1, p2, p3, p4, p5} -- These should only be stored the first time this is run and never updated
+      end
     end
   end
   
@@ -467,6 +474,19 @@ function CT:storeStartPoints(dontClear)
   self.startPoints.top = self:GetTop()
   self.startPoints.bottom = self:GetBottom()
   self.startPoints.parent = self:GetParent()
+  
+  if not self.originalPoints.width then -- These should only be stored the first time this is run and never updated
+    self.originalPoints.width = self.startPoints.width
+    self.originalPoints.height = self.startPoints.height
+    self.originalPoints.centerX = self.startPoints.centerX
+    self.originalPoints.centerY = self.startPoints.centerY
+    
+    self.originalPoints.left = self.startPoints.left
+    self.originalPoints.right = self.startPoints.right
+    self.originalPoints.top = self.startPoints.top
+    self.originalPoints.bottom = self.startPoints.bottom
+    self.originalPoints.parent = self.startPoints.parent
+  end
   
   if not dontClear then
     self:ClearAllPoints()
@@ -552,6 +572,19 @@ function CT:setToStopPoints()
   self:ClearAllPoints()
   for i = 1, #self.stopPoints do
     local p = self.stopPoints[i]
+    self:SetPoint(p[1], p[2], p[3], p[4], p[5])
+  end
+end
+
+function CT:setToOriginalPoints()
+  if not self.originalPoints then return end
+  
+  self:SetSize(self.originalPoints.width, self.originalPoints.height)
+  self:SetParent(self.originalPoints.parent)
+  
+  self:ClearAllPoints()
+  for i = 1, #self.originalPoints do
+    local p = self.originalPoints[i]
     self:SetPoint(p[1], p[2], p[3], p[4], p[5])
   end
 end

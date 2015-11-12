@@ -33,6 +33,11 @@
 -- Locals, Frames, and Tables
 --------------------------------------------------------------------------------
 local addonName, addon = ...
+
+local name = addonName
+local version = GetAddOnMetadata(addonName, "Version")
+local locale = GetLocale()
+
 addon.profile = false
 
 if addon.profile then -- profile code in here
@@ -251,10 +256,10 @@ do -- Debugging stuff
 
   if GetUnitName("player") == "Elstari" and GetRealmName() == "Drak'thul" then
     debugMode = true
-    testMode = true
-    trackingOnLogIn = true
-    loadBaseOnLogin = true
-    expandBaseOnLogin = true
+    -- testMode = true
+    -- trackingOnLogIn = true
+    -- loadBaseOnLogin = true
+    -- expandBaseOnLogin = true
     matched = true
   end
 
@@ -266,9 +271,8 @@ do -- Debugging stuff
   function CT.debug(...)
     if debugMode then
       wipe(t)
-      local num = select("#", ...)
 
-      for i = 1, num do
+      for i = 1, select("#", ...) do
         local var = select(i, ...)
         local obj = type(var)
         local spellName, _, _, _, _, _, spellID = GetSpellInfo(tonumber(var) or var)
@@ -277,22 +281,20 @@ do -- Debugging stuff
           t[i] = format("|cFFFF9B00%s|r", var)
         elseif spellName and spellName:match(var) then
           -- print("SPELL NAME", spellName)
-          t[i] = format("|cFFFF00FF%s|r", spellName)
+          t[i] = "|cFFFF00FF" .. spellName .. "|r"
         elseif var == true then
           t[i] = "|cFF4B6CD7true|r"
         elseif var == false then
           t[i] = "|cFFFF9B00false|r"
         elseif obj == "table" then
-          t[i] = format("|cFF888888%s|r", tostring(var))
+          t[i] = "|cFF888888" .. tostring(var) .. "|r"
         elseif obj == "function" then
-          t[i] = format("|cFFDA70D6%s|r", tostring(var))
+          t[i] = "|cFFDA70D6" .. tostring(var) .. "|r"
         elseif obj == "nil" then
           t[i] = "|cFFFA6022nil|r"
         elseif obj == "userdata" then
           t[i] = "|cFF888888" .. tostring(var) .. "|r"
-          -- t[i] = tostring(var)
         elseif obj == "number" or type(tonumber(obj)) == "number" then
-          -- t[i] = format("|cFF00CCFF%s|r", var)
           t[i] = var
         elseif obj == "string" then
           t[i] = var
@@ -315,20 +317,31 @@ do -- Debugging stuff
       local string = table.concat(t, "~") .. "~" -- The ~ lets me keep track of the different chunks while I apply colors and such, it gets removed last
 
       if string then
-        string = string:gsub("(%P%d+%.?%d*%%?)(%~%d)", "%1,%2") -- Seperate numbers followed by numbers with commas
-        string = string:gsub("([%a%d])(%~%u%l)", "%1.%2") -- Add a period if there's a lowercase letter or number, a space, then an uppercase letter
-        string = string:gsub("(%P%~?)$", "%1.") -- Add a period to the end if there isn't any punctuation
+        string = string:gsub("table:%s", "table:&") -- To make sure it doesn't handle the ID as a normal number later
+        string = string:gsub("function:%s", "function:&") -- To make sure it doesn't handle the ID as a normal number later
+        string = string:gsub("userdata:%s", "userdata:&") -- To make sure it doesn't handle the ID as a normal number later
+        string = string:gsub("|c(%x%x%x%x%x%x%x%x)(.-)|r", "#c%1@%2#r") -- Make color sequences visible
         
-        string = string:gsub("%d+%%", "|cFF00CCFF%1|r") -- Make all percentages blue
-        string = string:gsub("(%d+)([%,%.])", "|cFF00CCFF%1|r%2") -- Make all numbers followed by a comma or period blue
-        string = string:gsub("%.(%d+)", ".|cFF00CCFF%1|r") -- Make all decimal numbers blue
-        string = string:gsub("(%a+%~)(%d+)(%~%a+)", "%1|cFF00CCFF%2|r%3") -- Make all numbers between two spaced strings without punctuation blue
-        string = string:gsub("(%l:%~)(%S+)%~", "%1|cFFFF9B00%2|r~") -- Set everything after : color until next punctuation mark if it doesn't end with |r
-        string = string:gsub("%~?(%a+)(%~|cFF%D)", "%1,%2") -- Separate most segments with a comma unless the next is a number
-        string = string:gsub("(%()(.*)(%))", "|cFF9E5A01%1|r|cFF00CCFF%2|r|cFF9E5A01%3|r") -- Make ( and ) orange and anything inside them blue
+        string = string:gsub("(%()(.*)(%))", "#cFF9E5A01@%1#r#cFF00CCFF@%2#r#cFF9E5A01@%3#r") -- Make ( and ) orange and anything inside them blue
+        string = string:gsub("([@~%s])(%d+[%d%.%%]*)([#~%s]-)", "%1#cFF00CCFF@%2#r%3") -- Make all numbers blue, including decimals and percentage signs
+        string = string:gsub("(@%d+[%d%.%%]*)%s(@%d+[%d%.%%]*)", "%1, %2") -- Seperate numbers followed by numbers with commas
         
+        -- string = string:gsub("(%P%d+%.?%d*%%?)(%~%d)", "%1,%2") -- Seperate numbers followed by numbers with commas
+        -- string = string:gsub("([%a%d])(%~%u%l)", "%1.%2") -- Add a period if there's a lowercase letter or number, a space, then an uppercase letter
+        -- string = string:gsub("(%P%~?)$", "%1.") -- Add a period to the end if there isn't any punctuation
+        
+        -- string = string:gsub("%d+%%", "|cFF00CCFF%1|r") -- Make all percentages blue
+        -- string = string:gsub("(%d+)([%,%.])", "|cFF00CCFF%1|r%2") -- Make all numbers followed by a comma or period blue
+        -- string = string:gsub("%.(%d+)", ".|cFF00CCFF%1|r") -- Make all decimal numbers blue
+        -- string = string:gsub("(%a+%~)(%d+)(%~%a+)", "%1|cFF00CCFF%2|r%3") -- Make all numbers between two spaced strings without punctuation blue
+        -- string = string:gsub("(%l:%~)(%S+)%~", "%1|cFFFF9B00%2|r~") -- Set everything after : color until next punctuation mark if it doesn't end with |r
+        -- string = string:gsub("%~?(%a+)(%~|cFF%D)", "%1,%2") -- Separate most segments with a comma unless the next is a number
+        
+        string = string:gsub("#c(.-)#r", "|c%1|r") -- Reset the colors
+        string = string:gsub("@", "")
+        string = string:gsub(":&", ": ")
         string = string:gsub("~", " ")
-        string = string:gsub("%s+([%.%,%!%?])", "%1") -- Make sure there aren't any spaces followed by an important punctuation mark left from removing ~
+        -- string = string:gsub("%s+([%.%,%!%?])", "%1") -- Make sure there aren't any spaces followed by an important punctuation mark left from removing ~
 				string = string:trim() -- Get rid of useless whitespace
         
         -- string = string:gsub("(%P%-?%d+%.?%d*%%?)", "|cFF00CCFF%1|r") -- Find and color all numbers and percent signs if they have one
@@ -353,6 +366,8 @@ do -- Debugging stuff
   end
 end
 local debug = CT.debug
+
+debug("This is a string test!", "Value is: 87% which (is a) percent", addon, addonName, version, locale, 187.9, 18, 93, "Holy Shock", "end string", strmatch)
 
 CT.eventFrame = CreateFrame("Frame")
 --------------------------------------------------------------------------------
@@ -3882,31 +3897,31 @@ function CT:toggleBaseExpansion(command)
   if (command and command == "hide" and self.base.expanded) or (not command and self.base.expanded) then -- Collapse it
     -- CT:expanderFrame("hide")
     
-    do -- Set to START points
-      CT.setToStartPoints(self.base, true)
-      CT.setToStartPoints(self.base.expander.anchor)
-      CT.setToStartPoints(self.base.scroll.anchor)
-    
+    do -- Store START points
+      CT.storeStartPoints(self.base, true)
+      CT.storeStartPoints(self.base.expander.anchor)
+      CT.storeStartPoints(self.base.scroll.anchor)
+      
       for i = 1, #self.base.scroll do
         local b = self.base.scroll[i]
-    
-        CT.setToStartPoints(b)
-        CT.setToStartPoints(b.icon)
-        CT.setToStartPoints(b.value)
+        
+        CT.storeStartPoints(b)
+        CT.storeStartPoints(b.icon)
+        CT.storeStartPoints(b.value)
       end
     end
     
-    do -- Set to START points
-      CT.swapStartAndStop(self.base)
-      CT.swapStartAndStop(self.base.expander.anchor)
-      CT.swapStartAndStop(self.base.scroll.anchor)
+    do -- Set to ORIGINAL points
+      CT.setToOriginalPoints(self.base, true)
+      CT.setToOriginalPoints(self.base.expander.anchor)
+      CT.setToOriginalPoints(self.base.scroll.anchor)
     
       for i = 1, #self.base.scroll do
         local b = self.base.scroll[i]
     
-        CT.swapStartAndStop(b)
-        CT.swapStartAndStop(b.icon)
-        CT.swapStartAndStop(b.value)
+        CT.setToOriginalPoints(b)
+        CT.setToOriginalPoints(b.icon)
+        CT.setToOriginalPoints(b.value)
       end
     end
     
@@ -3952,22 +3967,22 @@ function CT:toggleBaseExpansion(command)
       y = (y - 68)
     end
     
-    do -- Store STOP points
-      CT.storeStopPoints(self.base, true)
-      CT.storeStopPoints(self.base.expander.anchor, true)
-      CT.storeStopPoints(self.base.scroll.anchor)
-      
-      for i = 1, #self.base.scroll do
-        local b = self.base.scroll[i]
-        
-        CT.storeStopPoints(b)
-        CT.storeStopPoints(b.icon)
-        CT.storeStopPoints(b.value)
-      end
-    end
-    
     debug("Setting to expanded size.")
     self.base.expanded = true
+  end
+  
+  do -- Store STOP points
+    CT.storeStopPoints(self.base, true)
+    CT.storeStopPoints(self.base.expander.anchor, true)
+    CT.storeStopPoints(self.base.scroll.anchor)
+    
+    for i = 1, #self.base.scroll do
+      local b = self.base.scroll[i]
+      
+      CT.storeStopPoints(b)
+      CT.storeStopPoints(b.icon)
+      CT.storeStopPoints(b.value)
+    end
   end
   
   self.base.animationTotal = 2.3
