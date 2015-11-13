@@ -1458,6 +1458,7 @@ function CT:filteringAlgorithm(data, first, last, angle)
   local protectNext = nil
   local prevAngleD = nil
   local count = 0
+  local prevDiff = 0
   
   for i = first, last do
     local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
@@ -1483,6 +1484,8 @@ function CT:filteringAlgorithm(data, first, last, angle)
       local difference = angleD - (prevAngleD or 0)
       if 0 > difference then difference = -difference end
       
+      -- print(i, prevDiff, difference)
+      
       if protectNext then -- Protect this point
         protectNext = nil
       elseif (((prevSlope > 0) and (0 >= nextSlope)) and (difference ~= 0)) or (((0 > prevSlope) and (nextSlope >= 0)) and (difference ~= 0)) then
@@ -1491,35 +1494,45 @@ function CT:filteringAlgorithm(data, first, last, angle)
         
         if numProtected > 0 then
           print("Running from", numProtected, "to", i)
+          local prevDiff = 0
+          local lastPrev = 0
+          local lastNext = 0
           for index = numProtected, i do
             local pX, pY = data[index - 1], data[-(index - 1)] -- Previous
             local cX, cY = data[index], data[-index] -- Current
             local nX, nY = data[index + 1], data[-(index + 1)] -- Next
-            
+        
             if pX and nX then
               local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
               local nextSlope = (nY - cY) / (nX - cX)
-              
+        
               local diff = nextSlope + prevSlope
               if 0 > diff then diff = -diff end
-          
-              local prevAngle = angles[index - 1] or 0
-              local currentAngle = angles[index] or 0
-              local nextAngle = angles[index + 1] or 0
-          
-              print(index, diff)
-            
-              if (not badPoints[index]) and (2 > diff) then
-                badPoints[index] = true -- Flagged for removal
-                -- print(index, "found")
-                count = count + 1
+              
+              -- local prevAngle = angles[index - 1] or 0
+              -- local currentAngle = angles[index] or 0
+              -- local nextAngle = angles[index + 1] or 0
+        
+              if (not badPoints[index]) and (not protected[index]) then
+                print(index, lastPrev == prevSlope)
+                
+                if (lastPrev == prevSlope) and not protected[index] then
+                  badPoints[index] = true -- Flagged for removal
+                  -- print(index, "found")
+                  count = count + 1
+                end
               end
+              
+              lastPrev = prevSlope
+              lastNext = nextSlope
+              prevDiff = diff
             end
           end
         end
         
         protectNext = true
         protected[#protected + 1] = i
+        -- protected[i] = true
       elseif (prevSlope > 0) and (0 >= nextSlope) and (difference ~= 0) then -- Peak (Prev is going up, next is going down or is flat and there is a change in the angle)
         -- protectNext = true
         -- protected[i] = true
@@ -1536,9 +1549,10 @@ function CT:filteringAlgorithm(data, first, last, angle)
         badPoints[i] = true -- Flagged for removal
         removed = removed + 1
         removedMatch = removedMatch + 1
-      -- elseif 0.035 > (prevDist + nextDist) then
+      -- elseif (prevDiff == 0) or (difference == 0) and not protected[i - 1] then
       --   badPoints[i] = true -- Flagged for removal
       --   removed = removed + 1
+      --   removedMatch = removedMatch + 1
       elseif angleD > 175 then
         badPoints[i] = true -- Flagged for removal
         removed = removed + 1
@@ -1575,6 +1589,7 @@ function CT:filteringAlgorithm(data, first, last, angle)
       --   end
       -- end
       
+      prevDiff = difference
       prevAngleD = angleD
     end
   end
@@ -4259,7 +4274,7 @@ function CT:buildGraphTest()
   return graphFrame
 end
 
-if false then -- Coroutine test
+if true then -- Coroutine test
   local base = CreateFrame("Frame", "TestGraphFrame", UIParent)
   do -- Set up frame
     base:SetPoint("CENTER", 0, 100)

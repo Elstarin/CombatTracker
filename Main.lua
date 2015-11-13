@@ -34,7 +34,6 @@
 --------------------------------------------------------------------------------
 local addonName, addon = ...
 
-local name = addonName
 local version = GetAddOnMetadata(addonName, "Version")
 local locale = GetLocale()
 
@@ -77,10 +76,6 @@ if addon.profile then -- profile code in here
     local func = nil
     local time = GetTime()
 
-    local function callback()
-
-    end
-
     -- local texture = f:CreateTexture(nil, "ARTWORK")
 
     -- local loop = 10
@@ -95,18 +90,7 @@ if addon.profile then -- profile code in here
     -- local loop = 100000000 -- 100 million
 
     local t = {}
-    
-    local function returnedFunc()
-      local num = 100
-    end
-    
-    local function tailFunc()
-      return returnedFunc()
-    end
-    
-    local function regularFunc()
-      returnedFunc()
-    end
+    local start = debugprofilestop() / 1000
 
     local loop = loop or 1
     
@@ -118,7 +102,7 @@ if addon.profile then -- profile code in here
     local start = debugprofilestop()
     
     for i = 1, loop do
-
+      
     end
 
     local MS = debugprofilestop() - start
@@ -247,6 +231,10 @@ local trackingOnLogIn = false
 local loadBaseOnLogin = false
 local expandBaseOnLogin = false
 
+do
+  print("Test")
+end
+
 local debugMode = false
 do -- Debugging stuff
   local matched
@@ -280,79 +268,43 @@ do -- Debugging stuff
         if _G[var] then
           t[i] = format("|cFFFF9B00%s|r", var)
         elseif spellName and spellName:match(var) then
-          -- print("SPELL NAME", spellName)
           t[i] = "|cFFFF00FF" .. spellName .. "|r"
         elseif var == true then
           t[i] = "|cFF4B6CD7true|r"
         elseif var == false then
           t[i] = "|cFFFF9B00false|r"
         elseif obj == "table" then
-          t[i] = "|cFF888888" .. tostring(var) .. "|r"
+          t[i] = tostring(var):gsub("(.-)%s(.+)", "|cFF888888%1&%2|r") -- Replacing the space with an & to make sure the ID doesn't get colored later
         elseif obj == "function" then
-          t[i] = "|cFFDA70D6" .. tostring(var) .. "|r"
+          t[i] = tostring(var):gsub("(.-)%s(.+)", "|cFFDA70D6%1&%2|r")
+        elseif obj == "userdata" then
+          t[i] = tostring(var):gsub("(.-)%s(.+)", "|cFF888888%1&%2|r")
         elseif obj == "nil" then
           t[i] = "|cFFFA6022nil|r"
-        elseif obj == "userdata" then
-          t[i] = "|cFF888888" .. tostring(var) .. "|r"
         elseif obj == "number" or type(tonumber(obj)) == "number" then
           t[i] = var
         elseif obj == "string" then
           t[i] = var
         end
-        
-        -- local str = tostring(var)
-        
-        -- if str:match("%d") and not str:match("%c") then
-        --   t[i] = str:gsub("(%P%-?%d+%.?%d*%%?)", "|cFF00CCFF%1|r") -- Find and color all numbers and percent signs if they have one
-        -- end
       end
-      
-      -- local colorNil = "|cFFFA6022"
-      -- local colorTable = "|cFF888888"
-      -- local colorTrue = "|cFF4B6CD7"
-      -- local colorFalse = "|cFFFF9B00"
-      -- local colorUserData = "|cFF888888"
-      -- local colorNumber = "|cFF00CCFF"
 
-      local string = table.concat(t, "~") .. "~" -- The ~ lets me keep track of the different chunks while I apply colors and such, it gets removed last
+      local string = table.concat(t, ",~") .. ".~" -- The ~ lets me keep track of the different chunks while I apply colors and such, it gets removed last
 
       if string then
-        string = string:gsub("table:%s", "table:&") -- To make sure it doesn't handle the ID as a normal number later
-        string = string:gsub("function:%s", "function:&") -- To make sure it doesn't handle the ID as a normal number later
-        string = string:gsub("userdata:%s", "userdata:&") -- To make sure it doesn't handle the ID as a normal number later
         string = string:gsub("|c(%x%x%x%x%x%x%x%x)(.-)|r", "#c%1@%2#r") -- Make color sequences visible
         
+        -- string = string:gsub(":%s(.-)([%.%,%!%?%#])", ": #cFFFFCC00@%1#r%2") -- Make any letters after a: gold until next punctuation mark
+        -- string = string:gsub("(%w:)(%s.-)[%.%,%!%?]", "%1#cFFFFCC00@%2#r") -- Make any letters after a: gold until next punctuation mark
         string = string:gsub("(%()(.*)(%))", "#cFF9E5A01@%1#r#cFF00CCFF@%2#r#cFF9E5A01@%3#r") -- Make ( and ) orange and anything inside them blue
         string = string:gsub("([@~%s])(%d+[%d%.%%]*)([#~%s]-)", "%1#cFF00CCFF@%2#r%3") -- Make all numbers blue, including decimals and percentage signs
-        string = string:gsub("(@%d+[%d%.%%]*)%s(@%d+[%d%.%%]*)", "%1, %2") -- Seperate numbers followed by numbers with commas
         
-        -- string = string:gsub("(%P%d+%.?%d*%%?)(%~%d)", "%1,%2") -- Seperate numbers followed by numbers with commas
-        -- string = string:gsub("([%a%d])(%~%u%l)", "%1.%2") -- Add a period if there's a lowercase letter or number, a space, then an uppercase letter
-        -- string = string:gsub("(%P%~?)$", "%1.") -- Add a period to the end if there isn't any punctuation
-        
-        -- string = string:gsub("%d+%%", "|cFF00CCFF%1|r") -- Make all percentages blue
-        -- string = string:gsub("(%d+)([%,%.])", "|cFF00CCFF%1|r%2") -- Make all numbers followed by a comma or period blue
-        -- string = string:gsub("%.(%d+)", ".|cFF00CCFF%1|r") -- Make all decimal numbers blue
-        -- string = string:gsub("(%a+%~)(%d+)(%~%a+)", "%1|cFF00CCFF%2|r%3") -- Make all numbers between two spaced strings without punctuation blue
-        -- string = string:gsub("(%l:%~)(%S+)%~", "%1|cFFFF9B00%2|r~") -- Set everything after : color until next punctuation mark if it doesn't end with |r
-        -- string = string:gsub("%~?(%a+)(%~|cFF%D)", "%1,%2") -- Separate most segments with a comma unless the next is a number
-        
-        string = string:gsub("#c(.-)#r", "|c%1|r") -- Reset the colors
+        string = string:gsub("#c", "|c") -- Reset the colors
+        string = string:gsub("#r", "|r") -- Reset the colors
         string = string:gsub("@", "")
         string = string:gsub(":&", ": ")
         string = string:gsub("~", " ")
-        -- string = string:gsub("%s+([%.%,%!%?])", "%1") -- Make sure there aren't any spaces followed by an important punctuation mark left from removing ~
-				string = string:trim() -- Get rid of useless whitespace
+        string = string:gsub("(%p)[%.%,]?", "%1") -- Remove the added comma or period if there already is punctuation
         
-        -- string = string:gsub("(%P%-?%d+%.?%d*%%?)", "|cFF00CCFF%1|r") -- Find and color all numbers and percent signs if they have one
-        
-        -- string = string:gsub("(%a+), (|%x*%d+|r)", "%1 %2") -- Remove any commas after a string when it's followed by a number
-        -- string = string:gsub("(%a+), (%a+)", "%1 %2") -- Remove any commas after a string when it's followed by a string
-        -- string = string:gsub("(|%x*%d+|r), %a+", "%1") -- Remove any commas after a number when it's followed by a string
-        -- string = string:gsub("(%p),", "%1") -- Remove any commas after a punctuation character
-        -- string = string:gsub("(%()(.*)(%))", "|cFF9E5A01%1|r|cFF00CCFF%2|r|cFF9E5A01%3|r") -- Make ( and ) orange and anything inside them blue
-        -- string = string:gsub("(%w: )(.+)%p*", "%1|cFFFFCC00%2|r") -- Make any letters after a: gold until next punctuation mark
-
         print(printFormat:format((debugprofilestop() / 1000) - start, string))
       end
     end
@@ -367,7 +319,7 @@ do -- Debugging stuff
 end
 local debug = CT.debug
 
-debug("This is a string test!", "Value is: 87% which (is a) percent", addon, addonName, version, locale, 187.9, 18, 93, "Holy Shock", "end string", strmatch)
+-- debug("This is a string test!", "Value is: 87% which (is a) percent", addon, addonName, version, locale, 187.9, 18, 93, "Holy Shock", "end string", strmatch)
 
 CT.eventFrame = CreateFrame("Frame")
 --------------------------------------------------------------------------------
