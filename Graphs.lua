@@ -1439,8 +1439,7 @@ end
 local badPoints = {}
 local newData = {}
 local protected = {}
-local angles = {}
-function CT:filteringAlgorithm(data, first, last, angle)
+function CT:filteringAlgorithm_VERY_CLOSE(data, first, last, angle)
   if 1 > (last - first) then return #data, debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
   
   debug("Smoothing from:", first, "to:", last)
@@ -1459,13 +1458,15 @@ function CT:filteringAlgorithm(data, first, last, angle)
   local prevAngleD = nil
   local count = 0
   local prevDiff = 0
+  local lastPrev = 0
+  local lastNext = 0
   
   for i = first, last do
     local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
     local cX, cY = data[i], data[-i] -- Current
     local nX, nY = data[i + 1], data[-(i + 1)] -- Next
     
-    if pX and nX then
+    if pX and nX and (not protected[i]) then
       local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
       local nextSlope = (nY - cY) / (nX - cX)
       
@@ -1473,83 +1474,26 @@ function CT:filteringAlgorithm(data, first, last, angle)
       local nextDist = sqrt((nX - cX)^2 + (nY - cY)^2)
       local bottDist = sqrt((nX - pX)^2 + (nY - pY)^2)
       
-      -- print(i, prevDist + nextDist)
-      
       local angleR = math.atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
       if 0 > angleR then angleR = -angleR end
       local angleD = 180 - math.deg(angleR)
       
-      angles[i] = angleD
-      
       local difference = angleD - (prevAngleD or 0)
       if 0 > difference then difference = -difference end
       
-      -- print(i, prevDiff, difference)
-      
-      if protectNext then -- Protect this point
-        protectNext = nil
-      elseif (((prevSlope > 0) and (0 >= nextSlope)) and (difference ~= 0)) or (((0 > prevSlope) and (nextSlope >= 0)) and (difference ~= 0)) then
-        -- local index = i
-        local numProtected = #protected
-        
-        if numProtected > 0 then
-          print("Running from", numProtected, "to", i)
-          local prevDiff = 0
-          local lastPrev = 0
-          local lastNext = 0
-          for index = numProtected, i do
-            local pX, pY = data[index - 1], data[-(index - 1)] -- Previous
-            local cX, cY = data[index], data[-index] -- Current
-            local nX, nY = data[index + 1], data[-(index + 1)] -- Next
-        
-            if pX and nX then
-              local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
-              local nextSlope = (nY - cY) / (nX - cX)
-        
-              local diff = nextSlope + prevSlope
-              if 0 > diff then diff = -diff end
-              
-              -- local prevAngle = angles[index - 1] or 0
-              -- local currentAngle = angles[index] or 0
-              -- local nextAngle = angles[index + 1] or 0
-        
-              if (not badPoints[index]) and (not protected[index]) then
-                print(index, lastPrev == prevSlope)
-                
-                if (lastPrev == prevSlope) and not protected[index] then
-                  badPoints[index] = true -- Flagged for removal
-                  -- print(index, "found")
-                  count = count + 1
-                end
-              end
-              
-              lastPrev = prevSlope
-              lastNext = nextSlope
-              prevDiff = diff
-            end
-          end
-        end
-        
-        protectNext = true
-        protected[#protected + 1] = i
-        -- protected[i] = true
-      elseif (prevSlope > 0) and (0 >= nextSlope) and (difference ~= 0) then -- Peak (Prev is going up, next is going down or is flat and there is a change in the angle)
-        -- protectNext = true
-        -- protected[i] = true
-        -- print(i, "PEAK", angleD)
-      elseif (0 > prevSlope) and (nextSlope >= 0) and (difference ~= 0) then -- Valley (Prev is going down, next is going up or is flat and there is a change in the angle)
-        -- protectNext = true
-        -- protected[i] = true
-        -- print(i, "VALLEY", angleD)
+      if ((prevSlope > 0)  and (nextSlope < 0)) -- Was going up, now going down forming a peak
+      or ((prevSlope < 0)  and (nextSlope > 0)) -- Was going down, now going up forming a valley
+      or ((prevSlope == 0) and (nextSlope > 0)) -- Was flat, now going up
+      or ((prevSlope == 0) and (0 > nextSlope)) -- Was flat, now going down
+      then -- Passed, so protect the points that form this from being deleted during this filter call
+        protected[i - 1] = true
+        protected[i] = true
+        protected[i + 1] = true
       elseif (prevSlope == nextSlope) then -- Not a peak or valley
         badPoints[i] = true -- Flagged for removal
         removed = removed + 1
         removedMatch = removedMatch + 1
-      elseif (angleD == prevAngleD) then
-        badPoints[i] = true -- Flagged for removal
-        removed = removed + 1
-        removedMatch = removedMatch + 1
-      -- elseif (prevDiff == 0) or (difference == 0) and not protected[i - 1] then
+      -- elseif (angleD == prevAngleD) then
       --   badPoints[i] = true -- Flagged for removal
       --   removed = removed + 1
       --   removedMatch = removedMatch + 1
@@ -1557,44 +1501,60 @@ function CT:filteringAlgorithm(data, first, last, angle)
         badPoints[i] = true -- Flagged for removal
         removed = removed + 1
         removedAngle = removedAngle + 1
+      else
+        if (not protected[i]) and (not badPoints[i]) then
+          local pX, pY = data[i - 2], data[-(i - 2)] -- Previous
+          local nX, nY = data[i + 2], data[-(i + 2)] -- Next
+          
+          local count = 0 -- The offset from i
+          local offsetBackward = -1
+          local offsetForward = 1
+          while true do -- Keep creating ever larger triangles, with current (meaning i) as the middle point
+            if not protected[i + offsetBackward] then -- When a protected point is reached, don't go farther in that direction
+              pX, pY = data[i + offsetBackward], data[-(i + offsetBackward)] -- Previous
+              offsetBackward = offsetBackward - 1
+            end
+            
+            if not protected[i + offsetForward] then -- When a protected point is reached, don't go farther in that direction
+              nX, nY = data[i + offsetForward], data[-(i + offsetForward)] -- Next
+              offsetForward = offsetForward + 1
+            end
+            
+            if pX and nX then
+              local prevSlope = (cY - pY) / (cX - pX)
+              local nextSlope = (nY - cY) / (nX - cX)
+              
+              local angleR = math.atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
+              if 0 > angleR then angleR = -angleR end
+              local angleD = 180 - math.deg(angleR)
+              
+              if (angleD > 175) then
+                badPoints[i] = true -- Flagged for removal
+                removed = removed + 1
+                
+                print("Start:", i + offsetBackward, "Current:", i, "Stop:", i + offsetForward)
+                break
+              end
+              
+              count = count + 1
+              
+              if count > 1000 then
+                debug("HIT SAFETY NET!")
+                break
+              end
+            else -- No data for this offset in at least one direction
+              break
+            end
+          end
+        end
       end
       
-      -- if not badPoints[i] then
-      --   local index = i
-      --   while (not protected[index]) and data[index - 1] do
-      --     local pX, pY = data[index - 1], data[-(index - 1)] -- Previous
-      --     local cX, cY = data[index], data[-index] -- Current
-      --     local nX, nY = data[index + 1], data[-(index + 1)] -- Next
-      --
-      --     local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
-      --     local nextSlope = (nY - cY) / (nX - cX)
-      --
-      --     -- if ((prevSlope > 0) and (0 > nextSlope)) or ((0 > prevSlope) and (nextSlope > 0)) then
-      --     --   break
-      --     -- end
-      --
-      --     local prevAngle = angles[index - 1] or 0
-      --     local currentAngle = angles[index] or 0
-      --     local nextAngle = angles[index + 1] or 0
-      --
-      --     -- print(index, prevAngle, currentAngle, nextAngle)
-      --
-      --     if (not badPoints[index]) and (prevAngle > 175) and (nextAngle > 175) then
-      --       badPoints[index] = true -- Flagged for removal
-      --       -- print(index, "found")
-      --       count = count + 1
-      --     end
-      --
-      --     index = index - 1
-      --   end
-      -- end
-      
+      lastPrev = prevSlope
+      lastNext = nextSlope
       prevDiff = difference
       prevAngleD = angleD
     end
   end
-  
-  print("Filtered an extra:", count)
   
   if removed > 0 then
     for i = first, last do
@@ -1628,7 +1588,168 @@ function CT:filteringAlgorithm(data, first, last, angle)
   wipe(newData)
   wipe(badPoints)
   wipe(protected)
-  wipe(angles)
+  
+  -- local startNum = (last - first + 1)
+  -- local percent = ((removed / startNum) * 100)
+  -- debug(percent .. "% of points filtered with an angle of", angle, "\nRemaining:", #data, "\nRemoved:", removed, "\nRemoved by match:", removedMatch, "\nRemoved by angle:", removedAngle)
+  data.smoothedPoint = #data
+  debug("Smoothing done:", #data)
+  
+  return data.smoothedPoint
+end
+
+local badPoints = {}
+local newData = {}
+local protected = {}
+function CT:filteringAlgorithm(data, first, last, angle)
+  if 1 > (last - first) then return #data, debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+  
+  debug("Smoothing from:", first, "to:", last)
+  
+  angle = angle or 100
+  if angle > 179 then
+    angle = 179
+  elseif angle < 90 then
+    angle = 90
+  end
+  
+  local removed = 0
+  local removedAngle = 0
+  local removedMatch = 0
+  local protectNext = nil
+  local prevAngleD = nil
+  local count = 0
+  local prevDiff = 0
+  local lastPrev = 0
+  local lastNext = 0
+  
+  for i = first, last do
+    local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+    local cX, cY = data[i], data[-i] -- Current
+    local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+    
+    if pX and nX and (not protected[i]) then
+      local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
+      local nextSlope = (nY - cY) / (nX - cX)
+      
+      local prevDist = sqrt((cX - pX)^2 + (cY - pY)^2)
+      local nextDist = sqrt((nX - cX)^2 + (nY - cY)^2)
+      local bottDist = sqrt((nX - pX)^2 + (nY - pY)^2)
+      
+      local angleR = math.atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
+      if 0 > angleR then angleR = -angleR end
+      local angleD = 180 - math.deg(angleR)
+      
+      local difference = angleD - (prevAngleD or 0)
+      if 0 > difference then difference = -difference end
+      
+      if ((prevSlope > 0)  and (nextSlope < 0)) -- Was going up, now going down forming a peak
+      or ((prevSlope < 0)  and (nextSlope > 0)) -- Was going down, now going up forming a valley
+      or ((prevSlope == 0) and (nextSlope > 0)) -- Was flat, now going up
+      or ((prevSlope == 0) and (0 > nextSlope)) -- Was flat, now going down
+      then -- Passed, so protect the points that form this from being deleted during this filter call
+        protected[i - 1] = true
+        protected[i] = true
+        protected[i + 1] = true
+      elseif (prevSlope == nextSlope) then -- Not a peak or valley
+        badPoints[i] = true -- Flagged for removal
+        removed = removed + 1
+        removedMatch = removedMatch + 1
+      -- elseif (angleD == prevAngleD) then
+      --   badPoints[i] = true -- Flagged for removal
+      --   removed = removed + 1
+      --   removedMatch = removedMatch + 1
+      elseif angleD > 175 then
+        badPoints[i] = true -- Flagged for removal
+        removed = removed + 1
+        removedAngle = removedAngle + 1
+      else
+        if (not protected[i]) and (not badPoints[i]) then
+          local pX, pY = data[i - 2], data[-(i - 2)] -- Previous
+          local nX, nY = data[i + 2], data[-(i + 2)] -- Next
+          
+          local count = 0 -- The offset from i
+          local offsetBackward = -1
+          local offsetForward = 1
+          while true do -- Keep creating ever larger triangles, with current (meaning i) as the middle point
+            if not protected[i + offsetBackward] then -- When a protected point is reached, don't go farther in that direction
+              pX, pY = data[i + offsetBackward], data[-(i + offsetBackward)] -- Previous
+              offsetBackward = offsetBackward - 1
+            end
+            
+            if not protected[i + offsetForward] then -- When a protected point is reached, don't go farther in that direction
+              nX, nY = data[i + offsetForward], data[-(i + offsetForward)] -- Next
+              offsetForward = offsetForward + 1
+            end
+            
+            if pX and nX then
+              local prevSlope = (cY - pY) / (cX - pX)
+              local nextSlope = (nY - cY) / (nX - cX)
+              
+              local angleR = math.atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
+              if 0 > angleR then angleR = -angleR end
+              local angleD = 180 - math.deg(angleR)
+              
+              if (angleD > 175) then
+                badPoints[i] = true -- Flagged for removal
+                removed = removed + 1
+                
+                print("Start:", i + offsetBackward, "Current:", i, "Stop:", i + offsetForward)
+                break
+              end
+              
+              count = count + 1
+              
+              if count > 1000 then
+                debug("HIT SAFETY NET!")
+                break
+              end
+            else -- No data for this offset in at least one direction
+              break
+            end
+          end
+        end
+      end
+      
+      lastPrev = prevSlope
+      lastNext = nextSlope
+      prevDiff = difference
+      prevAngleD = angleD
+    end
+  end
+  
+  if removed > 0 then
+    for i = first, last do
+      if (not badPoints[i]) then -- The point was not flagged to be removed
+        local num = #newData + 1
+        newData[num] = data[i]
+        newData[-num] = data[-i]
+      end
+    end
+    
+    local num = first - 1
+    for i = 1, #data do
+      if newData[i] then
+        data[i + num] = newData[i]
+        data[-(i + num)] = newData[-i]
+      else
+        if self.lines[i] then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
+          local line = self.lines[i]
+          lineCache[#lineCache + 1] = line
+          line:ClearAllPoints()
+          line:Hide()
+          self.lines[i] = nil
+        end
+    
+        data[i + num] = nil
+        data[-(i + num)] = nil
+      end
+    end
+  end
+  
+  wipe(newData)
+  wipe(badPoints)
+  wipe(protected)
   
   -- local startNum = (last - first + 1)
   -- local percent = ((removed / startNum) * 100)
@@ -3839,6 +3960,16 @@ function CT:buildGraphTest()
     dot.texture:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
     dot.texture:SetAllPoints()
     dot:Hide()
+    
+    local text = dot:CreateFontString("CombatTracker_Graph_Frame_Dot_Text", "ARTWORK")
+    text:SetPoint("BOTTOMLEFT", dot, "TOPRIGHT")
+    text:SetFont("Fonts\\FRIZQT__.TTF", 26, "OUTLINE")
+    text:SetTextColor(0.95, 0.95, 1.0, 1)
+    text:SetJustifyH("LEFT")
+    text:SetShadowOffset(1, -1)
+    text:SetText(random(1, 100))
+    
+    dot.text = text
   end
 
   do -- Drag Overlay
@@ -4044,6 +4175,7 @@ function CT:buildGraphTest()
       local Y = (startY + offSetY) - (dot:GetHeight() / 2)
       
       dot:SetPoint("BOTTOM", mouseOver, 0, Y)
+      dot.text:SetText(num or "No num")
     end
 
     -- do -- Calculate timer and set it as the tooltip's title
@@ -4858,7 +4990,7 @@ if true then -- Coroutine test
     return graph
   end
 
-  local speed = 0.01
+  local speed = 0.2
   local variation = 1.0
   
   local function createData(numPoints, variation, seed)

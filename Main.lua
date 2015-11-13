@@ -71,7 +71,7 @@ if addon.profile then -- profile code in here
     end
   end
 
-  local function profileCode()
+  local function profileCode_OLD()
     local f = CreateFrame("Frame")
     local func = nil
     local time = GetTime()
@@ -101,6 +101,50 @@ if addon.profile then -- profile code in here
     collectgarbage("setpause", 10000)
     local start = debugprofilestop()
     
+    for i = 1, loop do
+      
+    end
+
+    local MS = debugprofilestop() - start
+
+    local MSper = (MS / loop)
+
+    C_Timer.After(2 + (MS / 1000), function()
+      print("Time: \nMS:", MS, "\nIn 1 MS:", round(1 / MSper, 1), "\n")
+      local preGC = collectgarbage("count")
+      collectgarbage("collect")
+      collectgarbage("setpause", 100)
+      local KB = (preGC-collectgarbage("count"))
+
+      local MB = KB / 1000
+      local KBper = KB / loop
+
+      print("Garbage: \nMB:", round(MB, 3), "\nNeeded for 1 KB:", round(1 / KBper, 5))
+    end)
+  end
+  
+  local function profileCode()
+    local f = CreateFrame("Frame")
+
+    -- local loop = 10
+    -- local loop = 50
+    -- local loop = 100
+    -- local loop = 1000
+    -- local loop = 10000 -- 10 thousand
+    -- local loop = 100000 -- 100 thousand
+    -- local loop = 500000 -- 500 thousand
+    local loop = 1000000 -- 1 million
+    -- local loop = 10000000 -- 10 million
+    -- local loop = 100000000 -- 100 million
+
+    local t = {}
+
+    local loop = loop or 1
+    
+    collectgarbage("collect")
+    collectgarbage("setpause", 10000)
+    
+    local start = debugprofilestop()
     for i = 1, loop do
       
     end
@@ -230,10 +274,6 @@ local testMode = false
 local trackingOnLogIn = false
 local loadBaseOnLogin = false
 local expandBaseOnLogin = false
-
-do
-  print("Test")
-end
 
 local debugMode = false
 do -- Debugging stuff
