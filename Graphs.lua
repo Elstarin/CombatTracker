@@ -1,7 +1,7 @@
-local name, addon = ...
+local addonName, CombatTracker = ...
 
-if name ~= "CombatTracker" then return end
-if addon.profile then return end
+if not CombatTracker then return end
+if CombatTracker.profile then return end
 --------------------------------------------------------------------------------
 -- Locals, Frames, and Tables
 --------------------------------------------------------------------------------
@@ -1100,6 +1100,8 @@ function CT:buildUptimeGraph(relativeFrame)
       end
     end
 
+    local titleValue
+    local textValue
     if line then
       local timer = ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) or 0
       local startX = data[num] or data[#data]
@@ -1109,12 +1111,14 @@ function CT:buildUptimeGraph(relativeFrame)
         highlightLine:Show()
         highlightLine:SetAllPoints(line)
         highlightLine:SetAlpha(1)
-        text = ("Time: %s%s - %s\n|r%s: %s%.2f"):format(YELLOW, formatTimer(startX), formatTimer(stopX), "Active", YELLOW, stopX - startX)
+        titleValue = ("Time: |cFFFFFF00%s - %s|r"):format(formatTimer(startX), formatTimer(stopX))
+        text = ("Active: |cFFFFFF00%.2f"):format(stopX - startX)
       else -- Handle hidden lines
         highlightLine:Show()
         highlightLine:SetAllPoints(line)
         highlightLine:SetAlpha(0.3)
-        text = ("Time: %s%s - %s\n|rGap: %s%.2f"):format(YELLOW, formatTimer(startX), formatTimer(stopX), YELLOW, stopX - startX)
+        titleValue = ("Time: |cFFFFFF00%s - %s|r"):format(formatTimer(startX), formatTimer(stopX))
+        text = ("Gap: |cFFFFFF00%.2f"):format(stopX - startX)
       end
     end
 
@@ -1162,20 +1166,20 @@ function CT:buildUptimeGraph(relativeFrame)
       end
     end
 
-    mouseOver.info = text
+    CT.updateTooltip(titleValue, text)
   end)
 
   graphFrame:SetScript("OnEnter", function(self)
     CT.mouseFrameBorder(self.bg)
     mouseOver:Show()
-    CT.createInfoTooltip(mouseOver, (self.displayed and self.displayed.name) or "Uptime Graph")
+    CT.setTooltip(mouseOver, 10, 0) -- Create/show the tooltip
   end)
 
   graphFrame:SetScript("OnLeave", function(self)
     CT.mouseFrameBorder()
     mouseOver:Hide()
     highlightLine:Hide()
-    CT.createInfoTooltip()
+    CT.setTooltip() -- Hide the tooltip
   end)
 
   graphFrame:SetScript("OnMouseUp", function(self, button)
@@ -1358,252 +1362,8 @@ end
 
 local badPoints = {}
 local newData = {}
-local function filteringAlgorithmNoLoss(data, first, last) -- Filtering points with no accuracy loss
-  if 1 > (last - first) then return debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
-  
-  wipe(newData)
-  wipe(badPoints)
-  
-  local countSlope = 0
-  local countValley = 0
-  local countPeak = 0
-  local countPercent = 0
-  local removed = 0
-  
-  for i = first, last do
-    local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
-    local cX, cY = data[i], data[-i] -- Current
-    local nX, nY = data[i + 1], data[-(i + 1)] -- Next
-    
-    if pX and nX then
-      local prevSlope = (pY - cY) / (pX - cX)
-      local nextSlope = (nY - cY) / (nX - cX)
-      local combined = (nY - pY) / (nX - pX)
-      if 0 > combined then combined = -combined end
-      
-      if (prevSlope > 0) and (nextSlope < 0) then -- Peak NOTE: Can error, point can be nil
-        badPoints[i] = nil
-      elseif (prevSlope < 0) and (nextSlope > 0) then -- Valley
-        badPoints[i] = nil
-      elseif combined > 0 and 5 > combined then
-        countPercent = countPercent + 1
-        badPoints[i] = true -- Flagged for removal
-        removed = removed + 1
-      elseif (prevSlope == nextSlope) then -- Not a peak or valley
-        countSlope = countSlope + 1
-        removed = removed + 1
-        badPoints[i] = true -- Flagged for removal
-      else
-        -- local percent = 100 - (nextSlope / prevSlope) * 100
-        
-        local percent = (nextSlope / prevSlope) * 100
-        if 0 >= percent then percent = -percent end
-        
-        if (percent > 99) then
-          countPercent = countPercent + 1
-          badPoints[i] = true -- Flagged for removal
-          removed = removed + 1
-        else
-          -- print(i, percent)
-        end
-      end
-    end
-  end
-  
-  local startNum = #data
-  
-  if removed > 0 then
-    for i = first, last do
-      if (not badPoints[i]) then -- The point was not flagged to be removed
-        local num = #newData + 1
-        newData[num] = data[i]
-        newData[-num] = data[-i]
-      end
-    end
-    
-    local num = first - 1
-    for i = 1, #data do
-      data[i + num] = newData[i]
-      data[-(i + num)] = newData[-i]
-    end
-
-    local percent = (#data / startNum) * 100 .. "%"
-    debug("Removed", percent, "Remaining:", #data, "Slope:", countSlope, "Percent:", countPercent, "Valley:", countValley, "Peak:", countPeak)
-    
-    data.filterStop = #data
-  else
-    debug("Didn't remove any points")
-  end
-end
-
-local badPoints = {}
-local newData = {}
 local protected = {}
-function CT:filteringAlgorithm_MIGHT_WORK(data, first, last, angle)
-  if 1 > (last - first) then return #data, debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
-  
-  debug("Smoothing from:", first, "to:", last)
-  
-  angle = angle or 175
-  if angle > 179 then
-    angle = 179
-  elseif angle < 90 then
-    angle = 90
-  end
-  
-  local removed = 0
-  local removedAngle = 0
-  local removedMatch = 0
-  local protectNext = nil
-  local prevAngleD = nil
-  local count = 0
-  local prevDiff = 0
-  local lastPrev = 0
-  local lastNext = 0
-  
-  for i = first, last do
-    local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
-    local cX, cY = data[i], data[-i] -- Current
-    local nX, nY = data[i + 1], data[-(i + 1)] -- Next
-    
-    if pX and nX and (not protected[i]) then
-      local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
-      local nextSlope = (nY - cY) / (nX - cX)
-      
-      local prevDist = sqrt((cX - pX)^2 + (cY - pY)^2)
-      local nextDist = sqrt((nX - cX)^2 + (nY - cY)^2)
-      local bottDist = sqrt((nX - pX)^2 + (nY - pY)^2)
-      
-      local angleR = math.atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
-      if 0 > angleR then angleR = -angleR end
-      local angleD = 180 - math.deg(angleR)
-      
-      local difference = angleD - (prevAngleD or 0)
-      if 0 > difference then difference = -difference end
-      
-      if ((prevSlope > 0)  and (nextSlope < 0)) -- Was going up, now going down forming a peak
-      or ((prevSlope < 0)  and (nextSlope > 0)) -- Was going down, now going up forming a valley
-      or ((prevSlope == 0) and (nextSlope > 0)) -- Was flat, now going up
-      or ((prevSlope == 0) and (nextSlope < 0)) -- Was flat, now going down
-      or (nextSlope == 0)  and ((prevSlope > 0)) -- Was going up, now flat
-      or (nextSlope == 0)  and ((prevSlope < 0)) -- Was going down, now flat
-      then -- Passed, so protect the points that form this from being deleted during this filter call
-        protected[i - 1] = true
-        protected[i] = true
-        protected[i + 1] = true
-      elseif (prevSlope == nextSlope) then -- Not a peak or valley
-        badPoints[i] = true -- Flagged for removal
-        removed = removed + 1
-        removedMatch = removedMatch + 1
-      -- elseif (angleD == prevAngleD) then
-      --   badPoints[i] = true -- Flagged for removal
-      --   removed = removed + 1
-      --   removedMatch = removedMatch + 1
-      elseif angleD > 175 then
-        badPoints[i] = true -- Flagged for removal
-        removed = removed + 1
-        removedAngle = removedAngle + 1
-      else
-        if (not protected[i]) and (not badPoints[i]) then
-          local pX, pY = data[i - 2], data[-(i - 2)] -- Previous
-          local nX, nY = data[i + 2], data[-(i + 2)] -- Next
-          
-          local count = 0 -- The offset from i
-          local offsetBackward = -1
-          local offsetForward = 1
-          while true do -- Keep creating ever larger triangles, with current (meaning i) as the middle point
-            if not protected[i + offsetBackward] then -- When a protected point is reached, don't go farther in that direction
-              pX, pY = data[i + offsetBackward], data[-(i + offsetBackward)] -- Previous
-              offsetBackward = offsetBackward - 1
-            end
-            
-            if not protected[i + offsetForward] then -- When a protected point is reached, don't go farther in that direction
-              nX, nY = data[i + offsetForward], data[-(i + offsetForward)] -- Next
-              offsetForward = offsetForward + 1
-            end
-            
-            if pX and nX then
-              local prevSlope = (cY - pY) / (cX - pX)
-              local nextSlope = (nY - cY) / (nX - cX)
-              
-              local angleR = math.atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
-              if 0 > angleR then angleR = -angleR end
-              local angleD = 180 - math.deg(angleR)
-              
-              if (angleD > 175) then
-                badPoints[i] = true -- Flagged for removal
-                removed = removed + 1
-                
-                print("Start:", i + offsetBackward, "Current:", i, "Stop:", i + offsetForward)
-                break
-              end
-              
-              count = count + 1
-              
-              if count > 1000 then
-                debug("HIT SAFETY NET!")
-                break
-              end
-            else -- No data for this offset in at least one direction
-              break
-            end
-          end
-        end
-      end
-      
-      lastPrev = prevSlope
-      lastNext = nextSlope
-      prevDiff = difference
-      prevAngleD = angleD
-    end
-  end
-  
-  if removed > 0 then
-    for i = first, last do
-      if (not badPoints[i]) then -- The point was not flagged to be removed
-        local num = #newData + 1
-        newData[num] = data[i]
-        newData[-num] = data[-i]
-      end
-    end
-    
-    local num = first - 1
-    for i = 1, #data do
-      if newData[i] then
-        data[i + num] = newData[i]
-        data[-(i + num)] = newData[-i]
-      else
-        if self.lines[i] then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
-          local line = self.lines[i]
-          lineCache[#lineCache + 1] = line
-          line:ClearAllPoints()
-          line:Hide()
-          self.lines[i] = nil
-        end
-    
-        data[i + num] = nil
-        data[-(i + num)] = nil
-      end
-    end
-  end
-  
-  wipe(newData)
-  wipe(badPoints)
-  wipe(protected)
-  
-  -- local startNum = (last - first + 1)
-  -- local percent = ((removed / startNum) * 100)
-  -- debug(percent .. "% of points filtered with an angle of", angle, "\nRemaining:", #data, "\nRemoved:", removed, "\nRemoved by match:", removedMatch, "\nRemoved by angle:", removedAngle)
-  data.smoothedPoint = #data
-  debug("Smoothing done:", #data)
-  
-  return data.smoothedPoint
-end
-
-local badPoints = {}
-local newData = {}
-local protected = {}
-function CT:filteringAlgorithm(data, first, last, angle)
+function CT:filteringAlgorithmNoLoss(data, first, last, angle)
   if 1 > (last - first) then return #data, debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
   
   angle = angle or 175
@@ -1625,12 +1385,6 @@ function CT:filteringAlgorithm(data, first, last, angle)
   local lastPrev = 0
   local lastNext = 0
   
-  if (last - first) > 500 then -- Use low accuracy filter
-    debug("Low accuracy filtering")
-  else
-    debug("High accuracy filtering")
-  end
-  
   for i = first, last do
     local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
     local cX, cY = data[i], data[-i] -- Current
@@ -1640,34 +1394,14 @@ function CT:filteringAlgorithm(data, first, last, angle)
       local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
       local nextSlope = (nY - cY) / (nX - cX)
       
-      -- local difference = angleD - (prevAngleD or 0)
-      -- if 0 > difference then difference = -difference end
-      
-      if (last - first) > 500 then -- Use low accuracy filter
-        if ((prevSlope > 0)  and (nextSlope < 0)) -- Was going up, now going down forming a peak
-        or ((prevSlope < 0)  and (nextSlope > 0)) -- Was going down, now going up forming a valley
-        then -- Passed, so protect the points that form this from being deleted during this filter call
-          angle = 150
-          protected[i - 1] = true
-          protected[i] = true
-          protected[i + 1] = true
-        end
-      else -- High accuracy
-        if ((prevSlope > 0)  and (nextSlope < 0)) -- Was going up, now going down forming a peak
-        or ((prevSlope < 0)  and (nextSlope > 0)) -- Was going down, now going up forming a valley
-        or ((prevSlope == 0) and (nextSlope > 0)) -- Was flat, now going up
-        or ((prevSlope == 0) and (nextSlope < 0)) -- Was flat, now going down
-        or (nextSlope == 0)  and ((prevSlope > 0)) -- Was going up, now flat
-        or (nextSlope == 0)  and ((prevSlope < 0)) -- Was going down, now flat
-        then -- Passed, so protect the points that form this from being deleted during this filter call
-          protected[i - 1] = true
-          protected[i] = true
-          protected[i + 1] = true
-        end
-      end
-        
-      if protected[i] then -- Got filtered above, no need to do anything with it
-        -- Just here to stop the others from passing
+      if ((prevSlope > 0)  and (nextSlope < 0)) -- Was going up, now going down forming a peak
+      or ((prevSlope < 0)  and (nextSlope > 0)) -- Was going down, now going up forming a valley
+      or ((prevSlope == 0) and (nextSlope > 0)) -- Was flat, now going up
+      or ((prevSlope == 0) and (nextSlope < 0)) -- Was flat, now going down
+      or (nextSlope == 0)  and ((prevSlope > 0)) -- Was going up, now flat
+      or (nextSlope == 0)  and ((prevSlope < 0)) -- Was going down, now flat
+      then
+        protected[i] = true
       elseif (prevSlope == nextSlope) then -- Not a peak or valley
         badPoints[i] = true -- Flagged for removal
         removed = removed + 1
@@ -1677,7 +1411,7 @@ function CT:filteringAlgorithm(data, first, last, angle)
         if 0 > angleR then angleR = -angleR end
         local angleD = 180 - deg(angleR)
         
-        if angleD > 150 then
+        if angleD > 90 then
           badPoints[i] = true
           removed = removed + 1
           removedAngle = removedAngle + 1
@@ -1767,6 +1501,8 @@ function CT:filteringAlgorithm(data, first, last, angle)
     end
   end
   
+  local protectedNum = #protected
+  
   wipe(newData)
   wipe(badPoints)
   wipe(protected)
@@ -1775,7 +1511,302 @@ function CT:filteringAlgorithm(data, first, last, angle)
   -- local percent = ((removed / startNum) * 100)
   -- debug(percent .. "% of points filtered with an angle of", angle, "\nRemaining:", #data, "\nRemoved:", removed, "\nRemoved by match:", removedMatch, "\nRemoved by angle:", removedAngle)
   data.smoothedPoint = #data
-  debug("Smoothing done:", #data)
+  debug("Smoothing done:", #data, "protected:", protectedNum)
+  
+  return data.smoothedPoint
+end
+
+local badPoints = {}
+local newData = {}
+local protected = {}
+function CT:filteringAlgorithmLowAccuracy(data, first, last, angle)
+  if 1 > (last - first) then return #data, debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+  
+  angle = angle or 175
+  if angle > 179 then
+    angle = 179
+  elseif angle < 90 then
+    angle = 90
+  end
+  
+  local angle = 175
+  
+  debug("LOW ACCURACY: Smoothing from:", first, "to:", last, "with an angle of", angle)
+  
+  local removed = 0
+  local removedAngle = 0
+  local removedMatch = 0
+  local protectNext = nil
+  local prevAngleD = nil
+  local count = 0
+  local prevDiff = 0
+  local lastPrev = 0
+  local lastNext = 0
+  
+  for i = first, last do
+    local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+    local cX, cY = data[i], data[-i] -- Current
+    local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+    
+    if pX and nX then
+      local prevSlope = (cY - pY) / (cX - pX)
+      local nextSlope = (nY - cY) / (nX - cX)
+      
+      if ((prevSlope > 0)  and (nextSlope < 0)) -- Was going up, now going down forming a peak
+      or ((prevSlope < 0)  and (nextSlope > 0)) -- Was going down, now going up forming a valley
+      or ((prevSlope == 0) and (nextSlope > 0)) -- Was flat, now going up
+      or ((prevSlope == 0) and (nextSlope < 0)) -- Was flat, now going down
+      or ((nextSlope == 0) and (prevSlope > 0)) -- Was going up, now flat
+      or ((nextSlope == 0) and (prevSlope < 0)) -- Was going down, now flat
+      then
+        
+      else
+        badPoints[i] = true
+        removed = removed + 1
+      end
+    end
+  end
+  
+  if removed > 0 then
+    for i = first, last do
+      if (not badPoints[i]) then -- The point was not flagged to be removed
+        local num = #newData + 1
+        newData[num] = data[i]
+        newData[-num] = data[-i]
+      end
+    end
+    
+    local num = first - 1
+    for i = 1, #data do
+      if newData[i] then
+        data[i + num] = newData[i]
+        data[-(i + num)] = newData[-i]
+      else
+        if self.lines[i] then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
+          local line = self.lines[i]
+          lineCache[#lineCache + 1] = line
+          line:ClearAllPoints()
+          line:Hide()
+          self.lines[i] = nil
+        end
+    
+        data[i + num] = nil
+        data[-(i + num)] = nil
+      end
+    end
+  end
+  
+  local protectedNum = #protected
+  
+  wipe(newData)
+  wipe(badPoints)
+  wipe(protected)
+  
+  -- local startNum = (last - first + 1)
+  -- local percent = ((removed / startNum) * 100)
+  -- debug(percent .. "% of points filtered with an angle of", angle, "\nRemaining:", #data, "\nRemoved:", removed, "\nRemoved by match:", removedMatch, "\nRemoved by angle:", removedAngle)
+  data.smoothedPoint = #data
+  debug("Smoothing done:", #data, "protected:", protectedNum)
+  
+  if count > 0 then
+    debug("Count was:", count)
+  end
+  
+  return data.smoothedPoint
+end
+
+local badPoints = {}
+local newData = {}
+local protected = {}
+function CT:filteringAlgorithm(data, first, last, angle)
+  if 1 > (last - first) then return #data, debug("Cancelling filter!") end -- Don't let it through if it was only called for 1, it will just remove it
+  
+  angle = angle or 175
+  if angle > 179 then
+    angle = 179
+  elseif angle < 90 then
+    angle = 90
+  end
+  
+  local angle = 175
+  
+  -- local total = (last - first)
+  -- if total > 500 then
+  --   return CT.filteringAlgorithmLowAccuracy(self, data, first, last, angle)
+  -- end
+  
+  debug("Smoothing from:", first, "to:", last, "with an angle of", angle)
+  
+  local graphWidth, graphHeight = self.frame:GetSize()
+  local maxX = self.XMax
+  local minX = self.XMin
+  local maxY = self.YMax
+  local minY = self.YMin
+  
+  local removed = 0
+  local removedAngle = 0
+  local removedMatch = 0
+  local protectNext = nil
+  local prevAngleD = nil
+  local count = 0
+  local prevDiff = 0
+  local lastPrev = 0
+  local lastNext = 0
+  
+  for i = first, last do
+    local pX, pY = data[i - 1], data[-(i - 1)] -- Previous
+    local cX, cY = data[i], data[-i] -- Current
+    local nX, nY = data[i + 1], data[-(i + 1)] -- Next
+    
+    if pX and nX then
+      local startX = graphWidth * (data[i - 1] - minX) / (maxX - minX)
+      local stopX = graphWidth * (data[i] - minX) / (maxX - minX)
+      
+      local startY = graphHeight * (data[-(i - 1)] - minY) / (maxY - minY)
+      local stopY = graphHeight * (data[-i] - minY) / (maxY - minY)
+      
+      local prevSlope = (cY - pY) / (cX - pX) -- local prevSlope = (pY - cY) / (pX - cX)
+      local nextSlope = (nY - cY) / (nX - cX)
+      
+      local difference = nextSlope - prevSlope
+      if 0 > difference then difference = -difference end
+      
+      if ((prevSlope > 0) and (nextSlope <= 0)) and (difference ~= prevDiff) then -- Was going up, now going down forming a peak
+        protected[i] = true
+      elseif ((prevSlope < 0) and (nextSlope >= 0)) and (difference ~= prevDiff) then -- Was going down, now going up forming a valley
+        protected[i] = true
+      elseif (prevSlope == nextSlope) then -- Not a peak or valley
+        badPoints[i] = true
+        removed = removed + 1
+        removedMatch = removedMatch + 1
+      else
+        local angleR = atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
+        if 0 > angleR then angleR = -angleR end
+        local angleD = 180 - deg(angleR)
+        
+        if angleD > angle then
+          badPoints[i] = true
+          removed = removed + 1
+          removedAngle = removedAngle + 1
+          -- count = count + 1
+        else
+          local pX, pY = data[i - 2], data[-(i - 2)] -- Previous
+          local nX, nY = data[i + 2], data[-(i + 2)] -- Next
+          
+          local loopCount = 1 -- The offset from i
+          local offsetBackward = -1
+          local offsetForward = 1
+          while true do -- Keep creating ever larger triangles, with current (meaning i) as the middle point
+            if not protected[i + offsetBackward] then -- When a protected point is reached, don't go farther in that direction
+              pX, pY = data[i + offsetBackward], data[-(i + offsetBackward)] -- Previous
+              offsetBackward = offsetBackward - 1
+            end
+            
+            if not protected[i + offsetForward] then -- When a protected point is reached, don't go farther in that direction
+              nX, nY = data[i + offsetForward], data[-(i + offsetForward)] -- Next
+              offsetForward = offsetForward + 1
+            end
+            
+            -- local pX, pY = data[i - 2], data[-(i - loopCount)] -- Previous
+            -- local nX, nY = data[i + 2], data[-(i + loopCount)] -- Next
+            
+            if pY and nY and pX and nX then
+              local prevSlope = (cY - pY) / (cX - pX)
+              local nextSlope = (nY - cY) / (nX - cX)
+              
+              local angleR = atan((prevSlope - nextSlope) / (1 + (prevSlope * nextSlope)))
+              if 0 > angleR then angleR = -angleR end
+              local angleD = 180 - deg(angleR)
+              
+              if (angleD > angle) then
+                badPoints[i] = true -- Flagged for removal
+                removed = removed + 1
+                count = count + 1
+                
+                -- print("Start:", i + offsetBackward, "Current:", i, "Stop:", i + offsetForward)
+                break
+              end
+              
+              loopCount = loopCount + 1
+              
+              if loopCount > (last + 1) then
+                debug("HIT SAFETY NET!")
+                break
+              end
+            else -- Missing prev or next data
+              break
+            end
+          end
+        end
+
+        -- if not badPoints[i] then
+        --   local prevDist = sqrt((cX - pX)^2 + (cY - pY)^2)
+        --   local nextDist = sqrt((nX - cX)^2 + (nY - cY)^2)
+        --   local bottDist = sqrt((nX - pX)^2 + (nY - pY)^2)
+        --
+        --   if (0.2 > prevDist) then
+        --     badPoints[i] = true
+        --     removed = removed + 1
+        --     print(i, "short")
+        --   elseif (0.2 > nextDist) then
+        --     badPoints[i] = true
+        --     removed = removed + 1
+        --     print(i, "short")
+        --   end
+        -- end
+      end
+      
+      lastPrev = prevSlope
+      lastNext = nextSlope
+      prevDiff = difference
+      prevAngleD = angleD
+    end
+  end
+  
+  if removed > 0 then
+    for i = first, last do
+      if (not badPoints[i]) then -- The point was not flagged to be removed
+        local num = #newData + 1
+        newData[num] = data[i]
+        newData[-num] = data[-i]
+      end
+    end
+    
+    local num = first - 1
+    for i = 1, #data do
+      if newData[i] then
+        data[i + num] = newData[i]
+        data[-(i + num)] = newData[-i]
+      else
+        if self.lines[i] then -- If a line exists, recycle it to be used later, instead of throwing it away and creating a new one
+          local line = self.lines[i]
+          lineCache[#lineCache + 1] = line
+          line:ClearAllPoints()
+          line:Hide()
+          self.lines[i] = nil
+        end
+    
+        data[i + num] = nil
+        data[-(i + num)] = nil
+      end
+    end
+  end
+  
+  local protectedNum = #protected
+  
+  wipe(newData)
+  wipe(badPoints)
+  wipe(protected)
+  
+  -- local startNum = (last - first + 1)
+  -- local percent = ((removed / startNum) * 100)
+  -- debug(percent .. "% of points filtered with an angle of", angle, "\nRemaining:", #data, "\nRemoved:", removed, "\nRemoved by match:", removedMatch, "\nRemoved by angle:", removedAngle)
+  data.smoothedPoint = #data
+  debug("Smoothing done:", #data, "protected:", protectedNum)
+  
+  if count > 0 then
+    debug("Count was:", count)
+  end
   
   return data.smoothedPoint
 end
@@ -1808,9 +1839,15 @@ function CT:refreshNormalGraph(reset, routine)
   if reset then
     self.endNum = 2
     
-    if (num - 100) > (data.smoothedPoint or 1) then
-      num = self:filter(data, (data.smoothedPoint or 1), num, 100)
-    end
+    local frame = self.frame.anchor or self.frame
+    frame.lastRefresh = GetTime()
+    
+    -- if (num - 100) > (data.smoothedPoint or 1) then
+    --   num = self:filter(data, (data.smoothedPoint or 1), num, 100)
+    -- end
+    
+    -- num = self:filter(data, (data.smoothedPoint or 1), num, 100)
+    num = self:filter(data, 1, num, 150)
 
     if num >= (1000) then -- The comparison number is after how many points do we want to switch to a coroutine (default 2000)
       self.refresh = wrap(CT.refreshNormalGraph)
@@ -3559,16 +3596,23 @@ function CT:buildGraph()
     local mouseX, mouseY = GetCursorPosition()
     local mouseX = (mouseX / UIScale)
     local mouseY = (mouseY / UIScale)
+    
+    local cTime = GetTime()
 
     self:SetPoint("LEFT", UIParent, mouseX, 0)
 
     local anchorLeft = graphFrame.anchor:GetLeft()
+    local lastRefresh = graphFrame.anchor.lastRefresh or graphFrame.lastRefresh
 
     if (self.lastMouseX or 0) == mouseX -- Check if it needs to be updated
     and (self.lastMouseY or 0) == mouseY
     and (self.zoomedStatus) == (graphFrame.zoomed) -- If it doesn't match, then graph was zoomed in or out since last update
     and (self.lastAnchorLeft or 0) == anchorLeft -- This is to see if the graph has been scrolled right/left
+    and cTime > ((lastRefresh or 0) + 0.1) -- A graph on this frame was refreshed very recently
     then return end -- If none of the checks failed, it shouldn't need to update
+    
+    graphFrame.lastRefresh = nil
+    graphFrame.anchor.lastRefresh = nil
 
     if not graphFrame.displayed[1] then -- No displayed graphs, reset values and return
       mouseOver.info = ""
@@ -3641,14 +3685,10 @@ function CT:buildGraph()
     end
 
     if not graph then -- Mouse is past the graph, or something went wrong. Either way, hide stuff and return
-      mouseOver.info = nil
-      mouseOver.tooltipTitle = nil
       dot:Hide()
-      CT.infoTooltip:Hide()
       return
     else
       dot:Show()
-      CT.infoTooltip:Show()
     end
 
     do -- Now that a graph is selected, return it to its full opacity, leaving the others faded
@@ -3671,20 +3711,18 @@ function CT:buildGraph()
       
       dot:SetPoint("BOTTOM", mouseOver, 0, Y)
     end
-
-    -- do -- Handle the dot's Y point
-    --   dot:SetPoint("BOTTOM", mouseOver, 0, stopY - 3) -- The - 3 seems to work okay, but it's arbitrary, and I'd love it if I could get rid of it...
-    -- end
-
+    
+    local titleValue
     do -- Calculate timer and set it as the tooltip's title
       local timer = graphFrame.zoomed or ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) -- grapheFrame.zoomed is storing the timer from when zoom began
       local current = mouseX - graph.lines[2]:GetLeft()
       local total = graph.lastLine:GetRight() - graph.lines[2]:GetLeft()
       local displayTimer = floor(timer * (current / total) + 0.5)
-
-      mouseOver.tooltipTitle = YELLOW .. formatTimer(displayTimer) .. "|r\n"
+      
+      titleValue = YELLOW .. formatTimer(displayTimer) .. "|r\n"
     end
 
+    local textValue
     if graph.displayText then -- Set the tooltip text
       local value = graph.data[-num]
       
@@ -3715,8 +3753,10 @@ function CT:buildGraph()
       
       graph.displayText[4] = floor(value)
       
-      mouseOver.info = table.concat(graph.displayText)
+      textValue = table.concat(graph.displayText)
     end
+    
+    CT.updateTooltip(titleValue, textValue)
 
     self.lastMouseX = mouseX
     self.lastMouseY = mouseY
@@ -3728,16 +3768,17 @@ function CT:buildGraph()
     CT.mouseFrameBorder(self.bg)
 
     mouseOver:Show()
-    CT.createInfoTooltip(mouseOver, "Graph")
+    
+    CT.setTooltip(mouseOver.dot, 5, 0) -- Create/show the tooltip
   end)
 
-  graphFrame:SetScript("OnLeave", function(graphFrame)
+  graphFrame:SetScript("OnLeave", function(self)
     CT.mouseFrameBorder()
+    CT.setTooltip() -- Hide the tooltip
     mouseOver:Hide()
-    CT.createInfoTooltip()
 
-    for index = 1, #graphFrame.displayed do -- Set them all back to their default alpha
-      local graph = graphFrame.displayed[index]
+    for index = 1, #self.displayed do -- Set them all back to their default alpha
+      local graph = self.displayed[index]
       local lines = graph.lines
       graph.overrideAlpha = nil
       local a = graph.color[4] or 1
@@ -4426,7 +4467,7 @@ function CT:buildGraphTest()
   return graphFrame
 end
 
-if true then -- Coroutine test
+if false then -- Coroutine test
   local base = CreateFrame("Frame", "TestGraphFrame", UIParent)
   do -- Set up frame
     base:SetPoint("CENTER", 0, 100)
@@ -4444,6 +4485,8 @@ if true then -- Coroutine test
     if not self.filter then self.filter = CT.filteringAlgorithm end
     
     offset = offset or 0
+    
+    if not offset then offset = 0 end
     
     local num = #self.data
     if num == 0 then return debug("Called graph refresh without any data points!", self.name) end
@@ -4992,7 +5035,6 @@ if true then -- Coroutine test
     graph.lines = {}
     graph.bars = {}
     graph.triangles = {}
-    graph.recycling = {}
     graph.frame = frame
     graph.XMax = 10
     graph.XMin = 0
@@ -5048,7 +5090,7 @@ if true then -- Coroutine test
         local data = graphs[index].data
         local num = #data + 1
 
-        data[num] = i * 0.1
+        data[num] = i
         data[-num] = y
         
         -- if index == 1 then
@@ -5065,59 +5107,61 @@ if true then -- Coroutine test
   end
   
   createGraph("Test_Graph_1") -- {0.5, 0.5, 0.5, 1.0}
-  -- createGraph("Test_Graph_2", {0.5, 0.5, 0.5, 1.0})
+  createGraph("Test_Graph_2", {0.5, 0.5, 0.5, 1.0})
   -- createGraph("Test_Graph_3", {0.0, 1.0, 0.5, 1.0})
   
-  -- createData(2000, variation)
+  createData(2000, variation)
   -- graphs[1]:filter(graphs[1].data, 1, #graphs[1].data, 90)
   
   graphs[1]:refresh(nil, nil, 0)
-  -- graphs[2]:refresh(nil, nil, 20)
+  graphs[2]:refresh(nil, nil, 200)
   -- graphs[3]:refresh(nil, nil, -5)
 
-  local start = nil
-  local prev = random(25, 75)
-  C_Timer.NewTicker(speed, function(ticker)
-    if not start then
-      start = GetTime() - (#graphs[1].data * speed)
-    end
-  
-    local timer = GetTime() - start
-  
-    local y = nil
-    if false then
-      local var = variation * 1000
-      local rNum = random(1, 3)
-  
-      local var = (random(-var, var) / 1000)
-  
-      if rNum == 3 then -- This is just so I can have the variation be a decimal, since random doesn't work with decimals
-        y = prev + var
-      elseif rNum == 2 then
-        y = prev
-      else
-        y = prev - var
-      end
-  
-      if 20 > y then y = 20 end
-      if y > 80 then y = 80 end
-    else
-      y = (UnitPower("player", 0) / UnitPowerMax("player", 0) * 100)
-    end
-  
-    for index = 1, #graphs do
-      local graph = graphs[index]
-      local data = graph.data
-      local num = #data + 1
-  
-      data[num] = timer
-      data[-num] = y
-  
-      if not graph.updating then graph:refresh() end
-    end
-  
-    prev = y
-  end)
+  -- local start = nil
+  -- local prev = random(25, 75)
+  -- C_Timer.NewTicker(speed, function(ticker)
+  --   if not start then
+  --     start = GetTime() - (#graphs[1].data * speed)
+  --   end
+  --
+  --   local timer = GetTime() - start
+  --
+  --   local y = nil
+  --   if false then
+  --     local var = variation * 1000
+  --     local rNum = random(1, 3)
+  --
+  --     local var = (random(-var, var) / 1000)
+  --
+  --     if rNum == 3 then -- This is just so I can have the variation be a decimal, since random doesn't work with decimals
+  --       y = prev + var
+  --     elseif rNum == 2 then
+  --       y = prev
+  --     else
+  --       y = prev - var
+  --     end
+  --
+  --     if 20 > y then y = 20 end
+  --     if y > 70 then y = 70 end
+  --   else
+  --     y = (UnitPower("player", 0) / UnitPowerMax("player", 0) * 100)
+  --   end
+  --
+  --   for index = 1, #graphs do
+  --     local graph = graphs[index]
+  --     local data = graph.data
+  --     local num = #data + 1
+  --
+  --     data[num] = timer
+  --     data[-num] = y
+  --
+  --     local offset = ((index - 1) * 200)
+  --
+  --     if not graph.updating then graph:refresh(nil, nil, offset) end
+  --   end
+  --
+  --   prev = y
+  -- end)
 end
 
 -- mouseOver:SetScript("OnUpdate", function(mouseOver, elapsed)

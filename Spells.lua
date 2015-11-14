@@ -1,73 +1,76 @@
--- This amazing list was completely done by the developer/developers of the addon Details!, which can be found at http://www.curse.com/addons/wow/details
--- This must have taken a lot of time to put together... Thank you very much for doing all this work!
+local addonName, CombatTracker = ...
 
-local name, addon = ...
-
-if name ~= "CombatTracker" then return end
-if addon.profile then return end
-
+if not CombatTracker then return end
+if CombatTracker.profile then return end
+--------------------------------------------------------------------------------
+-- Locals
+--------------------------------------------------------------------------------
 local CT = CombatTracker
 local debug = CT.debug
 local hasteCD = CT.hasteCD
+--------------------------------------------------------------------------------
+-- Power Tables
+--------------------------------------------------------------------------------
 CT.spells = {}
 
-CT.powerTypes = {}
-do
-  local t = CT.powerTypes
-  t[0] = "SPELL_POWER_MANA"
-  t[1] = "SPELL_POWER_RAGE"
-  t[2] = "SPELL_POWER_FOCUS"
-  t[3] = "SPELL_POWER_ENERGY"
-  t[4] = "SPELL_POWER_COMBO_POINTS"
-  t[5] = "SPELL_POWER_RUNES"
-  t[6] = "SPELL_POWER_RUNIC_POWER"
-  t[7] = "SPELL_POWER_SOUL_SHARDS"
-  t[8] = "SPELL_POWER_ECLIPSE"
-  t[9] = "SPELL_POWER_HOLY_POWER"
-  t[10] = "SPELL_POWER_ALTERNATE_POWER"
-  t[11] = "SPELL_POWER_DARK_FORCE"
-  t[12] = "SPELL_POWER_CHI"
-  t[13] = "SPELL_POWER_SHADOW_ORBS"
-  t[14] = "SPELL_POWER_BURNING_EMBERS"
-  t[15] = "SPELL_POWER_DEMONIC_FURY"
-  t["SPELL_POWER_MANA"] = 0
-  t["SPELL_POWER_RAGE"] = 1
-  t["SPELL_POWER_FOCUS"] = 2
-  t["SPELL_POWER_ENERGY"] = 3
-  t["SPELL_POWER_COMBO_POINTS"] = 4
-  t["SPELL_POWER_RUNES"] = 5
-  t["SPELL_POWER_RUNIC_POWER"] = 6
-  t["SPELL_POWER_SOUL_SHARDS"] = 7
-  t["SPELL_POWER_ECLIPSE"] = 8
-  t["SPELL_POWER_HOLY_POWER"] = 9
-  t["SPELL_POWER_ALTERNATE_POWER"] = 10
-  t["SPELL_POWER_DARK_FORCE"] = 11
-  t["SPELL_POWER_CHI"] = 12
-  t["SPELL_POWER_SHADOW_ORBS"] = 13
-  t["SPELL_POWER_BURNING_EMBERS"] = 14
-  t["SPELL_POWER_DEMONIC_FURY"] = 15
-end
+CT.powerTypes = {
+  [0] = "SPELL_POWER_MANA",
+  [1] = "SPELL_POWER_RAGE",
+  [2] = "SPELL_POWER_FOCUS",
+  [3] = "SPELL_POWER_ENERGY",
+  [4] = "SPELL_POWER_COMBO_POINTS",
+  [5] = "SPELL_POWER_RUNES",
+  [6] = "SPELL_POWER_RUNIC_POWER",
+  [7] = "SPELL_POWER_SOUL_SHARDS",
+  [8] = "SPELL_POWER_ECLIPSE",
+  [9] = "SPELL_POWER_HOLY_POWER",
+  [10] = "SPELL_POWER_ALTERNATE_POWER",
+  [11] = "SPELL_POWER_DARK_FORCE",
+  [12] = "SPELL_POWER_CHI",
+  [13] = "SPELL_POWER_SHADOW_ORBS",
+  [14] = "SPELL_POWER_BURNING_EMBERS",
+  [15] = "SPELL_POWER_DEMONIC_FURY",
+  ["SPELL_POWER_MANA"] = 0,
+  ["SPELL_POWER_RAGE"] = 1,
+  ["SPELL_POWER_FOCUS"] = 2,
+  ["SPELL_POWER_ENERGY"] = 3,
+  ["SPELL_POWER_COMBO_POINTS"] = 4,
+  ["SPELL_POWER_RUNES"] = 5,
+  ["SPELL_POWER_RUNIC_POWER"] = 6,
+  ["SPELL_POWER_SOUL_SHARDS"] = 7,
+  ["SPELL_POWER_ECLIPSE"] = 8,
+  ["SPELL_POWER_HOLY_POWER"] = 9,
+  ["SPELL_POWER_ALTERNATE_POWER"] = 10,
+  ["SPELL_POWER_DARK_FORCE"] = 11,
+  ["SPELL_POWER_CHI"] = 12,
+  ["SPELL_POWER_SHADOW_ORBS"] = 13,
+  ["SPELL_POWER_BURNING_EMBERS"] = 14,
+  ["SPELL_POWER_DEMONIC_FURY"] = 15,
+}
 
-CT.powerTypesFormatted = {}
-do
-  local t = CT.powerTypesFormatted
-  t[0] = "Mana"
-  t[1] = "Rage"
-  t[2] = "Focus"
-  t[3] = "Energy"
-  t[4] = "Combo Points"
-  t[5] = "Runes"
-  t[6] = "Runic Power"
-  t[7] = "Soul Shards"
-  t[8] = "Eclipse"
-  t[9] = "Holy Power"
-  t[10] = "Alternate Power"
-  t[11] = "Dark Force"
-  t[12] = "Chi"
-  t[13] = "Shadow Orbs"
-  t[14] = "Burning Embers"
-  t[15] = "Demonic Fury"
-end
+CT.powerTypesFormatted = {
+  [0] = "Mana",
+  [1] = "Rage",
+  [2] = "Focus",
+  [3] = "Energy",
+  [4] = "Combo Points",
+  [5] = "Runes",
+  [6] = "Runic Power",
+  [7] = "Soul Shards",
+  [8] = "Eclipse",
+  [9] = "Holy Power",
+  [10] = "Alternate Power",
+  [11] = "Dark Force",
+  [12] = "Chi",
+  [13] = "Shadow Orbs",
+  [14] = "Burning Embers",
+  [15] = "Demonic Fury",
+}
+--------------------------------------------------------------------------------
+-- Locals
+--------------------------------------------------------------------------------
+-- This amazing list was completely done by the developer/developers of the addon Details!, which can be found at http://www.curse.com/addons/wow/details
+-- This must have taken a lot of time to put together... Thank you very much for doing all this work!
 
 -- RE.ClassColors = {
 -- 	["HUNTER"] = "AAD372",

@@ -1,7 +1,7 @@
-local name, addon = ...
+local addonName, CombatTracker = ...
 
-if name ~= "CombatTracker" then return end
-if addon.profile then return end
+if not CombatTracker then return end
+if CombatTracker.profile then return end
 --------------------------------------------------------------------------------
 -- Locals, Frames, and Tables
 --------------------------------------------------------------------------------

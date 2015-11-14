@@ -32,14 +32,14 @@
 --------------------------------------------------------------------------------
 -- Locals, Frames, and Tables
 --------------------------------------------------------------------------------
-local addonName, addon = ...
+local addonName, CombatTracker = ...
 
 local version = GetAddOnMetadata(addonName, "Version")
 local locale = GetLocale()
 
-addon.profile = false
+CombatTracker.profile = false
 
-if addon.profile then -- profile code in here
+if CombatTracker.profile then -- profile code in here
   local infinity = math.huge
   local function round(num, decimals)
     if (num == infinity) or (num == -infinity) then num = 0 end
@@ -70,58 +70,6 @@ if addon.profile then -- profile code in here
       return ("%.0f"):format(num) + 0
     end
   end
-
-  local function profileCode_OLD()
-    local f = CreateFrame("Frame")
-    local func = nil
-    local time = GetTime()
-
-    -- local texture = f:CreateTexture(nil, "ARTWORK")
-
-    -- local loop = 10
-    -- local loop = 50
-    -- local loop = 100
-    -- local loop = 1000
-    -- local loop = 10000 -- 10 thousand
-    -- local loop = 100000 -- 100 thousand
-    -- local loop = 500000 -- 500 thousand
-    -- local loop = 1000000 -- 1 million
-    -- local loop = 10000000 -- 10 million
-    -- local loop = 100000000 -- 100 million
-
-    local t = {}
-    local start = debugprofilestop() / 1000
-
-    local loop = loop or 1
-    
-    local var1, var2, var3, var4, var5 = 1, 2, 3, 4, 5
-    local var6, var7, var8, var9, var10 = 1, 2, 3, 4, 5
-    
-    collectgarbage("collect")
-    collectgarbage("setpause", 10000)
-    local start = debugprofilestop()
-    
-    for i = 1, loop do
-      
-    end
-
-    local MS = debugprofilestop() - start
-
-    local MSper = (MS / loop)
-
-    C_Timer.After(2 + (MS / 1000), function()
-      print("Time: \nMS:", MS, "\nIn 1 MS:", round(1 / MSper, 1), "\n")
-      local preGC = collectgarbage("count")
-      collectgarbage("collect")
-      collectgarbage("setpause", 100)
-      local KB = (preGC-collectgarbage("count"))
-
-      local MB = KB / 1000
-      local KBper = KB / loop
-
-      print("Garbage: \nMB:", round(MB, 3), "\nNeeded for 1 KB:", round(1 / KBper, 5))
-    end)
-  end
   
   local function profileCode()
     local f = CreateFrame("Frame")
@@ -132,8 +80,8 @@ if addon.profile then -- profile code in here
     -- local loop = 1000
     -- local loop = 10000 -- 10 thousand
     -- local loop = 100000 -- 100 thousand
-    -- local loop = 500000 -- 500 thousand
-    local loop = 1000000 -- 1 million
+    local loop = 500000 -- 500 thousand
+    -- local loop = 1000000 -- 1 million
     -- local loop = 10000000 -- 10 million
     -- local loop = 100000000 -- 100 million
 
@@ -239,8 +187,6 @@ if addon.profile then -- profile code in here
   end
 
   return
-else
-  CombatTracker = LibStub("AceAddon-3.0"):NewAddon("CombatTracker", "AceConsole-3.0")
 end
 
 local CT = CombatTracker
@@ -284,10 +230,10 @@ do -- Debugging stuff
 
   if GetUnitName("player") == "Elstari" and GetRealmName() == "Drak'thul" then
     debugMode = true
-    -- testMode = true
-    -- trackingOnLogIn = true
-    -- loadBaseOnLogin = true
-    -- expandBaseOnLogin = true
+    testMode = true
+    trackingOnLogIn = true
+    loadBaseOnLogin = true
+    expandBaseOnLogin = true
     matched = true
   end
 
@@ -356,10 +302,10 @@ do -- Debugging stuff
       "\n\nYou can easily fix it by opening the Main.lua document with any text editor,",
       "and finding the line |cFF00CCFFlocal debugMode = true|r and changing the |cFF00CCFFtrue|r to |cFF00CCFFfalse|r. Sorry!")
   end
+  
+  -- CT.debug("This is a string test!", "Value is: 87% which (is a) percent", addon, addonName, version, locale, 187.9, 18, 93, "Holy Shock", "end string", strmatch)
 end
 local debug = CT.debug
-
--- debug("This is a string test!", "Value is: 87% which (is a) percent", addon, addonName, version, locale, 187.9, 18, 93, "Holy Shock", "end string", strmatch)
 
 CT.eventFrame = CreateFrame("Frame")
 --------------------------------------------------------------------------------
@@ -702,7 +648,7 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
     local name = ...
 
     if name == "CombatTracker" then
-
+      CT:OnEnable()
     end
   elseif event == "PLAYER_LOGIN" then
     CT.eventFrame:UnregisterEvent(event)
@@ -715,6 +661,10 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
     
     if testMode then
       C_Timer.After(1.0, function()
+        if loadBaseOnLogin then
+          CT.base:Show()
+        end
+        
         if CT.base then
           if CT.buttons[buttonClickNum] then
             CT.buttons[buttonClickNum]:Click("LeftButton")
@@ -730,7 +680,7 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
         end
       end)
       
-      if expandBaseOnLogin then
+      if loadBaseOnLogin and expandBaseOnLogin then
         C_Timer.After(2.5, function()
           CT:toggleBaseExpansion()
         end)
@@ -3239,7 +3189,7 @@ do -- Register general button functions
 
     function mouseEnterButton(self)
       -- local textString = ("The current button name is: %s"):format(self.name or "NO NAME!")
-      CT.setTooltip(self, self.titleString, self.textString)
+      CT.setTooltip(self, 0, 0, self.titleString, self.textString)
       
       self.background:SetTexture(0.13, 0.13, 0.13, 1.0)
       highlightButton = self
@@ -3333,6 +3283,7 @@ function CT:expanderFrame(command)
     f.anchor = CreateFrame("ScrollFrame", "CombatTracker_Expander_Scroll_Frame_Anchor", CT.base)
     f.anchor:SetScrollChild(f)
     f:SetAllPoints(f.anchor)
+    f:Hide() -- This is important so that the OnShow script will get called the first time
 
     f.anchor:SetPoint("TOPLEFT", CT.base.scroll.anchor, "TOPRIGHT", 10, 0)
     f.anchor:SetPoint("BOTTOMRIGHT", CT.base, -10, 10)
@@ -3382,15 +3333,19 @@ function CT:expanderFrame(command)
     f:SetScript("OnShow", function(self)
       if CT.displayed then
         -- CT.base.expander.titleData.rightText1:SetText(CT.displayedDB.setName or "None loaded.")
-
+        
         if self.graphFrame and not self.graphFrame.displayed[1] then -- No regular graph is loaded
           debug("No regular graph, loading default.")
 
           CT.loadDefaultGraphs()
           CT.finalizeGraphLength("line")
+        else
+          for i = 1, #self.graphFrame do
+            self.graphFrame[i]:refresh(true)
+          end
         end
 
-        if self.uptimeGraph and not self.uptimeGraph.displayed then -- No uptime graph is loaded
+        if self.uptimeGraphFrame and not self.uptimeGraphFrame.displayed then -- No uptime graph is loaded
           debug("No uptime graph, loading default.")
 
           CT.loadDefaultUptimeGraph()
@@ -3628,219 +3583,106 @@ function CT:expanderFrame(command)
   end
 end
 
-local function animateExpand(self, elapsed)
+local function runAnimationExpand(self, elapsed)
   local remaining = self.animation - GetTime()
-  
-  local baseWidth = self.stopBaseWidth - ((remaining / self.animationTotal) * (self.stopBaseWidth - self.startBaseWidth))
-  local anchorWidth = self.stopAnchorWidth - ((remaining / self.animationTotal) * (self.stopAnchorWidth - self.startAnchorWidth))
-  local buttonWidth = self.stopButtonWidth - ((remaining / self.animationTotal) * (self.stopButtonWidth - self.startButtonWidth))
-  
-  local y = -2
-  for i = 1, #self.scroll do
-    local b = self.scroll[i]
-    local mod = ((i + 1) % 2) + 1
-    
-    local p1, p2, p3, p4, p5 = unpack(b.points[1])
-    local Y = y + (remaining / self.animationTotal) * (p5 - y)
-    
-    b:ClearAllPoints()
-    b:SetPoint(p1, p2, p3, p4, Y)
-    b:SetPoint(unpack(b.points[2]))
-    b:SetWidth(buttonWidth)
-    
-    y = (y - 68)
-  end
-  
-  self:SetWidth(baseWidth)
-  self.scroll.anchor:SetWidth(anchorWidth)
-  self.scroll:SetAllPoints(self.scroll.anchor)
   
   if 0 >= remaining then -- Done
     self:SetScript("OnUpdate", nil)
-    self.animation = nil
+    
+    self:SetWidth(600)
+    
+    self.expander.anchor:SetPoint("TOPLEFT", self.scroll.anchor, "TOPRIGHT", 10, 0)
+    self.expander.anchor:SetPoint("BOTTOMRIGHT", self, -10, 10)
+    
+    self.scroll.anchor:SetWidth(100)
+    self.scroll.anchor:SetPoint("LEFT", self, 10, 0)
+    self.scroll.anchor:SetPoint("TOP", self, 0, -50)
+    self.scroll.anchor:SetPoint("BOTTOM", self, 0, 30)
+    self.scroll:SetAllPoints(self.scroll.anchor)
     
     local y = -2
     for i = 1, #self.scroll do
       local b = self.scroll[i]
       
-      b:ClearAllPoints()
-      b:SetPoint("TOP", self.scroll, "TOP", 0, y)
-      b:SetWidth(self.stopButtonWidth)
-      
-      y = (y - 68)
-    end
-  end
-end
-
-local function animateCollapse(self, elapsed)
-  local remaining = self.animation - GetTime()
-  
-  local baseWidth = self.stopBaseWidth - ((remaining / self.animationTotal) * (self.stopBaseWidth - self.startBaseWidth))
-  local anchorWidth = self.stopAnchorWidth - ((remaining / self.animationTotal) * (self.stopAnchorWidth - self.startAnchorWidth))
-  local buttonWidth = self.stopButtonWidth - ((remaining / self.animationTotal) * (self.stopButtonWidth - self.startButtonWidth))
-  
-  local y = -2
-  for i = 1, #self.scroll do
-    local b = self.scroll[i]
-    local mod = ((i + 1) % 2) + 1
-    
-    local p1, p2, p3, p4, p5 = unpack(b.points[1])
-    local Y = p5 + ((remaining / self.animationTotal) * y)
-    
-    b:ClearAllPoints()
-    b:SetPoint(p1, p2, p3, p4, Y)
-    b:SetPoint(unpack(b.points[2]))
-    b:SetWidth(buttonWidth)
-    
-    y = (y - 68)
-  end
-  
-  self:SetWidth(baseWidth)
-  self.scroll.anchor:SetWidth(anchorWidth)
-  self.scroll:SetAllPoints(self.scroll.anchor)
-  
-  if 0 >= remaining then -- Done
-    self:SetScript("OnUpdate", nil)
-    self.animation = nil
-    
-    self.scroll.anchor:ClearAllPoints()
-    self.scroll.anchor:SetPoint("TOPLEFT", self, 10, -50)
-    self.scroll.anchor:SetPoint("TOPRIGHT", self, -10, -50)
-    self.scroll.anchor:SetPoint("BOTTOMLEFT", self, 10, 30)
-    self.scroll.anchor:SetPoint("BOTTOMRIGHT", self, -10, 30)
-    self.scroll.anchor:SetSize(self.defaultWidth, self.defaultHeight)
-    self.scroll:SetAllPoints(self.scroll.anchor)
-    
-    for i = 1, #self.scroll do
-      local b = self.scroll[i]
-      
-      b.icon:ClearAllPoints()
-      b.value:ClearAllPoints()
-      
-      b.icon:SetPoint("LEFT", b, 7.5, 0)
-      b.value:SetPoint("LEFT", b.icon, "RIGHT")
-      b.value:SetPoint("RIGHT", b, 0, 0)
-    end
-    
-    self.scroll:setButtonAnchors()
-    
-    CT:expanderFrame()
-  end
-end
-
-function CT:toggleBaseExpansion(command) -- NOTE: Maybe make the sizing changes a percentage?
-  local f = self.base
-  local scroll = self.base.scroll
-  local width, height = f.defaultWidth, f.defaultHeight
-  local scrollOffsetX = 10
-  f.expandedWidth = width + width
-  
-  if not f.expander then
-    CT:expanderFrame(command)
-  end
-  
-  f.animationTotal = 0.3
-  f.animation = (GetTime() + f.animationTotal)
-  
-  if (command and command == "hide" and f.expanded) or (not command and f.expanded) then -- Collapse it
-    for i = 1, #scroll do
-      local b = scroll[i]
-    
-      b:ClearAllPoints()
-    end
-    
-    f.startBaseWidth = f:GetWidth()
-    f.stopBaseWidth = f.defaultWidth
-    
-    f.startAnchorWidth = 100
-    f.stopAnchorWidth = scroll.anchor.defaultWidth
-    
-    f.startButtonWidth = 90
-    f.stopButtonWidth = scroll[1].defaultWidth
-    
-    f.startBaseWidth = f:GetWidth()
-    f.stopBaseWidth = f.defaultWidth
-    
-    f.startAnchorWidth = 100
-    f.stopAnchorWidth = scroll.anchor.defaultWidth
-    
-    f.startButtonWidth = 90
-    f.stopButtonWidth = scroll[1].defaultWidth
-    
-    self.base:SetScript("OnUpdate", animateCollapse)
-    
-    f.expanded = false
-  elseif (command and command == "show" and not f.expanded) or (not command and not f.expanded) then -- Expand it
-    for i = 1, #scroll do
-      local b = scroll[i]
-      
-      b.icon:ClearAllPoints()
-      b.value:ClearAllPoints()
-      
+      b:SetPoint("TOPLEFT", self.scroll, 2, y)
+      b:SetPoint("TOPRIGHT", self.scroll, -2, y)
       b.icon:SetPoint("CENTER", b, 0, 0)
       b.value:SetPoint("CENTER", b.icon)
       
-      b:ClearAllPoints()
-    end
-    
-    -- f.defaultWidth, f.defaultHeight = f:GetSize()
-    scroll.anchor.defaultWidth, scroll.anchor.defaultHeight = scroll.anchor:GetSize()
-    
-    scroll.anchor:ClearAllPoints()
-    scroll.anchor:SetPoint("LEFT", f, 10, 0)
-    scroll.anchor:SetPoint("TOP", f, 0, -50)
-    scroll.anchor:SetPoint("BOTTOM", f, 0, 30)
-    scroll:SetAllPoints(scroll.anchor)
-    
-    f.startBaseWidth = f.defaultWidth
-    f.stopBaseWidth = f.expandedWidth
-    
-    f.startAnchorWidth = scroll.anchor:GetWidth()
-    f.stopAnchorWidth = 100
-    
-    f.startButtonWidth = scroll[1]:GetWidth()
-    f.stopButtonWidth = 90
-    
-    CT:expanderFrame(command)
-    
-    f:SetScript("OnUpdate", animateExpand)
-    
-    f.expanded = true
-  end
-end
-
-function CT:updatePoints(multiplier)
-  local X = multiplier * (self.stopPoints.width - self.startPoints.width)
-  self:SetWidth(self.startPoints.width + X)
-  
-  for i = 1, #self.startPoints do
-    local p = self.startPoints[1]
-    self:SetPoint(p[1], p[2], p[3], p[4], p[5])
-  end
-end
-
-local function runAnimation(self, elapsed)
-  local remaining = self.animation - GetTime()
-  
-  if 0 >= remaining then -- Done
-    self:SetScript("OnUpdate", nil)
-    
-    CT.setToStopPoints(self)
-    CT.setToStopPoints(self.expander.anchor)
-    CT.setToStopPoints(self.scroll.anchor)
-    
-    for i = 1, #self.scroll do
-      local b = self.scroll[i]
-      
-      CT.setToStopPoints(b)
-      CT.setToStopPoints(b.icon)
-      CT.setToStopPoints(b.value)
+      y = (y - 68)
     end
     
     return
   end
   
   local multiplier = 1 - (remaining / self.animationTotal)
+  
+  local f = self
+  do -- Handle the base frame
+    local width = multiplier * (f.stopPoints.width - f.startPoints.width)
+    local height = multiplier * (f.stopPoints.height - f.startPoints.height)
+    f:SetSize(f.startPoints.width + width, f.startPoints.height + height)
+  end
+  
+  local f = self.scroll.anchor
+  do -- Handle the scroll frame buttons are on
+    local width = multiplier * (f.stopPoints.width - f.startPoints.width)
+    local height = multiplier * (f.stopPoints.height - f.startPoints.height)
+    f:SetSize(f.startPoints.width + width, f.startPoints.height + height)
+  end
+  
+  local f = self.expander.anchor
+  do -- Expander sizing
+    local width = multiplier * (f.stopPoints.width - f.startPoints.width)
+    local height = multiplier * (f.stopPoints.height - f.startPoints.height)
+    f:SetSize(f.startPoints.width + width, f.startPoints.height + height)
+  end
+  
+  for i = 1, #self.scroll do
+    local b = self.scroll[i]
+  
+    local width = multiplier * (b.stopPoints.width - b.startPoints.width)
+    local height = multiplier * (b.stopPoints.height - b.startPoints.height)
+    b:SetSize(b.startPoints.width + width, b.startPoints.height + height)
+    
+    local X = multiplier * (b.stopPoints.centerX - b.startPoints.centerX)
+    local Y = multiplier * (b.stopPoints.centerY - b.startPoints.centerY)
+    
+    b:ClearAllPoints()
+    
+    local p = b.startPoints[1]
+    b:SetPoint(p[1], p[2], p[3], p[4], p[5] + Y)
+    
+    local p = b.startPoints[2]
+    b:SetPoint(p[1], p[2], p[3], p[4], p[5])
+  end
+end
+
+local function runAnimationCollapse(self, elapsed)
+  local remaining = self.animation - GetTime()
+  
+  if 0 >= remaining then -- Done
+    self:SetScript("OnUpdate", nil)
+    
+    self:SetSize(self.startPoints.width, self.startPoints.height)
+    self.expander.anchor:SetSize(self.expander.anchor.startPoints.width, self.expander.anchor.startPoints.height)
+    self.scroll.anchor:SetSize(self.scroll.anchor.startPoints.width, self.scroll.anchor.startPoints.height)
+    self.scroll:SetAllPoints(self.scroll.anchor)
+    
+    for i = 1, #self.scroll do
+      local b = self.scroll[i]
+      
+      CT.setToStartPoints(b)
+      CT.setToStartPoints(b.icon)
+      CT.setToStartPoints(b.value)
+    end
+    
+    CT:expanderFrame("hide")
+    
+    return
+  end
+  
+  local multiplier = (remaining / self.animationTotal)
   
   local f = self
   do -- Handle the base frame
@@ -3886,100 +3728,104 @@ local function runAnimation(self, elapsed)
 end
 
 function CT:toggleBaseExpansion(command)
+  if not self.base then return debug("Tried to expand frame before the base was created.") end
+  
+  self.base.animationTotal = 0.3
+  self.base.animation = (GetTime() + self.base.animationTotal)
+  
   if (command and command == "hide" and self.base.expanded) or (not command and self.base.expanded) then -- Collapse it
-    -- CT:expanderFrame("hide")
-    
-    do -- Store START points
-      CT.storeStartPoints(self.base, true)
-      CT.storeStartPoints(self.base.expander.anchor)
-      CT.storeStartPoints(self.base.scroll.anchor)
-      
-      for i = 1, #self.base.scroll do
-        local b = self.base.scroll[i]
-        
-        CT.storeStartPoints(b)
-        CT.storeStartPoints(b.icon)
-        CT.storeStartPoints(b.value)
-      end
-    end
-    
-    do -- Set to ORIGINAL points
-      CT.setToOriginalPoints(self.base, true)
-      CT.setToOriginalPoints(self.base.expander.anchor)
-      CT.setToOriginalPoints(self.base.scroll.anchor)
-    
-      for i = 1, #self.base.scroll do
-        local b = self.base.scroll[i]
-    
-        CT.setToOriginalPoints(b)
-        CT.setToOriginalPoints(b.icon)
-        CT.setToOriginalPoints(b.value)
-      end
-    end
-    
-    debug("Returning to default size")
     self.base.expanded = false
+    self.base:SetScript("OnUpdate", runAnimationCollapse)
   elseif (command and command == "show" and not self.base.expanded) or (not command and not self.base.expanded) then -- Expand it
     CT:expanderFrame("show")
     
     do -- Store START points
-      CT.storeStartPoints(self.base, true)
-      CT.storeStartPoints(self.base.expander.anchor)
-      CT.storeStartPoints(self.base.scroll.anchor)
+      if not self.base.startPoints then self.base.startPoints = {} end
+      self.base.startPoints.width, self.base.startPoints.height = self.base:GetSize()
+      
+      if not self.base.expander.anchor.startPoints then self.base.expander.anchor.startPoints = {} end
+      self.base.expander.anchor.startPoints.width, self.base.expander.anchor.startPoints.height = self.base.expander.anchor:GetSize()
+      self.base.expander.anchor:ClearAllPoints()
+      
+      if not self.base.scroll.anchor.startPoints then self.base.scroll.anchor.startPoints = {} end
+      self.base.scroll.anchor.startPoints.width, self.base.scroll.anchor.startPoints.height = self.base.scroll.anchor:GetSize()
+      self.base.scroll.anchor:ClearAllPoints()
       
       for i = 1, #self.base.scroll do
         local b = self.base.scroll[i]
         
+        if not b.startPoints then b.startPoints = {} end
+        b.startPoints.width, b.startPoints.height = b:GetSize()
+        b.startPoints.centerX, b.startPoints.centerY = b:GetCenter()
         CT.storeStartPoints(b)
+        
+        if not b.icon.startPoints then b.icon.startPoints = {} end
+        b.icon.startPoints.centerX, b.icon.startPoints.centerY = b:GetCenter()
         CT.storeStartPoints(b.icon)
+        
+        if not b.value.startPoints then b.value.startPoints = {} end
+        b.value.startPoints.centerX, b.value.startPoints.centerY = b:GetCenter()
         CT.storeStartPoints(b.value)
       end
     end
     
-    self.base:SetWidth(600)
-    
-    self.base.expander.anchor:SetPoint("TOPLEFT", self.base.scroll.anchor, "TOPRIGHT", 10, 0)
-    self.base.expander.anchor:SetPoint("BOTTOMRIGHT", self.base, -10, 10)
-    
-    self.base.scroll.anchor:SetWidth(100)
-    self.base.scroll.anchor:SetPoint("LEFT", self.base, 10, 0)
-    self.base.scroll.anchor:SetPoint("TOP", self.base, 0, -50)
-    self.base.scroll.anchor:SetPoint("BOTTOM", self.base, 0, 30)
-    self.base.scroll:SetAllPoints(self.base.scroll.anchor)
-    
-    local y = -2
-    for i = 1, #self.base.scroll do
-      local b = self.base.scroll[i]
+    do -- Update the points to how they will be when it's done
+      self.base:SetWidth(600)
       
-      b:SetPoint("TOPLEFT", self.base.scroll, 2, y)
-      b:SetPoint("TOPRIGHT", self.base.scroll, -2, y)
-      b.icon:SetPoint("CENTER", b, 0, 0)
-      b.value:SetPoint("CENTER", b.icon)
+      self.base.expander.anchor:SetPoint("TOPLEFT", self.base.scroll.anchor, "TOPRIGHT", 10, 0)
+      self.base.expander.anchor:SetPoint("BOTTOMRIGHT", self.base, -10, 10)
       
-      y = (y - 68)
+      self.base.scroll.anchor:SetWidth(100)
+      self.base.scroll.anchor:SetPoint("LEFT", self.base, 10, 0)
+      self.base.scroll.anchor:SetPoint("TOP", self.base, 0, -50)
+      self.base.scroll.anchor:SetPoint("BOTTOM", self.base, 0, 30)
+      self.base.scroll:SetAllPoints(self.base.scroll.anchor)
+      
+      local y = -2
+      for i = 1, #self.base.scroll do
+        local b = self.base.scroll[i]
+        
+        b:SetPoint("TOPLEFT", self.base.scroll, 2, y)
+        b:SetPoint("TOPRIGHT", self.base.scroll, -2, y)
+        b.icon:SetPoint("CENTER", b, 0, 0)
+        b.value:SetPoint("CENTER", b.icon)
+        
+        y = (y - 68)
+      end
     end
     
-    debug("Setting to expanded size.")
+    do -- Store STOP points
+      if not self.base.stopPoints then self.base.stopPoints = {} end
+      self.base.stopPoints.width, self.base.stopPoints.height = self.base:GetSize()
+      
+      if not self.base.expander.anchor.stopPoints then self.base.expander.anchor.stopPoints = {} end
+      self.base.expander.anchor.stopPoints.width, self.base.expander.anchor.stopPoints.height = self.base.expander.anchor:GetSize()
+      
+      if not self.base.scroll.anchor.stopPoints then self.base.scroll.anchor.stopPoints = {} end
+      self.base.scroll.anchor.stopPoints.width, self.base.scroll.anchor.stopPoints.height = self.base.scroll.anchor:GetSize()
+      
+      for i = 1, #self.base.scroll do
+        local b = self.base.scroll[i]
+        
+        if not b.stopPoints then b.stopPoints = {} end
+        b.stopPoints.width, b.stopPoints.height = b:GetSize()
+        b.stopPoints.centerX, b.stopPoints.centerY = b:GetCenter()
+        
+        if not b.icon.stopPoints then b.icon.stopPoints = {} end
+        b.icon.stopPoints.width, b.icon.stopPoints.height = b:GetSize()
+        b.icon.stopPoints.centerX, b.icon.stopPoints.centerY = b:GetCenter()
+        CT.storeStopPoints(b.icon)
+        
+        if not b.value.stopPoints then b.value.stopPoints = {} end
+        b.value.stopPoints.width, b.value.stopPoints.height = b:GetSize()
+        b.value.stopPoints.centerX, b.value.stopPoints.centerY = b:GetCenter()
+        CT.storeStopPoints(b.value)
+      end
+    end
+
     self.base.expanded = true
+    self.base:SetScript("OnUpdate", runAnimationExpand)
   end
-  
-  do -- Store STOP points
-    CT.storeStopPoints(self.base, true)
-    CT.storeStopPoints(self.base.expander.anchor, true)
-    CT.storeStopPoints(self.base.scroll.anchor)
-    
-    for i = 1, #self.base.scroll do
-      local b = self.base.scroll[i]
-      
-      CT.storeStopPoints(b)
-      CT.storeStopPoints(b.icon)
-      CT.storeStopPoints(b.value)
-    end
-  end
-  
-  self.base.animationTotal = 2.3
-  self.base.animation = (GetTime() + self.base.animationTotal)
-  self.base:SetScript("OnUpdate", runAnimation)
 end
 
 function CT.createBaseFrame()
@@ -5193,7 +5039,7 @@ end
 
 local function mouseEnterButton(self)
   -- local textString = ("The current button name is: %s"):format(self.name or "NO NAME!")
-  CT.setTooltip(self, self.titleString, self.textString)
+  CT.setTooltip(self, 0, 0, self.titleString, self.textString)
   
   self.background:SetTexture(0.13, 0.13, 0.13, 1.0)
   highlightButton = self

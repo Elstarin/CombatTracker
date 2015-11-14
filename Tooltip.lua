@@ -1,7 +1,7 @@
-local name, addon = ...
+local addonName, CombatTracker = ...
 
-if name ~= "CombatTracker" then return end
-if addon.profile then return end
+if not CombatTracker then return end
+if CombatTracker.profile then return end
 --------------------------------------------------------------------------------
 -- Locals
 --------------------------------------------------------------------------------
@@ -34,15 +34,21 @@ end
 
 local tooltip
 function CT.updateTooltip(titleValue, textValue) -- Quick access for setting new title/text
+  if offsetX and not titleValue then
+    titleValue = offsetX
+  end
+  
   if not tooltip then CT.setTooltip() end
   
-  tooltip.titleString = titleValue
-  tooltip.textString = textValue
+  if titleValue or textValue then
+    tooltip.titleString = titleValue
+    tooltip.textString = textValue
+  end
   
   return tooltip, tooltip.title, tooltip.text
 end
 
-function CT.setTooltip(relativeTo, titleString, textString)
+function CT.setTooltip(relativeTo, offsetX, offsetY, titleString, textString)
   local width, height = 200, 100
   local r, g, b, a = 0.075, 0.075, 0.075, 1.0
   
@@ -112,6 +118,8 @@ function CT.setTooltip(relativeTo, titleString, textString)
       end
       
       if self.titleString or self.textString then
+        f:SetAlpha(1)
+        
         if self.textString then -- Any time textString is set, chop it up for proper sizing
           for i = 1, #f.text do f.text[i] = nil end -- Wipe the array that holds the chopped strings
           
@@ -311,8 +319,21 @@ function CT.setTooltip(relativeTo, titleString, textString)
   end
   
   do -- Handle text
-    f.titleString = titleString or nil
-    f.textString = textString or nil
+    if titleString then
+      f.titleString = titleString
+    else
+      f.titleString = nil
+      f.title:SetText(nil)
+      f:SetAlpha(0)
+    end
+    
+    if textString then
+      f.textString = textString
+    else
+      f.textString = nil
+      f.text:SetText(nil)
+      f:SetAlpha(0)
+    end
   end
   
   if not f.fadeGroup then -- Gather up everything to be faded in/out in an array for convenience
@@ -331,8 +352,10 @@ function CT.setTooltip(relativeTo, titleString, textString)
   end
   
   if relativeTo then
+    local offsetX, offsetY = offsetX or 0, offsetY or 0
+    
     f:ClearAllPoints()
-    f:SetPoint("LEFT", relativeTo, "RIGHT", arrowOffset, 0)
+    f:SetPoint("LEFT", relativeTo, "RIGHT", arrowOffset + offsetX, 0 + offsetY)
     f.direction = "IN"
     f.animating = GetTime() + animationDuration
     f:SetScale(0.001)

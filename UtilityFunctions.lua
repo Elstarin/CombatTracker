@@ -1,7 +1,7 @@
-local name, addon = ...
+local addonName, CombatTracker = ...
 
-if name ~= "CombatTracker" then return end
-if addon.profile then return end
+if not CombatTracker then return end
+if CombatTracker.profile then return end
 --------------------------------------------------------------------------------
 -- Locals
 --------------------------------------------------------------------------------
@@ -442,50 +442,14 @@ end
 
 function CT:storeStartPoints(dontClear)
   if not self.startPoints then self.startPoints = {} end
-  if not self.originalPoints then self.originalPoints = {} end
   
-  local numPoints = self:GetNumPoints()
-  
-  for i = 1, numPoints do
+  for i = 1, self:GetNumPoints() do
     if self.startPoints[i] then
       local p = self.startPoints[i]
       p[1], p[2], p[3], p[4], p[5] = self:GetPoint(i)
     else
-      local p1, p2, p3, p4, p5 = self:GetPoint(i)
-      
-      self.startPoints[i] = {p1, p2, p3, p4, p5} -- Create a new table if necessary
-      
-      if not self.originalPoints[i] then
-        self.originalPoints[i] = {p1, p2, p3, p4, p5} -- These should only be stored the first time this is run and never updated
-      end
+      self.startPoints[i] = {self:GetPoint(i)} -- Create a new table if necessary
     end
-  end
-  
-  -- if #self.startPoints > numPoints then
-  --   for i = numPoints, #self.startPoints do
-  --     self.startPoints[i] = nil
-  --   end
-  -- end
-  
-  self.startPoints.width, self.startPoints.height = self:GetSize()
-  self.startPoints.centerX, self.startPoints.centerY = self:GetCenter()
-  self.startPoints.left = self:GetLeft()
-  self.startPoints.right = self:GetRight()
-  self.startPoints.top = self:GetTop()
-  self.startPoints.bottom = self:GetBottom()
-  self.startPoints.parent = self:GetParent()
-  
-  if not self.originalPoints.width then -- These should only be stored the first time this is run and never updated
-    self.originalPoints.width = self.startPoints.width
-    self.originalPoints.height = self.startPoints.height
-    self.originalPoints.centerX = self.startPoints.centerX
-    self.originalPoints.centerY = self.startPoints.centerY
-    
-    self.originalPoints.left = self.startPoints.left
-    self.originalPoints.right = self.startPoints.right
-    self.originalPoints.top = self.startPoints.top
-    self.originalPoints.bottom = self.startPoints.bottom
-    self.originalPoints.parent = self.startPoints.parent
   end
   
   if not dontClear then
@@ -496,9 +460,7 @@ end
 function CT:storeStopPoints(dontClear)
   if not self.stopPoints then self.stopPoints = {} end
   
-  local numPoints = self:GetNumPoints()
-  
-  for i = 1, numPoints do
+  for i = 1, self:GetNumPoints() do
     if self.stopPoints[i] then
       local p = self.stopPoints[i]
       p[1], p[2], p[3], p[4], p[5] = self:GetPoint(i)
@@ -506,20 +468,6 @@ function CT:storeStopPoints(dontClear)
       self.stopPoints[i] = {self:GetPoint(i)} -- Create a new table if necessary
     end
   end
-  
-  -- if #self.stopPoints > numPoints then
-  --   for i = numPoints, #self.stopPoints do
-  --     self.stopPoints[i] = nil
-  --   end
-  -- end
-  
-  self.stopPoints.width, self.stopPoints.height = self:GetSize()
-  self.stopPoints.centerX, self.stopPoints.centerY = self:GetCenter()
-  self.stopPoints.left = self:GetLeft()
-  self.stopPoints.right = self:GetRight()
-  self.stopPoints.top = self:GetTop()
-  self.stopPoints.bottom = self:GetBottom()
-  self.stopPoints.parent = self:GetParent()
 end
 
 function CT:swapStartAndStop()
@@ -553,8 +501,17 @@ end
 function CT:setToStartPoints()
   if not self.startPoints then return end
   
-  self:SetSize(self.startPoints.width, self.startPoints.height)
-  self:SetParent(self.startPoints.parent)
+  if self.startPoints.width and self.startPoints.height then
+    self:SetSize(self.startPoints.width, self.startPoints.height)
+  elseif self.startPoints.width then
+    self:SetWidth(self.startPoints.width)
+  elseif self.startPoints.height then
+    self:SetHeight(self.startPoints.height)
+  end
+  
+  if self.startPoints.parent then
+    self:SetParent(self.startPoints.parent)
+  end
   
   self:ClearAllPoints()
   for i = 1, #self.startPoints do
@@ -608,3 +565,7 @@ end
 -- icon:SetTexCoord("Upper left X", "Upper left Y", "Lower left X", "Lower left Y", "Upper right X", "Upper right Y", "Lower right X", "Lower right Y")
 -- Interface\\BUTTONS\\WHITE8X8
 -- Interface\\ChatFrame\\ChatFrameBackground
+
+-- local prevDist = sqrt((cX - pX)^2 + (cY - pY)^2)
+-- local nextDist = sqrt((nX - cX)^2 + (nY - cY)^2)
+-- local hypotenuse = sqrt((nX - pX)^2 + (nY - pY)^2)
