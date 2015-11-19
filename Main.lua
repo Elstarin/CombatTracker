@@ -1,9 +1,6 @@
 --------------------------------------------------------------------------------
 -- Notes and Changes
 --------------------------------------------------------------------------------
-
--- For sorting, store the old order in a table, and bring it back on a second press.
-
 -- Destruction definitely needs a good way to track ember use. Obviously wasted embers
 -- but also things like chaos bolt usage. It might be good to calculate the base chaos bolt damage
 -- and offer a comparison to the average damage done with it. Also track how many were casted
@@ -35,7 +32,6 @@
 local addonName, CombatTracker = ...
 
 local version = GetAddOnMetadata(addonName, "Version")
-local locale = GetLocale()
 
 CombatTracker.profile = false
 
@@ -231,9 +227,9 @@ do -- Debugging stuff
   if GetUnitName("player") == "Elstari" and GetRealmName() == "Drak'thul" then
     debugMode = true
     testMode = true
-    trackingOnLogIn = true
+    -- trackingOnLogIn = true
     loadBaseOnLogin = true
-    expandBaseOnLogin = true
+    -- expandBaseOnLogin = true
     matched = true
   end
 
@@ -331,57 +327,53 @@ local after, newTicker, getNumWorldFrameChildren
 local anchorTable = {"TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT"}
 local cornerAnchors = {"TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT"}
 
-CT.colors = {}
+CT.colors = {
+  ["white"] = {1.0, 1.0, 1.0, 1.0},
+  ["red"] = {0.95, 0.04, 0.10, 1.0},
+  ["orange"] = {0.82, 0.35, 0.09, 1.0},
+  ["blue"] = {0, 0.0, 1.0, 1.0},
+  ["blueOLD"] = {0.08, 0.38, 0.91, 1.0},
+  ["lightblue"] = {0.53, 0.67, 0.92, 1.0},
+  ["yellow"] = {0.93, 0.86, 0.01, 1.0},
+  ["darkgreen"] = {0.13, 0.27, 0.07, 1},
+  ["green"] = {0.31, 0.42, 0.20, 1},
+  ["lightgreen"] = {0.26, 0.46, 0.19, 1},
+  ["darkgrey"] = {0.20, 0.23, 0.23, 1.0},
+  ["lightgrey"] = {0.49, 0.49, 0.49, 1},
+  ["deathKnight"] = {0.77, 0.12, 0.23, 1},
+  ["druid"] = {1.00, 0.49, 0.04, 1},
+  ["hunter"] = {0.67, 0.83, 0.45, 1},
+  ["mage"] = {0.41, 0.80, 0.94, 1},
+  ["monk"] = {0.33, 0.54, 0.52, 1},
+  ["paladin"] = {0.96, 0.55, 0.73, 1},
+  ["priest"] = {1.00, 1.00, 1.00, 1},
+  ["rogue"] = {1.00, 0.96, 0.41, 1},
+  ["shaman"] = {0.0, 0.44, 0.87, 1},
+  ["warlock"] = {0.58, 0.51, 0.79, 1},
+  ["warrior"] = {0.78, 0.61, 0.43, 1},
+  ["mana"] = {0.00, 0.00, 1.00, 1.00},
+  ["rage"] = {1.00, 0.00, 0.00, 1.00},
+  ["focus"] = {1.00, 0.50, 0.25, 1.00},
+  ["energy"] = {1.00, 1.00, 0.00, 1.00},
+  ["chi"] = {0.71, 1.00, 0.92, 1.00},
+  ["runes"] = {0.50, 0.50, 0.50, 1.00},
+  ["runicPower"] = {0.00, 0.82, 1.00, 1.00},
+  ["soulShards"] = {0.50, 0.32, 0.55, 1.00},
+  ["eclipseNegative"] = {0.30, 0.52, 0.90, 1.00},
+  ["eclipsePositive"] = {0.80, 0.82, 0.60, 1.00},
+  ["holyPower"] = {0.95, 0.90, 0.60, 1.00},
+  ["demonicFury"] = {0.5, 0.32, 0.55, 1.00},
+  ["ammoSlot"] = {0.80, 0.60, 0.00, 1.00},
+  ["fuel"] = {0.00, 0.55, 0.50, 1.00},
+  ["staggerLight"] = {0.52, 1.00, 0.52, 1.00},
+  ["staggerMedium"] = {1.00, 0.98, 0.72, 1.00},
+  ["staggerHeavy"] = {1.00, 0.42, 0.42, 1.00},
+  ["comboPoints"] = {0.5, 0.70, 0.70, 1.00}, -- Custom colors, couldn't find an official one
+  ["shadowOrbs"] = {0.22, 0.16, 0.31, 1.00},
+  ["burningEmbers"] = {0.75, 0.42, 0.01, 1.00},
+}
+
 local colors = CT.colors
-do
-  colors.white = {1.0, 1.0, 1.0, 1.0}
-  colors.red = {0.95, 0.04, 0.10, 1.0}
-  colors.orange = {0.82, 0.35, 0.09, 1.0}
-  colors.blue = {0, 0.0, 1.0, 1.0}
-  colors.blueOLD = {0.08, 0.38, 0.91, 1.0}
-  colors.lightblue = {0.53, 0.67, 0.92, 1.0}
-  colors.yellow = {0.93, 0.86, 0.01, 1.0}
-  colors.darkgreen = {0.13, 0.27, 0.07, 1}
-  colors.green = {0.31, 0.42, 0.20, 1}
-  colors.lightgreen = {0.26, 0.46, 0.19, 1}
-  colors.darkgrey = {0.20, 0.23, 0.23, 1.0}
-  colors.lightgrey = {0.49, 0.49, 0.49, 1}
-
-  colors.deathKnight = {0.77, 0.12, 0.23, 1}
-  colors.druid = {1.00, 0.49, 0.04, 1}
-  colors.hunter = {0.67, 0.83, 0.45, 1}
-  colors.mage = {0.41, 0.80, 0.94, 1}
-  colors.monk = {0.33, 0.54, 0.52, 1}
-  colors.paladin = {0.96, 0.55, 0.73, 1}
-  colors.priest = {1.00, 1.00, 1.00, 1}
-  colors.rogue = {1.00, 0.96, 0.41, 1}
-  colors.shaman = {0.0, 0.44, 0.87, 1}
-  colors.warlock = {0.58, 0.51, 0.79, 1}
-  colors.warrior = {0.78, 0.61, 0.43, 1}
-
-  colors.mana = {0.00, 0.00, 1.00, 1.00}
-  colors.rage = {1.00, 0.00, 0.00, 1.00}
-  colors.focus = {1.00, 0.50, 0.25, 1.00}
-  colors.energy = {1.00, 1.00, 0.00, 1.00}
-  colors.chi = {0.71, 1.00, 0.92, 1.00}
-  colors.runes = {0.50, 0.50, 0.50, 1.00}
-  colors.runicPower =	{0.00, 0.82, 1.00, 1.00}
-  colors.soulShards = {0.50, 0.32, 0.55, 1.00}
-  colors.eclipseNegative = {0.30, 0.52, 0.90, 1.00}
-  colors.eclipsePositive = {0.80, 0.82, 0.60, 1.00}
-  colors.holyPower = {0.95, 0.90, 0.60, 1.00}
-  colors.demonicFury = {0.5, 0.32, 0.55, 1.00}
-  colors.ammoSlot =	{0.80, 0.60, 0.00, 1.00}
-  colors.fuel = {0.00, 0.55, 0.50, 1.00}
-  colors.staggerLight = {0.52, 1.00, 0.52, 1.00}
-  colors.staggerMedium = {1.00, 0.98, 0.72, 1.00}
-  colors.staggerHeavy = {1.00, 0.42, 0.42, 1.00}
-
-  -- Custom colors, couldn't find an official one
-  colors.comboPoints = {0.5, 0.70, 0.70, 1.00}
-  colors.shadowOrbs = {0.22, 0.16, 0.31, 1.00}
-  colors.burningEmbers = {0.75, 0.42, 0.01, 1.00}
-end
 --------------------------------------------------------------------------------
 -- Main Update Engine
 --------------------------------------------------------------------------------
@@ -648,9 +640,11 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
     local name = ...
 
     if name == "CombatTracker" then
-      CT:OnEnable()
+
     end
   elseif event == "PLAYER_LOGIN" then
+    CT:OnEnable()
+    
     CT.eventFrame:UnregisterEvent(event)
     CT.player.loggedIn = true
 
@@ -661,18 +655,16 @@ CT.eventFrame:SetScript("OnEvent", function(self, event, ...)
     
     if testMode then
       C_Timer.After(1.0, function()
-        if loadBaseOnLogin then
-          CT.base:Show()
-        end
-        
         if CT.base then
+          if loadBaseOnLogin then
+            CT.base:Show()
+          end
+          
           if CT.buttons[buttonClickNum] then
             CT.buttons[buttonClickNum]:Click("LeftButton")
           elseif CT.buttons[1] then
             CT.buttons[#CT.buttons]:Click("LeftButton")
           end
-
-          CT.base:Show()
         end
 
         if trackingOnLogIn then
@@ -1025,7 +1017,7 @@ function CT:OnDisable()
   -- debug("CT Disable")
 end
 
-function CT:OnDatabaseShutdown()
+function CT:OnDatabaseShutdown() -- NOTE: None of these currently work except for OnEnable
   if CT.tracking then
     CT.stopTracking()
   end
@@ -2642,7 +2634,7 @@ function CT:expanderFrame_OLD(command)
   end
 end
 
-function CT.createBaseFrame()
+function CT.createBaseFrame_OLD()
   local f = CT.base
   if not f then -- NOTE: Base frame is created at the top so that its position gets saved properly.
     CT.base = baseFrame
@@ -3841,71 +3833,7 @@ function CT.createBaseFrame()
     
     f.defaultWidth, f.defaultHeight = f:GetSize()
     
-    local bg = f.background
-    if not bg then -- Background texture and gradient
-      bg = f:CreateTexture(nil, "BACKGROUND", nil, 0)
-      bg:SetTexture(r, g, b, a)
-      
-      local cornerSize = 20
-      bg.corners = {}
-      for i = 1, 4 do
-        local c = f:CreateTexture("CT_Base_Button_Corner_" .. i, "BACKGROUND", nil, -8)
-        c:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
-        c:SetVertexColor(r, g, b, a)
-      
-        if i == 1 then
-          c:SetSize(cornerSize, cornerSize)
-          c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-          bg:SetPoint("TOPLEFT", c, (cornerSize / 2), 0)
-        elseif i == 2 then
-          c:SetSize(cornerSize, cornerSize)
-          c:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
-          bg:SetPoint("TOPRIGHT", c, -(cornerSize / 2), 0)
-        elseif i == 3 then
-          c:SetSize(cornerSize, cornerSize)
-          c:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
-          bg:SetPoint("BOTTOMLEFT", c, (cornerSize / 2), 0)
-        elseif i == 4 then
-          c:SetSize(cornerSize, cornerSize)
-          c:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
-          bg:SetPoint("BOTTOMRIGHT", c, -(cornerSize / 2), 0)
-        end
-      
-        bg.corners[i] = c
-      end
-      
-      f.fill1 = f:CreateTexture("CT_Base_Button_Circle_Fill_1", "BACKGROUND", nil, 0)
-      f.fill1:SetTexture(r, g, b, a)
-      f.fill1:SetPoint("TOPLEFT", bg.corners[2], 0, -(cornerSize / 2))
-      f.fill1:SetPoint("BOTTOMRIGHT", bg.corners[4], 0, (cornerSize / 2))
-      
-      f.fill2 = f:CreateTexture("CT_Base_Button_Circle_Fill_2", "BACKGROUND", nil, 0)
-      f.fill2:SetTexture(r, g, b, a)
-      f.fill2:SetPoint("TOPRIGHT", bg.corners[1], 0, -(cornerSize / 2))
-      f.fill2:SetPoint("BOTTOMLEFT", bg.corners[3], 0, (cornerSize / 2))
-      
-      -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
-      -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
-      -- g:SetTexture(1, 1, 1, 1)
-      -- g:SetSize(width, height / 2)
-      -- g:SetPoint("CENTER", bg, 0, 0)
-      -- g:SetPoint("RIGHT", bg, 0, 0)
-      -- g:SetPoint("LEFT", bg, 0, 0)
-      -- g:SetPoint("TOP", bg, 0, 0)
-      -- bg[1] = g
-      --
-      -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
-      -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
-      -- g:SetTexture(1, 1, 1, 1)
-      -- g:SetSize(width, height / 2)
-      -- g:SetPoint("CENTER", bg, 0, 0)
-      -- g:SetPoint("RIGHT", bg, 0, 0)
-      -- g:SetPoint("LEFT", bg, 0, 0)
-      -- g:SetPoint("BOTTOM", bg, 0, 0)
-      -- bg[2] = g
-      
-      f.background = bg
-    end
+    local bg = CT.createRoundedBackground(f, r, g, b, a)
     
     f:SetScript("OnMouseDown", function(self, click)
       if click == "LeftButton" and not self.isMoving then
@@ -4223,49 +4151,8 @@ function CT.createBaseFrame()
     header:SetPoint("LEFT", f, scrollOffsetX, 0)
     header:SetPoint("RIGHT", f, -scrollOffsetX, 0)
     header:SetPoint("TOP", f, 0, -5)
-    -- header:SetPoint("BOTTOM", scroll, "TOP", 0, 5)
     
-    header.bg = header:CreateTexture(nil, "BACKGROUND", nil, 3)
-    header.bg:SetTexture(r, g, b, a)
-    header.bg:SetAllPoints()
-    
-    local cornerSize = 20
-    header.corners = {}
-    for i = 1, 4 do
-      local c = header:CreateTexture("CT_Base_Header_Corner_" .. i, "BACKGROUND", nil, -8)
-      c:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
-      c:SetVertexColor(r, g, b, a)
-    
-      if i == 1 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("TOPLEFT", header, "TOPLEFT", 0, 0)
-        header.bg:SetPoint("TOPLEFT", c, (cornerSize / 2), 0)
-      elseif i == 2 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("TOPRIGHT", header, "TOPRIGHT", 0, 0)
-        header.bg:SetPoint("TOPRIGHT", c, -(cornerSize / 2), 0)
-      elseif i == 3 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("BOTTOMLEFT", header, "BOTTOMLEFT", 0, 0)
-        header.bg:SetPoint("BOTTOMLEFT", c, (cornerSize / 2), 0)
-      elseif i == 4 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", 0, 0)
-        header.bg:SetPoint("BOTTOMRIGHT", c, -(cornerSize / 2), 0)
-      end
-    
-      header.corners[i] = c
-    end
-    
-    header.fill1 = header:CreateTexture("CT_Base_Button_Circle_Fill_1", "BACKGROUND", nil, 0)
-    header.fill1:SetTexture(r, g, b, a)
-    header.fill1:SetPoint("TOPLEFT", header.corners[2], 0, -(cornerSize / 2))
-    header.fill1:SetPoint("BOTTOMRIGHT", header.corners[4], 0, (cornerSize / 2))
-    
-    header.fill2 = header:CreateTexture("CT_Base_Button_Circle_Fill_2", "BACKGROUND", nil, 0)
-    header.fill2:SetTexture(r, g, b, a)
-    header.fill2:SetPoint("TOPRIGHT", header.corners[1], 0, -(cornerSize / 2))
-    header.fill2:SetPoint("BOTTOMLEFT", header.corners[3], 0, (cornerSize / 2))
+    local bg = CT.createRoundedBackground(header, r, g, b, a)
     
     f.header = header
   end
@@ -5167,66 +5054,7 @@ function CT:buildNewButton(index, parent)
     tinsert(CT.update, b)
   end
   
-  local bg = b.background
-  if not bg then -- Background texture and gradient
-    bg = b:CreateTexture(nil, "BACKGROUND", nil, -8)
-    bg:SetTexture(0.1, 0.1, 0.1, 1.0)
-    bg:SetAllPoints()
-    b:SetNormalTexture(bg)
-    
-    local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
-    -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.1, 0, 0, 0, 0) -- Top
-    g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
-    g:SetTexture(1, 1, 1, 1)
-    g:SetSize(width, height / 2)
-    g:SetPoint("CENTER", bg, 0, 0)
-    g:SetPoint("RIGHT", bg, 0, 0)
-    g:SetPoint("LEFT", bg, 0, 0)
-    g:SetPoint("TOP", bg, 0, 0)
-    bg[1] = g
-    
-    local g = b:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
-    -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.1) -- Bottom
-    g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
-    g:SetTexture(1, 1, 1, 1)
-    g:SetSize(width, height / 2)
-    g:SetPoint("CENTER", bg, 0, 0)
-    g:SetPoint("RIGHT", bg, 0, 0)
-    g:SetPoint("LEFT", bg, 0, 0)
-    g:SetPoint("BOTTOM", bg, 0, 0)
-    bg[2] = g
-    
-    b.background = bg
-  end
-  
-  local shadow = b.shadow
-  if not shadow then
-    shadow = b:CreateTexture("CT_Base_Button_Shadow", "BACKGROUND")
-    shadow:SetTexture("Interface\\BUTTONS\\WHITE8X8")
-    shadow:SetPoint("TOPLEFT", -1, 1)
-    shadow:SetPoint("BOTTOMRIGHT", 0, -0)
-    shadow:SetVertexColor(0, 0, 0, 1)
-    
-    local g = b:CreateTexture("CT_Base_Button_Shadow_Bottom_Edge", "BACKGROUND")
-    g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 1)
-    g:SetTexture(1, 1, 1, 1)
-    g:SetSize(width, 5)
-    g:SetPoint("TOP", shadow, "BOTTOM", 0, 0)
-    g:SetPoint("RIGHT", shadow, 2, 0)
-    g:SetPoint("LEFT", shadow, 0, 0)
-    shadow[1] = g
-    
-    local g = b:CreateTexture("CT_Base_Button_Shadow_Right_Edge", "BACKGROUND")
-    g:SetGradientAlpha("HORIZONTAL", 0.01, 0.01, 0.01, 1, 0, 0, 0, 0)
-    g:SetTexture(1, 1, 1, 1)
-    g:SetSize(3, height)
-    g:SetPoint("LEFT", shadow, "RIGHT", 0, 0)
-    g:SetPoint("TOP", shadow, 0, 0)
-    g:SetPoint("BOTTOM", shadow, 0, -2)
-    shadow[2] = g
-  
-    b.shadow = shadow
-  end
+  local bg, shadow = CT.createDropShadow(b)
   
   local icon = b.icon
   if not icon then -- Icon
@@ -5274,6 +5102,13 @@ function CT:buildNewButton(index, parent)
   b.defaultWidth, b.defaultHeight = b:GetSize()
   
   CT.buttons[#CT.buttons + 1] = b
+  
+  -- for i = 1, #self.lines do
+  --   local title, text = CT.findLocale(self, self.lines[i])
+  --   -- debug("RESULT:", title, text)
+  --
+  --   -- break
+  -- end
   
   return b
 end

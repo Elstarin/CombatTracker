@@ -1635,7 +1635,7 @@ function CT:filteringAlgorithm(data, first, last, angle)
   --   return CT.filteringAlgorithmLowAccuracy(self, data, first, last, angle)
   -- end
   
-  debug("Smoothing from:", first, "to:", last, "with an angle of", angle)
+  -- debug("Smoothing from:", first, "to:", last, "with an angle of", angle)
   
   local graphWidth, graphHeight = self.frame:GetSize()
   local maxX = self.XMax
@@ -1802,11 +1802,11 @@ function CT:filteringAlgorithm(data, first, last, angle)
   -- local percent = ((removed / startNum) * 100)
   -- debug(percent .. "% of points filtered with an angle of", angle, "\nRemaining:", #data, "\nRemoved:", removed, "\nRemoved by match:", removedMatch, "\nRemoved by angle:", removedAngle)
   data.smoothedPoint = #data
-  debug("Smoothing done:", #data, "protected:", protectedNum)
-  
-  if count > 0 then
-    debug("Count was:", count)
-  end
+  -- debug("Smoothing done:", #data, "protected:", protectedNum)
+  --
+  -- if count > 0 then
+  --   debug("Count was:", count)
+  -- end
   
   return data.smoothedPoint
 end
@@ -1832,7 +1832,7 @@ function CT:refreshNormalGraph(reset, routine)
 
   local stopX = graphWidth * ((data[num] - dbGraph.XMin) / (dbGraph.XMax - dbGraph.XMin))
   if dbGraph and stopX > graphWidth then -- Graph is too long, squish it
-    dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.2
+    dbGraph.XMax = dbGraph.XMax * (stopX / graphWidth) * 1.3
     reset = true
   end
 
@@ -2299,16 +2299,16 @@ function CT:refreshNormalGraph(reset, routine)
           self.updating = false
         end
         
-        if reset or routine then
-          local runTime = floor((debugprofilestop() - start) * 1000 + 0.5) / 1000
-          local percent = floor(((self.totalLines or 0) / num) * 100)  .. "%"
-          
-          if routine then
-            debug(percent, num, self.totalLines, #lineCache, "Done refreshing (coroutine):", self.name .. ".", runTime, "MS.")
-          else
-            debug(percent, num, self.totalLines, #lineCache, "Done refreshing:", self.name .. ".", runTime, "MS.")
-          end
-        end
+        -- if reset or routine then
+        --   local runTime = floor((debugprofilestop() - start) * 1000 + 0.5) / 1000
+        --   local percent = floor(((self.totalLines or 0) / num) * 100)  .. "%"
+        --
+        --   if routine then
+        --     debug(percent, num, self.totalLines, #lineCache, "Done refreshing (coroutine):", self.name .. ".", runTime, "MS.")
+        --   else
+        --     debug(percent, num, self.totalLines, #lineCache, "Done refreshing:", self.name .. ".", runTime, "MS.")
+        --   end
+        -- end
 
         self.endNum = i + 1
         self.lastLine = lastLine or self.lastLine
@@ -3714,9 +3714,18 @@ function CT:buildGraph()
     
     local titleValue
     do -- Calculate timer and set it as the tooltip's title
+      local firstLine = graph.lines[1]
+      local numData = #graph.data
+      local index = 1
+      
+      while (not firstLine) and (numData > index) do -- Loop forward until the first line is found, second check is safety net to avoid an infinite loop
+        index = index + 1
+        firstLine = graph.lines[index]
+      end
+
       local timer = graphFrame.zoomed or ((CT.displayedDB.stop or GetTime()) - CT.displayedDB.start) -- grapheFrame.zoomed is storing the timer from when zoom began
       local current = mouseX - graph.lines[2]:GetLeft()
-      local total = graph.lastLine:GetRight() - graph.lines[2]:GetLeft()
+      local total = graph.lastLine:GetRight() - firstLine:GetLeft()
       local displayTimer = floor(timer * (current / total) + 0.5)
       
       titleValue = YELLOW .. formatTimer(displayTimer) .. "|r\n"

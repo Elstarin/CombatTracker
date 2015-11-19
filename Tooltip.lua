@@ -188,71 +188,7 @@ function CT.setTooltip(relativeTo, offsetX, offsetY, titleString, textString)
     f:Hide()
   end
   
-  local bg = f.background
-  if not bg then -- Background texture and gradient
-    bg = f:CreateTexture(nil, "BORDER", nil, 0)
-    bg:SetTexture(r, g, b, a)
-    
-    local cornerSize = 20
-    bg.corners = {}
-    for i = 1, 4 do
-      local c = f:CreateTexture("CT_Base_Button_Corner_" .. i, "BACKGROUND", nil, -8)
-      c:SetTexture("Interface/CHARACTERFRAME/TempPortraitAlphaMaskSmall.png")
-      c:SetVertexColor(r, g, b, a)
-    
-      if i == 1 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
-        bg:SetPoint("TOPLEFT", c, (cornerSize / 2), 0)
-      elseif i == 2 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
-        bg:SetPoint("TOPRIGHT", c, -(cornerSize / 2), 0)
-      elseif i == 3 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 0, 0)
-        bg:SetPoint("BOTTOMLEFT", c, (cornerSize / 2), 0)
-      elseif i == 4 then
-        c:SetSize(cornerSize, cornerSize)
-        c:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
-        bg:SetPoint("BOTTOMRIGHT", c, -(cornerSize / 2), 0)
-      end
-    
-      bg.corners[i] = c
-    end
-    
-    f.fill1 = f:CreateTexture("CT_Base_Button_Circle_Fill_1", "BACKGROUND", nil, 0)
-    f.fill1:SetTexture(r, g, b, a)
-    f.fill1:SetPoint("TOPLEFT", bg.corners[2], 0, -(cornerSize / 2))
-    f.fill1:SetPoint("BOTTOMRIGHT", bg.corners[4], 0, (cornerSize / 2))
-    
-    f.fill2 = f:CreateTexture("CT_Base_Button_Circle_Fill_2", "BACKGROUND", nil, 0)
-    f.fill2:SetTexture(r, g, b, a)
-    f.fill2:SetPoint("TOPRIGHT", bg.corners[1], 0, -(cornerSize / 2))
-    f.fill2:SetPoint("BOTTOMLEFT", bg.corners[3], 0, (cornerSize / 2))
-
-    -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Top", "ARTWORK", nil, 1)
-    -- g:SetGradientAlpha("VERTICAL", 0.01, 0.01, 0.01, 0.2, 0, 0, 0, 0) -- Top
-    -- g:SetTexture(1, 1, 1, 1)
-    -- g:SetSize(width, height / 2)
-    -- g:SetPoint("CENTER", bg, 0, 0)
-    -- g:SetPoint("RIGHT", bg, 0, 0)
-    -- g:SetPoint("LEFT", bg, 0, 0)
-    -- g:SetPoint("TOP", bg, 0, 0)
-    -- bg[1] = g
-    --
-    -- local g = f:CreateTexture("CT_Base_Button_Background_Gradient_Bottom", "ARTWORK", nil, 1)
-    -- g:SetGradientAlpha("VERTICAL", 0, 0, 0, 0, 0.01, 0.01, 0.01, 0.2) -- Bottom
-    -- g:SetTexture(1, 1, 1, 1)
-    -- g:SetSize(width, height / 2)
-    -- g:SetPoint("CENTER", bg, 0, 0)
-    -- g:SetPoint("RIGHT", bg, 0, 0)
-    -- g:SetPoint("LEFT", bg, 0, 0)
-    -- g:SetPoint("BOTTOM", bg, 0, 0)
-    -- bg[2] = g
-    
-    f.background = bg
-  end
+  local bg = CT.createRoundedBackground(f, r, g, b, a)
 
   local arrow = f.arrow
   if not arrow then
@@ -319,18 +255,13 @@ function CT.setTooltip(relativeTo, offsetX, offsetY, titleString, textString)
   end
   
   do -- Handle text
-    if titleString then
-      f.titleString = titleString
-    else
-      f.titleString = nil
+    f.titleString = titleString
+    f.textString = textString
+    
+    if relativeTo and (not titleString and not textString) then
       f.title:SetText(nil)
       f:SetAlpha(0)
-    end
-    
-    if textString then
-      f.textString = textString
-    else
-      f.textString = nil
+      
       f.text:SetText(nil)
       f:SetAlpha(0)
     end
